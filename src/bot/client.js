@@ -36,7 +36,14 @@ client.on('interactionCreate', async interaction => {
   // Handle Buttons จาก /available
   if (interaction.isButton()) {
     const id = interaction.customId;
-    if (id.startsWith(availableCmd.BTN_FEATHER_PREFIX) || id.startsWith(availableCmd.BTN_BOOK_PREFIX)) {
+    const { LB_FEATHER_PREFIX, LB_BOOK_PREFIX } = require('./liveboard');
+
+    if (
+      id.startsWith(availableCmd.BTN_FEATHER_PREFIX) || 
+      id.startsWith(availableCmd.BTN_BOOK_PREFIX) ||
+      id.startsWith(LB_FEATHER_PREFIX) ||
+      id.startsWith(LB_BOOK_PREFIX)
+    ) {
       try {
         await availableCmd.handleButton(interaction);
       } catch (error) {

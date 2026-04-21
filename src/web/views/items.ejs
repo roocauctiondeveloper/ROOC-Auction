@@ -4,13 +4,13 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
       Back to Pages
     </a>
-    <h1 style="margin-top: 0.5rem;">Manage Items - Page <%= page.name %></h1>
+    <h1 style="margin-top: 0.5rem;">Manage Items (จัดการสินค้า) - Page (หน้า) <%= page.name %></h1>
   </div>
 </div>
 
 <div class="card" style="border-left: 4px solid var(--primary);">
   <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
-    <h3 style="margin: 0;">Configure Items</h3>
+    <h3 style="margin: 0;">Configure Items (ตั้งค่าสินค้า)</h3>
     <form action="/items/page/<%= page.id %>/clear" method="POST" onsubmit="return confirm('ลบสินค้าทั้งหมดในหน้านี้เพื่อตั้งค่าใหม่?');">
       <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">
         Clear Page Items

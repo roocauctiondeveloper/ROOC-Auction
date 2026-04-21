@@ -121,6 +121,17 @@ async function updateRoundStatus(roundId, status) {
   return db.run('UPDATE rounds SET status = ? WHERE id = ?', [status, roundId]);
 }
 
+async function saveRoundBoardMessage(roundId, channelId, messageId) {
+  return db.run(
+    'UPDATE rounds SET board_channel_id = ?, board_message_id = ? WHERE id = ?',
+    [channelId, messageId, roundId]
+  );
+}
+
+async function getRoundBoardMessage(roundId) {
+  return db.get('SELECT board_channel_id, board_message_id FROM rounds WHERE id = ?', [roundId]);
+}
+
 async function getHistoryByRound() {
   return db.all(`
     SELECT r.*,
@@ -272,6 +283,7 @@ module.exports = {
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
   getCurrentReservations, getReservationsByRound, addReservation, deleteReservation, isItemReserved,
   getCurrentRound, getOrCreateCurrentRound, updateRoundStatus,
+  saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
   saveRoundSnapshot, getRoundHistoryItems,
   getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist,

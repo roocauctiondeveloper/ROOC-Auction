@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../db/queries');
 const { ensureAuthenticated } = require('../middleware/auth');
+const discordClient = require('../../bot/client');
+const { updateLiveBoard } = require('../../bot/liveboard');
 
 router.use(ensureAuthenticated);
 
@@ -57,6 +59,10 @@ router.post('/', async (req, res) => {
     const discord_username = user ? user.discord_username : 'Manual Reservation';
 
     await db.addReservation(currentRound.id, item_id, discord_user_id, discord_username);
+
+    // 📢 Update Live Board
+    await updateLiveBoard(discordClient, currentRound.id);
+
     req.session.success_msg = 'เพิ่มข้อมูลการจองสำเร็จ';
   } catch (err) {
     req.session.error_msg = 'เกิดข้อผิดพลาดในการเพิ่มข้อมูลการจอง';
@@ -69,6 +75,13 @@ router.post('/', async (req, res) => {
 router.post('/:id/delete', async (req, res) => {
   try {
     await db.deleteReservation(req.params.id);
+
+    // 📢 Update Live Board
+    const currentRound = await db.getCurrentRound();
+    if (currentRound) {
+      await updateLiveBoard(discordClient, currentRound.id);
+    }
+
     req.session.success_msg = 'ลบข้อมูลการจองสำเร็จ';
   } catch (err) {
     req.session.error_msg = 'เกิดข้อผิดพลาดในการลบข้อมูลการจอง';

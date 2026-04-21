@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../../db/queries');
 const { ensureAuthenticated } = require('../middleware/auth');
 const discordClient = require('../../bot/client');
+const { sendLiveBoard, closeLiveBoard } = require('../../bot/liveboard');
 
 const passport = require('passport');
 
@@ -95,66 +96,13 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
     if (round && round.status === 'preparing') {
       await db.updateRoundStatus(round.id, 'open');
 
-      // Announce to Discord
+      // 📢 Live Board
       const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
-      console.log('📢 Announce channel:', channelId, '| Bot ready:', discordClient.isReady());
-
-      if (channelId && discordClient.isReady()) {
-        try {
-          const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-          const channel = await discordClient.channels.fetch(channelId);
-
-          if (channel && channel.isTextBased()) {
-            const availableItems = await db.getAvailableItems(round.id);
-            const grouped = new Map();
-            for (const item of availableItems) {
-              if (!grouped.has(item.page_name)) grouped.set(item.page_name, []);
-              grouped.get(item.page_name).push(item);
-            }
-
-            const DISP = { 'Album': 'Album', 'light-dark': 'Light-Dark', 'time-space': 'Time-Space' };
-
-            const embed = new EmbedBuilder()
-              .setTitle(`🎉 เปิดรับจอง (Reservation Open) — ${round.name}`)
-              .setColor(0x57F287)
-              .setDescription(
-                '**รายการที่ว่างอยู่ในขณะนี้ (Available Items)**\n' +
-                'พิมพ์ `/available` เพื่อดูรายการและจองได้เลย!\n' +
-                'หรือ `/reserve page:<หน้า> item:<ชิ้น>` ถ้ารู้ตำแหน่งแล้ว'
-              )
-              .setTimestamp();
-
-            if (grouped.size > 0) {
-              for (const [pageName, items] of grouped) {
-                const lines = items.map(i => `ชิ้นที่ ${i.position} — ${DISP[i.item_type] ?? i.item_type}`);
-                embed.addFields({ name: `📄 หน้า ${pageName}`, value: lines.join('\n'), inline: true });
-              }
-            } else {
-              embed.addFields({ name: 'รายการ', value: 'ยังไม่มีสินค้าในระบบ', inline: false });
-            }
-
-            embed.setFooter({ text: `รวม ${availableItems.length} รายการ • ใช้ /mystuff เพื่อดูของที่จองไว้` });
-
-            const row = new ActionRowBuilder().addComponents(
-              new ButtonBuilder()
-                .setCustomId('noop_available_hint')
-                .setLabel('พิมพ์ /available เพื่อจอง')
-                .setStyle(ButtonStyle.Success)
-                .setEmoji('📋')
-                .setDisabled(true)
-            );
-
-            await channel.send({ embeds: [embed], components: [row] });
-            console.log('✅ Announcement sent to channel', channelId);
-          }
-        } catch (err) {
-          console.error('❌ Failed to announce on Discord:', err.message, err.code);
-        }
-      } else if (channelId && !discordClient.isReady()) {
-        console.warn('⚠️ Bot not ready, skipping announcement');
+      if (channelId) {
+        await sendLiveBoard(discordClient, channelId, round);
       }
 
-      req.session.success_msg = 'เปิดรับจองรอบแล้ว! แจ้งเตือนใน Discord แล้ว (ถ้าตั้งค่าช่องไว้)';
+      req.session.success_msg = 'เปิดรับจองรอบแล้ว! ส่ง Live Board ใน Discord แล้ว';
     }
   } catch (err) {
     console.error(err);
@@ -170,29 +118,18 @@ router.post('/round/close', ensureAuthenticated, async (req, res) => {
     if (round && round.status === 'open') {
       await db.updateRoundStatus(round.id, 'closed');
       
-      // 1. บันทึก Snapshot ลงประวัติไว้ก่อน (รวมรายการที่ว่างด้วย)
+      // 1. บันทึก Snapshot ลงประวัติ
       await db.saveRoundSnapshot(round.id);
       
-      // 2. ล้างรายการหน้าและสินค้าปัจจุบันเพื่อรอรอบใหม่
+      // 2. 🛑 Close Live Board
+      await closeLiveBoard(discordClient, round);
+
+      // 3. ล้างรายการหน้าและสินค้าปัจจุบันเพื่อรอรอบใหม่
       await db.deleteAllPages();
       
-      req.session.success_msg = 'ปิดการจองในรอบนี้ บันทึกประวัติ และล้างรายการสินค้าเพื่อรอรอบใหม่สำเร็จ!';
-      
-      const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
-      console.log('📢 Attempting to announce CLOSE round to channel:', channelId);
-      
-      if (channelId) {
-        try {
-          const channel = await discordClient.channels.fetch(channelId);
-          if (channel && channel.isTextBased()) {
-            await channel.send(`🛑 **ปิดรับจองประมูล ${round.name} แล้ว!**\nไม่สามารถทำรายการเพิ่มได้แล้วครับ`);
-            console.log('✅ Close announcement sent!');
-          }
-        } catch (err) {
-          console.error('❌ Failed to announce close:', err.message);
-        }
-      }
+      req.session.success_msg = 'ปิดการจองในรอบนี้ บันทึกประวัติ และล้างรายการสินค้าสำเร็จ!';
     }
+
   } catch (err) {
     console.error(err);
     req.session.error_msg = 'เกิดข้อผิดพลาดในการปิดรอบ';

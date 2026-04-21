@@ -1,12 +1,12 @@
 <div class="flex space-between items-center" style="margin-bottom: 2rem;">
-  <h1>Pages Management</h1>
+  <h1>Pages Management (จัดการหน้า)</h1>
 </div>
 
 <div class="card" style="border: 2px solid #e0e7ff; background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);">
   <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
     <div style="background: var(--primary); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">🚀</div>
     <div>
-      <h3 style="color: var(--primary); margin: 0;">Bulk Reset & Setup</h3>
+      <h3 style="color: var(--primary); margin: 0;">Bulk Reset & Setup (รีเซ็ตและตั้งค่าใหม่)</h3>
       <p style="color: var(--text-light); font-size: 0.875rem; margin-top: 0.25rem;">
         ล้างข้อมูลทั้งหมดแล้วสร้างหน้าใหม่พร้อมสินค้าตามจำนวนที่ระบุ (Album &raquo; Light-Dark &raquo; Time-Space)
       </p>
@@ -28,12 +28,12 @@
         <input type="number" name="black_total" min="0" value="0" required>
       </div>
     </div>
-    <button class="btn btn-primary" type="submit" style="width: 100%; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);">Generate All Pages & Items</button>
+    <button class="btn btn-primary" type="submit" style="width: 100%; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);">Generate All Pages & Items (สร้างทั้งหมด)</button>
   </form>
 </div>
 
 <div class="card">
-  <h3 style="margin-bottom: 1.5rem;">All Pages (<%= pages.length %>)</h3>
+  <h3 style="margin-bottom: 1.5rem;">All Pages (หน้าทั้งหมด) (<%= pages.length %>)</h3>
   <% if (pages.length === 0) { %>
     <div style="text-align: center; padding: 3rem 1rem;">
       <p style="color: var(--text-light); font-style: italic;">No pages found. Use Bulk Setup or Preset to create pages.</p>
@@ -44,9 +44,9 @@
         <thead>
           <tr>
             <th>Page ID</th>
-            <th>Name</th>
-            <th>Items Status</th>
-            <th style="text-align: right;">Actions</th>
+            <th>Name (ชื่อ)</th>
+            <th>Items Status (สถานะ)</th>
+            <th style="text-align: right;">Actions (จัดการ)</th>
           </tr>
         </thead>
         <tbody>
@@ -64,9 +64,9 @@
               </td>
               <td style="text-align: right;">
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                  <a href="/items/page/<%= p.id %>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Edit Items</a>
-                  <form action="/pages/<%= p.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบหน้านี้และสินค้าทั้งหมดในหน้านี้?');">
-                    <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete</button>
+                  <a href="/items/page/<%= p.id %>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Edit Items (แก้ไข)</a>
+                  <form action="/pages/<%= p.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบหน้านี้และสินค้าทั้งหมดในหน้านี้? (Confirm delete this page?)');">
+                    <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete (ลบ)</button>
                   </form>
                 </div>
               </td>

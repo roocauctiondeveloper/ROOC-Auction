@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../db/queries');
+const { updateLiveBoard } = require('../liveboard');
 
 const HINT = '\n\n💡 ดูรายการที่ว่างได้ด้วย `/available` • ดูของที่จองไว้ด้วย `/mystuff`';
 
@@ -68,6 +69,10 @@ module.exports = {
 
       try {
         await db.addReservation(currentRound.id, item.id, discordUserId, discordUsername);
+        
+        // 📢 Update Live Board
+        await updateLiveBoard(interaction.client, currentRound.id);
+
         return interaction.reply({ content: `✅ **${discordUsername}** จองสำเร็จ!\n📄 หน้า **${page.name}** — ชิ้นที่ ${item.position} (${disp(item.item_type)})${HINT}`, ephemeral: false });
       } catch (err) {
         if (err.message?.includes('unique') || err.message?.includes('UNIQUE') || err.code === '23505') {
@@ -105,6 +110,9 @@ module.exports = {
     if (success.length === 0) {
       return interaction.reply({ content: `❌ ไม่สามารถจองได้ ทุกชิ้นถูกจองไปแล้ว${HINT}`, ephemeral: false });
     }
+
+    // 📢 Update Live Board
+    await updateLiveBoard(interaction.client, currentRound.id);
 
     let out = `✅ **${discordUsername}** ยกหน้า **${page.name}** สำเร็จ!\n📦 ${success.join(', ')}`;
     if (fail.length > 0) out += `\n⚠️ จองไม่ได้: ${fail.join(', ')}`;

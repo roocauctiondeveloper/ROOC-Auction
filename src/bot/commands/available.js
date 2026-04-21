@@ -8,6 +8,7 @@ const {
   StringSelectMenuOptionBuilder,
 } = require('discord.js');
 const db = require('../../db/queries');
+const { updateLiveBoard } = require('../liveboard');
 
 // Button custom ID prefixes
 const BTN_FEATHER_PREFIX = 'avail_f:'; // avail_f:<pageId>
@@ -231,6 +232,9 @@ async function reserveFeatherPage(interaction, pageId) {
     return interaction.reply({ content: '❌ ทุกชิ้นถูกจองไปแล้ว', ephemeral: true });
   }
 
+  // 📢 Update Live Board
+  await updateLiveBoard(interaction.client, round.id);
+
   let msg = `✅ **${discordUsername}** จองหน้า **${pageName}** สำเร็จ!\n📦 ${success.join(', ')}`;
   if (fail.length > 0) msg += `\n⚠️ จองไม่ได้ (ถูกจองไปแล้ว): ${fail.join(', ')}`;
   msg += '\n\n💡 ดูของที่จองไว้ทั้งหมดด้วย `/mystuff`';
@@ -258,6 +262,10 @@ async function reserveBookItem(interaction, itemId) {
 
   try {
     await db.addReservation(round.id, itemId, discordUserId, discordUsername);
+
+    // 📢 Update Live Board
+    await updateLiveBoard(interaction.client, round.id);
+
     return interaction.reply({
       content: `✅ **${discordUsername}** จองสำเร็จ!\n📒 ${disp(item.item_type)} **${pageName}** ชิ้นที่ ${item.position}\n\n💡 ดูของที่จองไว้ทั้งหมดด้วย \`/mystuff\``,
       ephemeral: false,
@@ -304,12 +312,16 @@ module.exports = {
   /** Router สำหรับ button interactions — เรียกจาก client.js */
   async handleButton(interaction) {
     const id = interaction.customId;
-    if (id.startsWith(BTN_FEATHER_PREFIX)) {
-      const pageId = parseInt(id.slice(BTN_FEATHER_PREFIX.length));
+    const { LB_FEATHER_PREFIX, LB_BOOK_PREFIX } = require('../liveboard');
+
+    if (id.startsWith(BTN_FEATHER_PREFIX) || id.startsWith(LB_FEATHER_PREFIX)) {
+      const prefix = id.startsWith(BTN_FEATHER_PREFIX) ? BTN_FEATHER_PREFIX : LB_FEATHER_PREFIX;
+      const pageId = parseInt(id.slice(prefix.length));
       return await reserveFeatherPage(interaction, pageId);
     }
-    if (id.startsWith(BTN_BOOK_PREFIX)) {
-      const itemId = parseInt(id.slice(BTN_BOOK_PREFIX.length));
+    if (id.startsWith(BTN_BOOK_PREFIX) || id.startsWith(LB_BOOK_PREFIX)) {
+      const prefix = id.startsWith(BTN_BOOK_PREFIX) ? BTN_BOOK_PREFIX : LB_BOOK_PREFIX;
+      const itemId = parseInt(id.slice(prefix.length));
       return await reserveBookItem(interaction, itemId);
     }
   },
