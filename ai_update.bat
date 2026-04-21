@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo 🤖 AI-ish Auto Commit & Version Bump...
+echo 🤖 AI-ish Auto Commit and Version Bump...
 
 :: 1. เลือกประเภทการอัปเดต (patch, minor, major) - default เป็น patch
 set "bump_type=patch"
@@ -18,10 +18,12 @@ if "!status_check!"=="" (
     exit /b
 )
 
-:: 3. สรุปไฟล์ที่เปลี่ยนสำหรับ Commit Message
+:: 3. สรุปไฟล์ที่เปลี่ยนสำหรับ Commit Message (ข้าม temp_status.txt)
 set "filelist="
 for /f "tokens=2" %%i in (temp_status.txt) do (
-    set "filelist=!filelist! %%i,"
+    if NOT "%%i"=="temp_status.txt" (
+        set "filelist=!filelist! %%i,"
+    )
 )
 del temp_status.txt
 
