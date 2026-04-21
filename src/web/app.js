@@ -114,6 +114,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check endpoint for UptimeRobot
+app.get('/health', async (req, res) => {
+  const discordClient = require('../bot/client');
+  const db = require('../db/queries');
+  
+  let dbStatus = 'ok';
+  try {
+    await db.getCurrentRound();
+  } catch (err) {
+    dbStatus = 'error';
+  }
+
+  res.json({
+    status: 'ok',
+    version: version,
+    uptime: process.uptime(),
+    discord_bot: discordClient.isReady() ? 'online' : 'offline',
+    database: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes (will define shortly)
 app.use('/', require('./routes/auth'));
 app.use('/pages', require('./routes/pages'));
