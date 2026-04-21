@@ -28,9 +28,10 @@ for (const file of commandFiles) {
   }
 }
 
-client.once('ready', () => {
-  console.log(`Ready! Logged in as ${client.user.tag}`);
+client.once('clientReady', (c) => {
+  console.log(`Ready! Logged in as ${c.user.tag}`);
 });
+
 
 client.on('interactionCreate', async interaction => {
   // Handle Buttons จาก /available

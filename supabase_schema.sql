@@ -29,8 +29,11 @@ CREATE TABLE IF NOT EXISTS rounds (
     id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL,
     status     TEXT NOT NULL DEFAULT 'preparing' CHECK (status IN ('preparing', 'open', 'closed')),
+    board_channel_id TEXT,
+    board_message_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
 
 -- 5. Reservations
 CREATE TABLE IF NOT EXISTS reservations (
