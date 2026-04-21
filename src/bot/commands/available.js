@@ -20,8 +20,16 @@ const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
 const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
-const getEmoji = (t) => ITEM_TYPES[t]?.emoji || ICONS.FEATHER || '🪶';
-const disp = (t) => ITEM_TYPES[t]?.label || t;
+const getEmoji = (t) => {
+  if (!t) return ICONS.DEFAULT || '❓';
+  const key = Object.keys(ITEM_TYPES).find(k => k.toLowerCase() === t.toLowerCase());
+  return ITEM_TYPES[key]?.emoji || ICONS.DEFAULT || '❓';
+};
+const disp = (t) => {
+  if (!t) return t;
+  const key = Object.keys(ITEM_TYPES).find(k => k.toLowerCase() === t.toLowerCase());
+  return ITEM_TYPES[key]?.label || t;
+};
 
 
 /** แยก available items ตาม type และเรียงลำดับ */

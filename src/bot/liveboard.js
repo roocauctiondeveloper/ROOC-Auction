@@ -13,9 +13,15 @@ const {
 const db = require('../db/queries');
 const { ICONS, ITEM_TYPES } = require('../utils/constants');
 
+// Helper สำหรับหาข้อมูลแบบ Case-insensitive
+const getItemData = (t) => {
+  if (!t) return null;
+  const key = Object.keys(ITEM_TYPES).find(k => k.toLowerCase() === t.toLowerCase());
+  return ITEM_TYPES[key];
+};
 
-const d = (t) => ITEM_TYPES[t]?.label || t;
-const getEmoji = (t) => ITEM_TYPES[t]?.emoji || ICONS.FEATHER || '🪶';
+const d = (t) => getItemData(t)?.label || t;
+const getEmoji = (t) => getItemData(t)?.emoji || ICONS.DEFAULT || '❓';
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 
@@ -126,7 +132,6 @@ async function buildBoardButtons(round) {
     allEntries.push({
       type: 'book',
       id: item.id,
-      label: `หน้า ${item.page_name} #${item.position}`,
       label: `หน้า ${item.page_name} #${item.position}`,
       emoji: ICONS.ALBUM || '📒'
     });

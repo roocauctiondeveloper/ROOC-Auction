@@ -11,6 +11,8 @@ module.exports = {
     WHITELIST: '🛡️',
     HISTORY: '🕰️',
     RESERVATION: '🎒',
+    FEATHER: '🪶',
+    DEFAULT: '❓',
     ERROR: '❌',
     SUCCESS: '✅',
     PENDING: '🌀',
