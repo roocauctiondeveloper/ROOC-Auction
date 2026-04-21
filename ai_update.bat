@@ -24,12 +24,8 @@ git add .
 git commit -m "%commit_msg%"
 
 echo.
-echo --- Pushing to GitHub ---
+echo --- Pushing to GitHub (Render will sync automatically) ---
 git push origin main
-
-echo.
-echo --- Pushing to Hugging Face ---
-git push hf main
 
 echo.
 echo ✅ Successfully updated with message: 
