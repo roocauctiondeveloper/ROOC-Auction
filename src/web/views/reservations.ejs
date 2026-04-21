@@ -54,15 +54,16 @@
               <td><code style="font-size: 0.85rem;"><%= r.discord_user_id %></code></td>
               <td>
                 <span class="badge badge-blue">Page <%= r.page_name %></span>
-                <span style="font-size: 0.85rem; color: var(--text-light);">ชิ้นที่ <%= r.item_pos %> (<%= displayItemType(r.item_type) %>)</span>
+                <span style="font-size: 0.85rem; color: var(--text-light);"><%= r.item_display_name %></span>
               </td>
               <td style="text-align: right;">
-                <form action="/reservations/<%= r.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยกเลิกรายการจองนี้?');">
+                <form action="/reservations/<%= r.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันการยกเลิกรายการนี้? (หากเป็นการจองยกหน้า ข้อมูลของหน้านี้จะถูกลบทั้งหมด)');">
                   <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Cancel</button>
                 </form>
               </td>
             </tr>
           <% } %>
+
         </tbody>
       </table>
     </div>
