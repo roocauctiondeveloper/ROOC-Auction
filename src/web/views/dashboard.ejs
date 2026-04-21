@@ -59,6 +59,44 @@
   </div>
 </div>
 
+<!-- Preset Selection (Show only if preparing) -->
+<% if (round && round.status === 'preparing') { %>
+<div class="card" style="background: #fcfaff; border: 1px dashed var(--primary); margin-bottom: 2.5rem;">
+  <div class="flex items-center space-between flex-desktop">
+    <div>
+      <h3 style="margin: 0;">⚡ Fast Setup: Apply Item Preset</h3>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">เลือกรูปแบบรายการสินค้าที่ตั้งไว้ เพื่อสร้างหน้าและไอเทมทั้งหมดในคลิกเดียว</p>
+    </div>
+    <div style="margin-top: 1rem;">
+      <form action="" id="apply-preset-form" method="POST" class="flex gap-1">
+        <select id="preset-selector" class="form-control" style="min-width: 250px; padding: 0.6rem;">
+          <option value="">-- เลือก Preset ที่ต้องการ --</option>
+          <% presets.forEach(p => { %>
+            <option value="<%= p.id %>"><%= p.name %> (Album:<%= p.album_count %>, LD:<%= p.light_dark_count %>, TS:<%= p.time_space_count %>)</option>
+          <% }) %>
+        </select>
+        <button type="button" class="btn" onclick="applyPreset()" style="background: var(--primary);">Apply</button>
+      </form>
+      <a href="/presets" style="font-size: 0.75rem; color: var(--primary); display: block; margin-top: 0.5rem; text-align: right;">+ สร้าง/จัดการ Preset ใหม่</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function applyPreset() {
+    const selector = document.getElementById('preset-selector');
+    const id = selector.value;
+    if (!id) return alert('กรุณาเลือก Preset ก่อนครับ');
+    
+    if (confirm('ยืนยันการใช้ Preset นี้? ระบบจะสร้าง Page และ Item ให้โดยอัตโนมัติ (รายการเก่าในรอบนี้จะยังอยู่)')) {
+      const form = document.getElementById('apply-preset-form');
+      form.action = '/presets/apply/' + id;
+      form.submit();
+    }
+  }
+</script>
+<% } %>
+
 <!-- Live Progress -->
 <div class="card">
   <div class="flex space-between items-center" style="margin-bottom: 2rem;">

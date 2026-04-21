@@ -1,0 +1,82 @@
+<div class="header">
+  <div>
+    <h1>📋 จัดการ Item Presets</h1>
+    <p>สร้างแม่แบบรายการสินค้าเพื่อนำไปใช้เปิดรอบประมูลอย่างรวดเร็ว</p>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- Create Preset Form -->
+  <div class="card">
+    <h2 style="margin-bottom: 1.5rem;">✨ สร้าง Preset ใหม่</h2>
+    <form action="/presets/add" method="POST">
+      <div class="form-group">
+        <label>ชื่อ Preset</label>
+        <input type="text" name="name" placeholder="เช่น ชุดมาตรฐาน 50 หน้า" required>
+      </div>
+      <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label>📜 Album (จำนวนชิ้น)</label>
+          <input type="number" name="album" value="30" min="0">
+        </div>
+        <div class="form-group">
+          <label>🌗 Light-Dark</label>
+          <input type="number" name="ld" value="10" min="0">
+        </div>
+        <div class="form-group">
+          <label>⏳ Time-Space</label>
+          <input type="number" name="ts" value="5" min="0">
+        </div>
+      </div>
+      <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">💾 บันทึก Preset</button>
+    </form>
+  </div>
+
+  <!-- Help Card -->
+  <div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe;">
+    <h2 style="color: #1e40af;">💡 วิธีการใช้งาน</h2>
+    <p style="color: #1e40af; font-size: 0.95rem;">
+      1. ตั้งชื่อและกำหนดจำนวนไอเทมที่ต้องการในแต่ละประเภท<br>
+      2. กดบันทึก Preset เก็บไว้<br>
+      3. เมื่อต้องการใช้งาน ให้ไปที่หน้า **Dashboard** แล้วกดปุ่ม "Apply" ครั้งเดียว<br>
+      <br>
+      <b>หลักการ:</b> ระบบจะสร้าง Page ให้โดยอัตโนมัติ (ใส่หน้าละ 10 ชิ้น) เช่น ถ้าคุณระบุ Album 30 ชิ้น ระบบจะสร้าง "Album หน้าที่ 1, 2, 3" ให้ทันที
+    </p>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 2rem;">
+  <h2 style="margin-bottom: 1.5rem;">รายการ Preset ทั้งหมด</h2>
+  <% if (presets.length === 0) { %>
+    <p style="text-align: center; color: var(--text-light); padding: 2rem;">ยังไม่มี Preset ในระบบ</p>
+  <% } else { %>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border-color); text-align: left;">
+            <th style="padding: 1rem;">ชื่อ Preset</th>
+            <th style="padding: 1rem;">Album</th>
+            <th style="padding: 1rem;">Light-Dark</th>
+            <th style="padding: 1rem;">Time-Space</th>
+            <th style="padding: 1rem; text-align: right;">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% presets.forEach(p => { %>
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding: 1rem; font-weight: 600;"><%= p.name %></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #e0f2fe; color: #0369a1;"><%= p.album_count %> ชิ้น</span></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #fef3c7; color: #92400e;"><%= p.light_dark_count %> ชิ้น</span></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #f3f4f6; color: #374151;"><%= p.time_space_count %> ชิ้น</span></td>
+              <td style="padding: 1rem; text-align: right;">
+                <form action="/presets/delete/<%= p.id %>" method="POST" style="display: inline;" onsubmit="return confirm('ยืนยันการลบ Preset นี้หรือไม่?')">
+                  <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; color: #ef4444;">ลบ</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

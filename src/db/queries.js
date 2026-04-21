@@ -236,6 +236,27 @@ async function removeAdmin(id) {
   return await db.run('DELETE FROM admin_users WHERE id = ?', [id]);
 }
 
+// --- 3.0 Preset Queries ---
+async function getAllPresets() {
+  return await db.all('SELECT * FROM item_presets ORDER BY name ASC');
+}
+
+async function addPreset(name, album, ld, ts) {
+  const sql = config.databaseType === 'postgres' 
+    ? 'INSERT INTO item_presets (name, album_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?) RETURNING id' 
+    : 'INSERT INTO item_presets (name, album_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?)';
+  const result = await db.run(sql, [name, album, ld, ts]);
+  return result.lastInsertRowid;
+}
+
+async function deletePreset(id) {
+  return await db.run('DELETE FROM item_presets WHERE id = ?', [id]);
+}
+
+async function getPresetById(id) {
+  return await db.get('SELECT * FROM item_presets WHERE id = ?', [id]);
+}
+
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
@@ -244,5 +265,6 @@ module.exports = {
   saveRoundSnapshot, getRoundHistoryItems,
   getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist,
   getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin,
-  getAvailableItems, getMyReservations
+  getAvailableItems, getMyReservations,
+  getAllPresets, addPreset, deletePreset, getPresetById
 };

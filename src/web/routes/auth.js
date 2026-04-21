@@ -40,6 +40,7 @@ router.get('/', ensureAuthenticated, async (req, res) => {
     const reservations = await db.getCurrentReservations();
     const pages = await db.getAllPages();
     const whitelist = await db.getAllWhitelist();
+    const presets = await db.getAllPresets();
 
     // ดึงรายละเอียดแบบละเอียดของแต่ละหน้าสำหรับแสดงผล Overview
     const pagesWithItems = await Promise.all(pages.map(async p => ({
@@ -52,7 +53,8 @@ router.get('/', ensureAuthenticated, async (req, res) => {
       reservationsCount: reservations.length, 
       pagesCount: pages.length,
       whitelistCount: whitelist.length,
-      pagesWithItems
+      pagesWithItems,
+      presets
     });
   } catch (err) {
     console.error(err);

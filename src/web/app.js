@@ -118,6 +118,7 @@ app.use('/items', require('./routes/items'));
 app.use('/reservations', require('./routes/reservations'));
 app.use('/history', require('./routes/history'));
 app.use('/whitelist', require('./routes/whitelist'));
+app.use('/presets', require('./routes/presets'));
 
 // Catch-all 404
 app.use((req, res) => {

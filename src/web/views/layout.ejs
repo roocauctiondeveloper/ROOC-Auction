@@ -203,8 +203,10 @@
       <a href="/">Dashboard</a>
       <a href="/pages">Pages</a>
       <a href="/reservations">Reservations</a>
-      <a href="/history">History</a>
-      <a href="/whitelist">Whitelist</a>
+        <a href="/presets" class="nav-link <%= req.baseUrl === '/presets' ? 'active' : '' %>">
+          <span>📋</span> จัดการ Preset
+        </a>
+        <a href="/whitelist" class="nav-link <%= req.baseUrl === '/whitelist' ? 'active' : '' %>">Whitelist</a>
       <form action="/logout" method="POST" style="margin: 0;">
         <button type="submit" class="btn btn-secondary" style="background: none; color: #94a3b8; border: none; padding: 0.5rem 1rem; cursor: pointer;">Logout</button>
       </form>
