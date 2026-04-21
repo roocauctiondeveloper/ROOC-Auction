@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../db/queries');
 const { ensureAuthenticated } = require('../middleware/auth');
-
+const config = require('../../config');
 const client = require('../../bot/client');
+
 
 router.use(ensureAuthenticated);
 
@@ -29,9 +30,17 @@ router.post('/', async (req, res) => {
   discord_user_id = discord_user_id.trim();
 
   try {
-    // ดึงข้อมูล User จาก Discord โดยตรง
-    const user = await client.users.fetch(discord_user_id);
-    const discord_username = user ? (user.globalName || user.username) : 'Unknown';
+    // 1. ลองดึงข้อมูลจาก Server (Guild) ก่อนเพื่อให้ได้ Nickname
+    let discord_username = 'Unknown';
+    try {
+      const guild = await client.guilds.fetch(config.discordGuildId);
+      const member = await guild.members.fetch(discord_user_id);
+      discord_username = member.displayName; // ใช้ชื่อในเซิร์ฟเวอร์
+    } catch (guildErr) {
+      // 2. ถ้าไม่เจอในเซิร์ฟเวอร์ ให้ดึงชื่อ Global แทน
+      const user = await client.users.fetch(discord_user_id);
+      discord_username = user.globalName || user.username;
+    }
 
     await db.addToWhitelist(discord_username, discord_user_id);
     req.session.success_msg = `เพิ่มรายชื่อสำเร็จ: ${discord_username}`;
@@ -47,6 +56,7 @@ router.post('/', async (req, res) => {
   }
   res.redirect('/whitelist');
 });
+
 
 
 // POST /whitelist/:id/delete
