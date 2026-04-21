@@ -3,6 +3,7 @@ services:
     name: rooc-auction-bot
     runtime: docker
     plan: free
+    region: singapore
     envVars:
       - key: DATABASE_TYPE
         value: postgres

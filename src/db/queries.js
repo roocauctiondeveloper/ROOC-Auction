@@ -14,10 +14,10 @@ async function getAllPages() {
 }
 
 async function addPage(name) {
-  const sql = config.databaseType === 'postgres' 
-    ? 'INSERT INTO pages (name) VALUES (?) RETURNING id' 
+  const sql = config.databaseType === 'postgres'
+    ? 'INSERT INTO pages (name) VALUES (?) RETURNING id'
     : 'INSERT INTO pages (name) VALUES (?)';
-    
+
   const result = await db.run(sql, [name]);
   return result.lastInsertRowid;
 }
@@ -43,8 +43,8 @@ async function getItemsForPage(pageId) {
 }
 
 async function addItem(pageId, itemType, position) {
-  const sql = config.databaseType === 'postgres' 
-    ? 'INSERT INTO items (page_id, item_type, position) VALUES (?, ?, ?) RETURNING id' 
+  const sql = config.databaseType === 'postgres'
+    ? 'INSERT INTO items (page_id, item_type, position) VALUES (?, ?, ?) RETURNING id'
     : 'INSERT INTO items (page_id, item_type, position) VALUES (?, ?, ?)';
 
   const result = await db.run(sql, [pageId, itemType, position]);
@@ -81,8 +81,8 @@ async function getReservationsByRound(roundId) {
 }
 
 async function addReservation(roundId, itemId, discordUserId, discordUsername) {
-  const sql = config.databaseType === 'postgres' 
-    ? 'INSERT INTO reservations (round_id, item_id, discord_user_id, discord_username) VALUES (?, ?, ?, ?) RETURNING id' 
+  const sql = config.databaseType === 'postgres'
+    ? 'INSERT INTO reservations (round_id, item_id, discord_user_id, discord_username) VALUES (?, ?, ?, ?) RETURNING id'
     : 'INSERT INTO reservations (round_id, item_id, discord_user_id, discord_username) VALUES (?, ?, ?, ?)';
 
   const result = await db.run(sql, [roundId, itemId, discordUserId, discordUsername]);
@@ -107,8 +107,8 @@ async function getOrCreateCurrentRound() {
   let round = await db.get('SELECT * FROM rounds ORDER BY id DESC LIMIT 1');
   if (!round || round.status === 'closed') {
     const name = `รอบประมูล ${new Date().toLocaleString('th-TH')}`;
-    const sql = config.databaseType === 'postgres' 
-      ? 'INSERT INTO rounds (name, status) VALUES (?, ?) RETURNING id' 
+    const sql = config.databaseType === 'postgres'
+      ? 'INSERT INTO rounds (name, status) VALUES (?, ?) RETURNING id'
       : 'INSERT INTO rounds (name, status) VALUES (?, ?)';
 
     const result = await db.run(sql, [name, 'preparing']);
@@ -177,8 +177,8 @@ async function isWhitelisted(discordUserId) {
 }
 
 async function addToWhitelist(username, discordUserId) {
-  const sql = config.databaseType === 'postgres' 
-    ? 'INSERT INTO whitelist (discord_username, discord_user_id) VALUES (?, ?) RETURNING id' 
+  const sql = config.databaseType === 'postgres'
+    ? 'INSERT INTO whitelist (discord_username, discord_user_id) VALUES (?, ?) RETURNING id'
     : 'INSERT INTO whitelist (discord_username, discord_user_id) VALUES (?, ?)';
 
   const result = await db.run(sql, [username, discordUserId]);
@@ -224,8 +224,8 @@ async function getAllAdmins() {
 }
 
 async function addAdmin(discordUserId) {
-  const sql = config.databaseType === 'postgres' 
-    ? 'INSERT INTO admin_users (discord_user_id) VALUES (?) RETURNING id' 
+  const sql = config.databaseType === 'postgres'
+    ? 'INSERT INTO admin_users (discord_user_id) VALUES (?) RETURNING id'
     : 'INSERT INTO admin_users (discord_user_id) VALUES (?)';
 
   const result = await db.run(sql, [discordUserId]);
@@ -242,8 +242,8 @@ async function getAllPresets() {
 }
 
 async function addPreset(name, album, ld, ts) {
-  const sql = config.databaseType === 'postgres' 
-    ? 'INSERT INTO item_presets (name, album_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?) RETURNING id' 
+  const sql = config.databaseType === 'postgres'
+    ? 'INSERT INTO item_presets (name, album_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?) RETURNING id'
     : 'INSERT INTO item_presets (name, album_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?)';
   const result = await db.run(sql, [name, album, ld, ts]);
   return result.lastInsertRowid;
