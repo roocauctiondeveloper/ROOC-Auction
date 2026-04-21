@@ -72,8 +72,10 @@
     <table>
       <thead>
         <tr>
+          <th style="width: 40px;"><input type="checkbox" id="select-all" checked onchange="toggleSelectAll(this)"></th>
           <th>Status</th>
           <th>User Info</th>
+          <th>Luck / Stats</th>
           <th>Discord ID</th>
           <th style="text-align: right;">Actions</th>
         </tr>
@@ -81,21 +83,46 @@
       <tbody>
         <% if (whitelist.length === 0) { %>
           <tr>
-            <td colspan="4" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
+            <td colspan="6" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
           </tr>
         <% } else { %>
-          <% for(let user of whitelist) { %>
-            <tr style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %>">
-              <td style="width: 120px;">
-                <form action="/whitelist/<%= user.id %>/toggle" method="POST">
-                    <input type="hidden" name="is_active" value="<%= !user.is_active %>">
-                    <button type="submit" class="badge <%= user.is_active ? 'badge-success' : 'badge-gray' %>" style="border:none; cursor:pointer;" title="คลิกเพื่อสลับสถานะ">
-                        <%= user.is_active ? '● ACTIVE' : '○ STANDBY' %>
-                    </button>
-                </form>
-              </td>
+          <% for(let user of whitelist) { 
+             const winRate = user.spin_count > 0 ? Math.round((user.win_count / user.spin_count) * 100) : 0;
+             let luckColor = 'var(--text-light)';
+             if (winRate >= 50) luckColor = 'var(--success)';
+             else if (winRate > 0 && winRate < 20) luckColor = 'var(--danger)';
+          %>
+            <tr id="row-<%= user.id %>" style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %> transition: opacity 0.3s;">
               <td>
-                <div style="font-weight: 700; color: var(--text);"><%= user.discord_username %></div>
+                <input type="checkbox" class="participant-checkbox" value="<%= user.id %>" data-username="<%= user.discord_username %>" checked onchange="updateWheelFromSelection()">
+              </td>
+              <td style="width: 120px;">
+
+                <button 
+                    onclick="toggleStatus('<%= user.id %>', <%= user.is_active %>)" 
+                    id="btn-status-<%= user.id %>"
+                    class="badge <%= user.is_active ? 'badge-success' : 'badge-gray' %>" 
+                    style="border:none; cursor:pointer;" 
+                    title="คลิกเพื่อสลับสถานะ"
+                >
+                    <%= user.is_active ? '● ACTIVE' : '○ STANDBY' %>
+                </button>
+              </td>
+
+              <td>
+                <a href="/whitelist/<%= user.id %>/history" style="text-decoration: none; color: var(--text); border-bottom: 1px dashed var(--text-light); padding-bottom: 2px; transition: all 0.2s;" onmouseover="this.style.color='var(--primary)'; this.style.borderColor='var(--primary)';" onmouseout="this.style.color='var(--text)'; this.style.borderColor='var(--text-light)';">
+                    <strong style="color: inherit;"><%= user.discord_username %></strong>
+                </a>
+              </td>
+
+              <td>
+                <div style="font-size: 0.9rem; font-weight: 600; color: <%= luckColor %>;">
+                    <%= user.win_count %> / <%= user.spin_count %> 
+                    <small style="font-weight: 400; opacity: 0.8; margin-left: 0.3rem;">(<%= winRate %>%)</small>
+                </div>
+                <div style="width: 100%; height: 4px; background: #eee; border-radius: 2px; margin-top: 4px; overflow: hidden;">
+                    <div style="width: <%= winRate %>%; height: 100%; background: <%= luckColor %>;"></div>
+                </div>
               </td>
               <td>
                 <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= user.discord_user_id %></code>
@@ -115,11 +142,15 @@
 
 <script>
     const whitelistData = <%- JSON.stringify(whitelist) %>;
+    let selectedMembers = [...whitelistData]; // เริ่มต้นให้เลือกทุกคน
+
     const canvas = document.getElementById('wheel-canvas');
     const ctx = canvas.getContext('2d');
+    const pointer = document.querySelector('.wheel-pointer');
+    const resultDiv = document.getElementById('lottery-result');
+    const spinBtn = document.getElementById('spin-btn');
     const timeline = document.getElementById('winners-timeline');
     const statusText = document.getElementById('lottery-status');
-    const spinBtn = document.getElementById('spin-btn');
     const finalActions = document.getElementById('final-actions');
     const hiddenInputs = document.getElementById('winners-hidden-input');
 
@@ -127,8 +158,14 @@
     let winnersList = [];
 
     function drawWheel() {
-        if (!whitelistData.length) return;
-        const segments = whitelistData.length;
+        if (!selectedMembers.length) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#ccc";
+            ctx.textAlign = "center";
+            ctx.fillText("กรุณาเลือกรายชื่อด้านล่าง", canvas.width/2, canvas.height/2);
+            return;
+        }
+        const segments = selectedMembers.length;
         const anglePerSegment = (Math.PI * 2) / segments;
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
@@ -156,12 +193,11 @@
             ctx.textAlign = "right";
             ctx.fillStyle = "white";
             ctx.font = "bold 12px Inter";
-            const name = whitelistData[i].discord_username;
+            const name = selectedMembers[i].discord_username;
             ctx.fillText(name.length > 15 ? name.substring(0, 13) + '..' : name, radius - 20, 5);
             ctx.restore();
         }
 
-        // Stylized Center
         ctx.beginPath();
         ctx.arc(centerX, centerY, 30, 0, Math.PI * 2);
         ctx.fillStyle = "white";
@@ -173,37 +209,53 @@
 
     drawWheel();
 
+    function updateWheelFromSelection() {
+        const checkboxes = document.querySelectorAll('.participant-checkbox:checked');
+        const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        selectedMembers = whitelistData.filter(m => selectedIds.includes(m.id));
+        
+        // อัปเดตตัวเลข Max ในช่อง Input
+        document.getElementById('lottery-count').max = selectedMembers.length;
+        if (parseInt(document.getElementById('lottery-count').value) > selectedMembers.length) {
+            document.getElementById('lottery-count').value = selectedMembers.length;
+        }
+
+        drawWheel();
+    }
+
+    function toggleSelectAll(cb) {
+        const checkboxes = document.querySelectorAll('.participant-checkbox');
+        checkboxes.forEach(c => c.checked = cb.checked);
+        updateWheelFromSelection();
+    }
+
     async function startLottery() {
         const count = parseInt(document.getElementById('lottery-count').value);
-        if (!whitelistData.length) return alert('ไม่มีรายชื่อครับ');
-        if (count > whitelistData.length) return alert('จำนวนสุ่มต้องไม่เกินจำนวนคนทั้งหมด');
+        if (!selectedMembers.length) return alert('กรุณาเลือกรายชื่ออย่างน้อย 1 คนครับ');
+        if (count > selectedMembers.length) return alert('จำนวนสุ่มต้องไม่เกินจำนวนคนที่เลือก');
 
         spinBtn.disabled = true;
         winnersList = [];
         timeline.innerHTML = '';
         finalActions.style.display = 'none';
         
-        let availablePool = [...whitelistData];
+        let availablePool = [...selectedMembers];
 
         for (let i = 0; i < count; i++) {
             statusText.innerText = `🌀 กำลังสุ่มคนที่ ${i + 1} จาก ${count}...`;
             
-            // Pick a winner from pool
             const winnerIdxInPool = Math.floor(Math.random() * availablePool.length);
             const winner = availablePool[winnerIdxInPool];
             
-            // Find its index in the ORIGINAL whitelistData for rotation calculation
-            const originalIdx = whitelistData.findIndex(u => u.id === winner.id);
+            // หาตำแหน่งใน selectedMembers สำหรับวาดวงล้อ
+            const wheelIdx = selectedMembers.findIndex(u => u.id === winner.id);
             
-            await spinTo(originalIdx);
+            await spinTo(wheelIdx);
             
-            // Add to winner list
             winnersList.push(winner);
             availablePool.splice(winnerIdxInPool, 1);
-            
             addWinnerToTimeline(winner, i + 1);
             
-            // Short pause between spins
             if (i < count - 1) await new Promise(r => setTimeout(r, 1000));
         }
 
@@ -213,24 +265,16 @@
 
     function spinTo(index) {
         return new Promise((resolve) => {
-            const segments = whitelistData.length;
+            const segments = selectedMembers.length;
             const anglePerSegment = 360 / segments;
-            
-            // Calculate target angle to point at 0 degrees (right side)
-            // The segment angle starts from 0, but we want the middle of it to land at 0 rotation.
             const segmentMiddleAngle = (index * anglePerSegment) + (anglePerSegment / 2);
-            
-            // We need to rotate 360 - segmentMiddleAngle to bring it to the pointer
             const targetRotation = 360 - segmentMiddleAngle;
             
-            // Add multiple full spins for effect
             const extraSpins = 3 * 360;
             currentRotation += extraSpins + (targetRotation - (currentRotation % 360));
-            if (currentRotation < 0) currentRotation += 360; // Keep positive
+            if (currentRotation < 0) currentRotation += 360;
 
             canvas.style.transform = `rotate(${currentRotation}deg)`;
-            
-            // Wait for transition to finish (matches CSS duration)
             setTimeout(resolve, 4000); 
         });
     }
@@ -260,6 +304,53 @@
             <input type="hidden" name="winners[]" value="${w.id}">
         `).join('');
     }
+
+    // --- AJAX Toggle Status (No Refresh) ---
+    async function toggleStatus(id, currentStatus) {
+        const btn = document.getElementById(`btn-status-${id}`);
+        const row = document.getElementById(`row-${id}`);
+        
+        // เราจะแกล้งเปลี่ยน UI ทันทีล่วงหน้าเลยครับ (Optimistic Update)
+        const newStatus = !currentStatus;
+        updateToggleUI(id, newStatus);
+
+        try {
+            const response = await fetch(`/whitelist/${id}/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: newStatus.toString() })
+            });
+
+            if (!response.ok) throw new Error('Toggle failed');
+            
+            // อัปเดตผูกมัดค่าใหม่ไว้กดครั้งต่อไป
+            btn.onclick = () => toggleStatus(id, newStatus);
+            
+        } catch (err) {
+            console.error(err);
+            alert('เกิดข้อผิดพลาดในการสลับสถานะ');
+            // ถ้าพังให้คืนค่าเดิม
+            updateToggleUI(id, currentStatus);
+        }
+    }
+
+    function updateToggleUI(id, isActive) {
+        const btn = document.getElementById(`btn-status-${id}`);
+        const row = document.getElementById(`row-${id}`);
+
+        if (isActive) {
+            btn.className = 'badge badge-success';
+            btn.innerText = '● ACTIVE';
+            row.style.opacity = '1';
+            row.style.backgroundColor = 'transparent';
+        } else {
+            btn.className = 'badge badge-gray';
+            btn.innerText = '○ STANDBY';
+            row.style.opacity = '0.6';
+            row.style.backgroundColor = '#f8fafc';
+        }
+    }
 </script>
+
 
 

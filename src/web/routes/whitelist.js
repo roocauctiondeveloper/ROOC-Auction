@@ -92,9 +92,13 @@ router.post('/lottery-apply', async (req, res) => {
     
     const losersIds = allIds.filter(id => !winnerIds.includes(id.toString()));
 
-    // บันทึกผล: คนชนะเป็น Active คนแพ้เป็น Inactive
+    // บันทึกสถิติ: ทุกคนที่มีชื่อในวงล้อถือว่าได้ Spin +1, คนชนะได้ Win +1
+    await db.recordLotteryResults(allIds, winnerIds);
+
+    // บันทึกผลสถานะ: คนชนะเป็น Active คนแพ้เป็น Inactive
     await db.bulkUpdateWhitelistStatus(winnerIds, true);
     await db.bulkUpdateWhitelistStatus(losersIds, false);
+
 
     req.session.success_msg = 'บันทึกผลการสุ่มเรียบร้อยแล้ว!';
   } catch (err) {
@@ -105,4 +109,19 @@ router.post('/lottery-apply', async (req, res) => {
 });
 
 
+// GET /whitelist/:id/history
+router.get('/:id/history', async (req, res) => {
+  try {
+    const member = await db.getWhitelistMemberById(req.params.id);
+    if (!member) return res.redirect('/whitelist');
+
+    const history = await db.getMemberLotteryHistory(req.params.id);
+    res.render('member_history', { member, history });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error loading member history');
+  }
+});
+
 module.exports = router;
+

@@ -282,11 +282,43 @@ async function toggleWhitelistStatus(id, isActive) {
   return db.run('UPDATE whitelist SET is_active = ? WHERE id = ?', [isActive, id]);
 }
 
+async function recordLotteryResults(participantIds, winnerIds) {
+  if (participantIds.length === 0) return;
+  
+  const winnerIdSet = new Set(winnerIds.map(id => id.toString()));
+
+  // 1. เพิ่ม spin_count ให้กับทุกคนที่มีชื่อในวงล้อ และบันทึกลง lottery_logs
+  const pPlaceholders = participantIds.map(() => '?').join(',');
+  await db.run(`UPDATE whitelist SET spin_count = spin_count + 1 WHERE id IN (${pPlaceholders})`, [...participantIds]);
+
+  // บันทึก Log ละเอียดรายคน
+  for (const pid of participantIds) {
+    const isWinner = winnerIdSet.has(pid.toString());
+    await db.run('INSERT INTO lottery_logs (whitelist_id, is_winner) VALUES (?, ?)', [pid, isWinner]);
+  }
+
+  // 2. เพิ่ม win_count ให้กับผู้ชนะ
+  if (winnerIds.length > 0) {
+    const wPlaceholders = winnerIds.map(() => '?').join(',');
+    await db.run(`UPDATE whitelist SET win_count = win_count + 1 WHERE id IN (${wPlaceholders})`, [...winnerIds]);
+  }
+}
+
+async function getMemberLotteryHistory(whitelistId) {
+  return db.all('SELECT * FROM lottery_logs WHERE whitelist_id = ? ORDER BY created_at DESC', [whitelistId]);
+}
+
+async function getWhitelistMemberById(id) {
+  return db.get('SELECT * FROM whitelist WHERE id = ?', [id]);
+}
+
 async function bulkUpdateWhitelistStatus(ids, isActive) {
   if (ids.length === 0) return;
   const placeholders = ids.map(() => '?').join(',');
   return db.run(`UPDATE whitelist SET is_active = ? WHERE id IN (${placeholders})`, [isActive, ...ids]);
 }
+
+
 
 async function addToWhitelist(username, discordUserId) {
   const r = await db.run(
@@ -386,8 +418,10 @@ module.exports = {
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
   saveRoundSnapshot, getRoundHistoryItems,
-  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus,
+  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus, recordLotteryResults, getMemberLotteryHistory, getWhitelistMemberById,
   getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin,
+
+
 
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
