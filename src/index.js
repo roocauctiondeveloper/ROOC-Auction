@@ -10,13 +10,15 @@ try {
   process.exit(1);
 }
 
-// Start Discord Bot
-client.login(config.discordToken).catch(err => {
-  console.error('Failed to login to Discord:', err.message);
-});
-
 // Start Web Server
 const PORT = config.port;
 app.listen(PORT, () => {
-  console.log(`Web Dashboard running on http://localhost:${PORT}`);
+  console.log(`✅ Web Dashboard running on port ${PORT}`);
+  
+  // Start Discord Bot in background after web server is up
+  client.login(config.discordToken).then(() => {
+    console.log('✅ Discord Bot is online');
+  }).catch(err => {
+    console.error('❌ Failed to login to Discord:', err.message);
+  });
 });
