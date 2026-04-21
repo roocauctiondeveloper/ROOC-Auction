@@ -12,6 +12,7 @@ const {
 } = require('discord.js');
 const db = require('../db/queries');
 const { ICONS, ITEM_TYPES } = require('../utils/constants');
+const { resolveEmoji } = require('./utils/emoji');
 
 // Helper สำหรับหาข้อมูลแบบ Case-insensitive
 const getItemData = (t) => {
@@ -21,7 +22,10 @@ const getItemData = (t) => {
 };
 
 const d = (t) => getItemData(t)?.label || t;
-const getEmoji = (t) => getItemData(t)?.emoji || ICONS.DEFAULT || '❓';
+const getEmoji = (t, guild = null) => {
+  const entry = getItemData(t);
+  return resolveEmoji(entry?.emoji, guild, ICONS.DEFAULT || '❓');
+};
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 
@@ -32,7 +36,7 @@ const LB_BOOK_PREFIX = 'lb_b:'; // lb_b:<itemId>
 /**
  * สร้าง embed แสดง grid ของทุก page และ items พร้อมสถานะ
  */
-async function buildBoardEmbed(round) {
+async function buildBoardEmbed(round, guild = null) {
   const pages = await db.getAllPages();
   const embed = new EmbedBuilder()
     .setTitle(`📋 Live Board — ${round.name}`)
@@ -55,7 +59,7 @@ async function buildBoardEmbed(round) {
 
     // หา types ที่มีในหน้านี้เพื่อโชว์ไอคอนหน้า Page Name
     const types = [...new Set(items.map(i => i.item_type))];
-    const pageEmojis = types.map(t => getEmoji(t)).join('');
+    const pageEmojis = types.map(t => getEmoji(t, guild)).join('');
 
     const lines = items.map(i => {
       if (i.reserved_by) {
@@ -102,7 +106,7 @@ async function buildBoardEmbed(round) {
  * สร้าง buttons สำหรับ items ที่ยังว่าง (max 25)
  * ขนนก → button ต่อหน้า, Album → button ต่อชิ้น
  */
-async function buildBoardButtons(round) {
+async function buildBoardButtons(round, guild = null) {
   const availableItems = await db.getAvailableItems(round.id);
   if (availableItems.length === 0) return [];
 
@@ -133,7 +137,7 @@ async function buildBoardButtons(round) {
       type: 'book',
       id: item.id,
       label: `หน้า ${item.page_name} #${item.position}`,
-      emoji: ICONS.ALBUM || '📒'
+      emoji: resolveEmoji(ICONS.ALBUM, guild, '📒')
     });
   }
 
@@ -148,7 +152,7 @@ async function buildBoardButtons(round) {
 
   for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))];
-    const emojis = types.map(t => getEmoji(t)).join('');
+    const emojis = types.map(t => getEmoji(t, guild)).join('');
 
     allEntries.push({
       type: 'feather',
@@ -239,8 +243,8 @@ async function sendLiveBoard(client, channelId, round) {
     }
 
     console.log('📋 Building board components...');
-    const { embed } = await buildBoardEmbed(round);
-    const components = await buildBoardButtons(round);
+    const { embed } = await buildBoardEmbed(round, channel.guild);
+    const components = await buildBoardButtons(round, channel.guild);
 
     console.log('📤 Sending message to Discord...');
     const msg = await channel.send({ embeds: [embed], components });
@@ -276,8 +280,8 @@ async function updateLiveBoard(client, roundId) {
     const msg = await channel.messages.fetch(boardInfo.board_message_id);
     if (!msg) return;
 
-    const { embed } = await buildBoardEmbed(round);
-    const components = await buildBoardButtons(round);
+    const { embed } = await buildBoardEmbed(round, channel.guild);
+    const components = await buildBoardButtons(round, channel.guild);
 
     await msg.edit({ embeds: [embed], components });
     console.log('✅ Live board updated');
@@ -323,7 +327,7 @@ async function closeLiveBoard(client, round) {
       totalItems += items.length;
 
       const types = [...new Set(items.map(i => i.item_type))];
-      const pageEmojis = types.map(t => getEmoji(t)).join('');
+      const pageEmojis = types.map(t => getEmoji(t, channel.guild)).join('');
 
       const lines = items.map(i => {
         if (i.reserved_by) {

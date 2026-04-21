@@ -20,15 +20,17 @@ const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
 const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
-const getEmoji = (t) => {
-  if (!t) return ICONS.DEFAULT || '❓';
-  const key = Object.keys(ITEM_TYPES).find(k => k.toLowerCase() === t.toLowerCase());
-  return ITEM_TYPES[key]?.emoji || ICONS.DEFAULT || '❓';
+const { resolveEmoji } = require('../utils/emoji');
+
+const getEmoji = (t, guild = null) => {
+  const entry = ITEM_TYPES[t];
+  return resolveEmoji(entry?.emoji, guild, ICONS.DEFAULT || '❓');
 };
-const disp = (t) => {
-  if (!t) return t;
-  const key = Object.keys(ITEM_TYPES).find(k => k.toLowerCase() === t.toLowerCase());
-  return ITEM_TYPES[key]?.label || t;
+const disp = (t, guild = null) => {
+  const entry = ITEM_TYPES[t];
+  if (!entry) return t;
+  // สำหรับชื่อข้อความ เราอาจจะไม่ต้องใส่รูปใหญ่โตเอาแค่ชื่อ หรือใส่นำหน้าก็ได้
+  return entry.label || t;
 };
 
 
@@ -56,7 +58,7 @@ function splitByType(availableItems) {
 }
 
 /** สร้าง Embed — Album ขึ้นก่อน ตามด้วย Light-Dark, Time-Space */
-function buildEmbed(featherPages, bookItems, roundName) {
+function buildEmbed(featherPages, bookItems, roundName, guild = null) {
   const embed = new EmbedBuilder()
     .setTitle('📋 รายการที่ว่างอยู่')
     .setColor(0x57F287)
@@ -70,9 +72,10 @@ function buildEmbed(featherPages, bookItems, roundName) {
 
   // Album ขึ้นก่อน
   if (bookItems.length > 0) {
-    const lines = bookItems.map(i => `${ICONS.ALBUM || '📒'} **${i.page_name}** ชิ้นที่ ${i.position}`);
+    const albumEmoji = resolveEmoji(ICONS.ALBUM, guild, '📒');
+    const lines = bookItems.map(i => `${albumEmoji} **${i.page_name}** ชิ้นที่ ${i.position}`);
     embed.addFields({
-      name: `${ICONS.ALBUM || '📒'} Album — กดปุ่มชิ้นที่ต้องการ`,
+      name: `${albumEmoji} Album — กดปุ่มชิ้นที่ต้องการ`,
       value: lines.join('\n'),
       inline: false,
     });
@@ -84,8 +87,8 @@ function buildEmbed(featherPages, bookItems, roundName) {
     for (const [, { page_name, items }] of featherPages) {
       const types = [...new Set(items.map(i => i.item_type))]
         .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
-      const emojis = types.map(t => getEmoji(t)).join('');
-      lines.push(`${emojis} **${page_name}** — ${types.map(disp).join(', ')} (${items.length} ชิ้น)`);
+      const emojis = types.map(t => getEmoji(t, guild)).join('');
+      lines.push(`${emojis} **${page_name}** — ${types.map(t => disp(t, guild)).join(', ')} (${items.length} ชิ้น)`);
     }
     embed.addFields({
       name: `${ICONS.FEATHER || '🪶'} Feather — กดปุ่มหน้าเพื่อจองทั้งหน้า`,
@@ -102,11 +105,11 @@ function buildEmbed(featherPages, bookItems, roundName) {
  * Discord limit: 5 rows × 5 buttons = 25 buttons max
  * ถ้าเกิน 25 → fallback dropdown
  */
-function buildButtonRows(featherPages, bookItems) {
+function buildButtonRows(featherPages, bookItems, guild = null) {
   const totalButtons = featherPages.size + bookItems.length;
 
   if (totalButtons > 25) {
-    return buildDropdownFallback(featherPages, bookItems);
+    return buildDropdownFallback(featherPages, bookItems, guild);
   }
 
   const allButtons = [];
@@ -118,7 +121,7 @@ function buildButtonRows(featherPages, bookItems) {
         .setCustomId(`${BTN_BOOK_PREFIX}${item.id}`)
         .setLabel(`${item.page_name} #${item.position}`)
         .setStyle(ButtonStyle.Primary)
-        .setEmoji('📒')
+        .setEmoji(resolveEmoji(ICONS.ALBUM, guild, '📒'))
     );
   }
 
@@ -134,11 +137,12 @@ function buildButtonRows(featherPages, bookItems) {
   for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))]
       .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
-    const emoji = types.length === 1 ? (FEATHER_EMOJI[types[0]] || '🪶') : '🪶';
+    
+    const emoji = getEmoji(types[0], guild);
     allButtons.push(
       new ButtonBuilder()
         .setCustomId(`${BTN_FEATHER_PREFIX}${pageId}`)
-        .setLabel(page_name)
+        .setLabel(`หน้า ${page_name}`)
         .setStyle(ButtonStyle.Success)
         .setEmoji(emoji)
     );
@@ -341,14 +345,14 @@ module.exports = {
 
     const availableItems = await db.getAvailableItems(currentRound.id);
     const { featherPages, bookItems } = splitByType(availableItems);
-    const embed = buildEmbed(featherPages, bookItems, currentRound.name);
+    const embed = buildEmbed(featherPages, bookItems, currentRound.name, interaction.guild);
 
     if (featherPages.size === 0 && bookItems.length === 0) {
       // ไม่มีของว่าง — ephemeral เพราะไม่ต้องให้คนอื่นเห็น
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    const components = buildButtonRows(featherPages, bookItems);
+    const components = buildButtonRows(featherPages, bookItems, interaction.guild);
     // ephemeral: true — เฉพาะคนใช้คำสั่งเห็น embed + ปุ่ม
     return interaction.reply({ embeds: [embed], components, ephemeral: true });
   },
