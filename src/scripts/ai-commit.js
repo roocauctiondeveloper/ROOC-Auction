@@ -89,7 +89,7 @@ async function start() {
   const newVer = run('npm version patch --no-git-tag-version');
 
   // 5. เตรียม Full Message (แบบละเอียดมาก)
-  const commitTitle = `feat: ${summary} [${newVer}]`;
+  const commitTitle = `[${newVer}] feat: ${summary}`;
   
   // สร้างรายการการเปลี่ยนแปลงสำหรับ Body
   let commitBody = '\n\n📜 Detailed Changes:';
