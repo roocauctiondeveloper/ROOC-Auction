@@ -19,8 +19,15 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await db.getAdminByDiscordId(id);
-    done(null, user);
+    const admin = await db.getAdminByDiscordId(id);
+    if (admin) {
+      done(null, { ...admin, isAdmin: true });
+    } else if (config.discordAdminId && id === config.discordAdminId) {
+      // Fallback สำหรับ Super Admin
+      done(null, { discord_user_id: id, isAdmin: true, discord_username: 'Super Admin' });
+    } else {
+      done(null, null);
+    }
   } catch (err) {
     done(err);
   }
@@ -33,11 +40,23 @@ passport.use(new DiscordStrategy({
     scope: ['identify']
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        // Check if user is an admin
+        // 1. เช็คว่าเป็น Super Admin จาก config หรือไม่
+        if (config.discordAdminId && profile.id === config.discordAdminId) {
+            return done(null, { 
+              discord_user_id: profile.id, 
+              discord_username: profile.username || profile.global_name,
+              isAdmin: true 
+            });
+        }
+
+        // 2. เช็คจากฐานข้อมูล
         const admin = await db.getAdminByDiscordId(profile.id);
         if (admin) {
-            // Return admin merged with current profile info (like username)
-            return done(null, { ...admin, discord_username: profile.username || profile.global_name });
+            return done(null, { 
+              ...admin, 
+              discord_username: profile.username || profile.global_name,
+              isAdmin: true 
+            });
         } else {
             return done(null, false, { message: 'คุณไม่มีสิทธิ์เข้าใช้งานระบบ' });
         }
@@ -45,6 +64,7 @@ passport.use(new DiscordStrategy({
         return done(err);
     }
 }));
+
 
 // EJS setup
 app.use(expressLayouts);

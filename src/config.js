@@ -33,5 +33,7 @@ module.exports = {
   get port() { return process.env.PORT || 3000; },
   get sessionSecret() { return process.env.SESSION_SECRET; },
   get databaseType() { return process.env.DATABASE_TYPE || 'sqlite'; }, // 'sqlite' or 'postgres'
-  get databaseUrl() { return process.env.DATABASE_URL || process.env.SUPABASE_DB_URL; }
+  get databaseUrl() { return process.env.DATABASE_URL || process.env.SUPABASE_DB_URL; },
+  get discordAdminId() { return process.env.DISCORD_ADMIN_ID; } // ID ของคุณที่เป็นเจ้าของบอท
 };
+
