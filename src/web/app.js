@@ -103,8 +103,30 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Provide session user variable to all EJS templates
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   res.locals.user = req.user || null;
+  
+  // ถ้าล็อคอินอยู่ พยายามหาชื่อเล่นใน Server มาแสดง
+  if (req.user && req.user.discord_user_id) {
+    try {
+      const botClient = require('../bot/client');
+      const guildId = config.discordGuildId;
+      
+      if (botClient.isReady() && guildId) {
+        const guild = await botClient.guilds.fetch(guildId);
+        const member = await guild.members.fetch(req.user.discord_user_id);
+        
+        if (member) {
+          // ใช้ชื่อเล่นในเซิร์ฟ ถ้าไม่มีใช้ displayName ถ้าไม่มีใช้ username เดิม
+          res.locals.user.server_name = member.nickname || member.displayName;
+        }
+      }
+    } catch (err) {
+      // ถ้าหาไม่เจอหรือไม่พร้อม ไม่เป็นไร ใช้ค่าปกติไปก่อน
+      console.warn('Could not fetch server nickname for user:', req.user.discord_user_id);
+    }
+  }
+
   res.locals.req = req;
   res.locals.version = version;
   
