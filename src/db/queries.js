@@ -151,11 +151,12 @@ async function deletePageReservationsForUser(roundId, pageId, discordUserId) {
   // ลบทุกการจองของ User นี้ ในหน้าและรอบที่กำหนด
   return db.run(`
     DELETE FROM reservations 
-    WHERE round_id = $1 
-    AND discord_user_id = $2
-    AND item_id IN (SELECT id FROM items WHERE page_id = $3)
+    WHERE round_id = ? 
+    AND discord_user_id = ?
+    AND item_id IN (SELECT id FROM items WHERE page_id = ?)
   `, [roundId, discordUserId, pageId]);
 }
+
 
 async function deleteAllUserReservationsInRound(roundId, discordUserId) {
   // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน
@@ -164,6 +165,8 @@ async function deleteAllUserReservationsInRound(roundId, discordUserId) {
     WHERE round_id = ? AND discord_user_id = ?
   `, [roundId, discordUserId]);
 }
+
+
 
 
 

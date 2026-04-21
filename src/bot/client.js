@@ -55,8 +55,11 @@ client.on('interactionCreate', async interaction => {
       });
     } catch (err) {
       console.error('[client] unreserve button error:', err);
-      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', ephemeral: true });
+      // โชว์ Error สั้นๆ เพื่อให้เรา Debug ได้ครับ
+      const errorMsg = err.message || 'Unknown error';
+      return interaction.reply({ content: `❌ เกิดข้อผิดพลาดในการยกเลิก: ${errorMsg}`, ephemeral: true });
     }
+
   }
 
   // Handle Buttons จาก /available
