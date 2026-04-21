@@ -348,7 +348,14 @@ module.exports = {
     if (interaction.customId === SELECT_BOOK_ITEM_ID) {
       return await reserveBookItem(interaction, parseInt(interaction.values[0]));
     }
+    // สำหรับ Dropdown เพิ่มเติมจาก Live Board
+    if (interaction.customId === 'lb_more_items') {
+      const [type, id] = interaction.values[0].split(':');
+      if (type === 'feather') return await reserveFeatherPage(interaction, parseInt(id));
+      if (type === 'book') return await reserveBookItem(interaction, parseInt(id));
+    }
   },
+
 
   BTN_FEATHER_PREFIX,
   BTN_BOOK_PREFIX,

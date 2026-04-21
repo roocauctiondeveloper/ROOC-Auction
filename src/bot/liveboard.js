@@ -45,14 +45,17 @@ async function buildBoardEmbed(round) {
   let totalItems = 0;
   let reservedCount = 0;
 
-  for (const page of pages) {
+  // Discord Limit: 25 fields per embed
+  const displayPages = pages.slice(0, 25);
+  for (const page of displayPages) {
     const items = await db.getItemsForPage(page.id);
     totalItems += items.length;
 
     const lines = items.map(i => {
       if (i.reserved_by) {
         reservedCount++;
-        return `~~${i.position}. ${d(i.item_type)}~~ 👤 **${i.reserved_by}**`;
+        const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
+        return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`;
       }
       return `${i.position}. ${d(i.item_type)} ✅`;
     });
@@ -64,11 +67,25 @@ async function buildBoardEmbed(round) {
     });
   }
 
+  // คำนวณ totalItems และ reservedCount สำหรับหน้าที่ไม่ได้แสดงด้วย (เพื่อให้เลขสรุปถูกต้อง)
+  if (pages.length > 25) {
+    const hiddenPages = pages.slice(25);
+    for (const page of hiddenPages) {
+      const items = await db.getItemsForPage(page.id);
+      totalItems += items.length;
+      reservedCount += items.filter(i => i.reserved_by).length;
+    }
+  }
+
   const remaining = totalItems - reservedCount;
-  embed.setDescription(
-    `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\n` +
-    `พิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`
-  );
+  let description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\n` +
+    `พิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
+  
+  if (pages.length > 25) {
+    description += `\n⚠️ *แสดงผลเพียง 25 หน้าแรกจากทั้งหมด ${pages.length} หน้า*`;
+  }
+  
+  embed.setDescription(description);
   embed.setFooter({ text: 'อัปเดตอัตโนมัติทุกครั้งที่มีการจอง • /mystuff เพื่อดูของที่จองไว้' });
 
   return { embed, totalItems, reservedCount };
@@ -102,20 +119,21 @@ async function buildBoardButtons(round) {
     'Light-Dark': '🤍', 'Time-Space': '❤️',
     'light-dark': '🤍', 'time-space': '❤️' 
   };
-  const allButtons = [];
+
+  // เตรียมรายการทั้งหมดที่จะทำเป็นปุ่มหรือเมนู
+  const allEntries = []; // { type: 'book'|'feather', id, label, emoji, data }
 
   // Album ก่อน
-  for (const item of bookItems.slice(0, 12)) {
-    allButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`${LB_BOOK_PREFIX}${item.id}`)
-        .setLabel(`หน้า ${item.page_name} #${item.position}`)
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('📒')
-    );
+  for (const item of bookItems) {
+    allEntries.push({
+      type: 'book',
+      id: item.id,
+      label: `หน้า ${item.page_name} #${item.position}`,
+      emoji: '📒'
+    });
   }
 
-  // ขนนก - เรียงหน้าที่มี Light-Dark ขึ้นมาก่อน (ตามความชอบผู้ใช้)
+  // Feather ต่อ
   const sortedFeatherEntries = [...featherPages.entries()].sort((a, b) => {
     const aHasLight = a[1].items.some(i => i.item_type.toLowerCase() === 'light-dark');
     const bHasLight = b[1].items.some(i => i.item_type.toLowerCase() === 'light-dark');
@@ -124,26 +142,68 @@ async function buildBoardButtons(round) {
     return 0;
   });
 
-  for (const [pageId, { page_name, items }] of sortedFeatherEntries.slice(0, 13)) {
+  for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))];
     const emoji = types.length === 1 ? (FEATHER_EMOJI[types[0]] || '🪶') : '🪶';
-    allButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`${LB_FEATHER_PREFIX}${pageId}`)
-        .setLabel(`หน้า ${page_name}`)
-        .setStyle(ButtonStyle.Success)
-        .setEmoji(emoji)
-    );
+    allEntries.push({
+      type: 'feather',
+      id: pageId,
+      label: `หน้า ${page_name}`,
+      emoji: emoji
+    });
   }
 
-  if (allButtons.length === 0) return [];
+  if (allEntries.length === 0) return [];
 
   const rows = [];
-  for (let i = 0; i < Math.min(allButtons.length, 25); i += 5) {
-    rows.push(new ActionRowBuilder().addComponents(allButtons.slice(i, i + 5)));
+  const buttonEntries = allEntries.slice(0, 25);
+  const remainingEntries = allEntries.slice(25, 50); // Dropdown รับได้อีก 25
+
+  // 1. สร้างปุ่ม (Max 25)
+  let currentRow = new ActionRowBuilder();
+  for (let i = 0; i < buttonEntries.length; i++) {
+    const entry = buttonEntries[i];
+    const btn = new ButtonBuilder()
+      .setCustomId(`${entry.type === 'feather' ? LB_FEATHER_PREFIX : LB_BOOK_PREFIX}${entry.id}`)
+      .setLabel(entry.label)
+      .setStyle(entry.type === 'feather' ? ButtonStyle.Success : ButtonStyle.Primary)
+      .setEmoji(entry.emoji);
+    
+    currentRow.addComponents(btn);
+
+    if ((i + 1) % 5 === 0 || i === buttonEntries.length - 1) {
+      if (currentRow.components.length > 0) {
+        rows.push(currentRow);
+        currentRow = new ActionRowBuilder();
+      }
+    }
   }
+
+  // 2. ถ้ามีเหลือ ใส่ใน Dropdown (ต้องไม่เกิน 5 แถวรวมปุ่ม)
+  if (remainingEntries.length > 0 && rows.length < 5) {
+    const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+    
+    // ถ้าแถวเต็มแล้ว ต้องเอาแถวสุดท้ายออกเพื่อใส่ dropdown (ถ้าจำเป็น)
+    if (rows.length === 5) rows.pop();
+
+    const options = remainingEntries.map(entry => 
+      new StringSelectMenuOptionBuilder()
+        .setLabel(entry.label)
+        .setValue(`${entry.type}:${entry.id}`)
+        .setEmoji(entry.emoji)
+    );
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId('lb_more_items')
+      .setPlaceholder('📦 เลือกรายการเพิ่มเติมที่นี่...')
+      .addOptions(options);
+
+    rows.push(new ActionRowBuilder().addComponents(menu));
+  }
+
   return rows;
 }
+
 
 /**
  * ส่ง Live Board message ใหม่ตอนเปิดรอบ
@@ -236,14 +296,31 @@ async function closeLiveBoard(client, round) {
       .setTimestamp();
 
     let totalItems = 0, reservedCount = 0;
-    for (const page of pages) {
+    const displayPages = pages.slice(0, 25);
+    
+    for (const page of displayPages) {
       const items = await db.getItemsForPage(page.id);
       totalItems += items.length;
       const lines = items.map(i => {
-        if (i.reserved_by) { reservedCount++; return `~~${i.position}. ${d(i.item_type)}~~ 👤 **${i.reserved_by}**`; }
+        if (i.reserved_by) { 
+          reservedCount++; 
+          const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
+          return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`; 
+        }
         return `${i.position}. ${d(i.item_type)} ❌ ไม่มีคนจอง`;
       });
       embed.addFields({ name: `📄 หน้า ${page.name}`, value: lines.join('\n') || '-', inline: true });
+    }
+
+    // รวมสถิติหน้าที่ซ่อนอยู่
+    if (pages.length > 25) {
+      const hiddenPages = pages.slice(25);
+      for (const page of hiddenPages) {
+        const items = await db.getItemsForPage(page.id);
+        totalItems += items.length;
+        reservedCount += items.filter(i => i.reserved_by).length;
+      }
+      embed.setDescription(embed.data.description + `\n*(แสดงผล 25 หน้าจากทั้งหมด ${pages.length} หน้า)*`);
     }
 
     embed.setFooter({ text: `สรุป: จองแล้ว ${reservedCount}/${totalItems} รายการ` });

@@ -30,12 +30,15 @@ async function getItemsForPage(pageId) {
   return db.all(`
     SELECT i.*,
            (SELECT discord_username FROM reservations r
-            WHERE r.item_id = i.id AND r.round_id = ?) AS reserved_by
+            WHERE r.item_id = i.id AND r.round_id = ?) AS reserved_by,
+           (SELECT discord_user_id FROM reservations r
+            WHERE r.item_id = i.id AND r.round_id = ?) AS discord_user_id
     FROM items i
     WHERE i.page_id = ?
     ORDER BY i.position ASC
-  `, [round.id, pageId]);
+  `, [round.id, round.id, pageId]);
 }
+
 
 async function addItem(pageId, itemType, position) {
   const r = await db.run(
