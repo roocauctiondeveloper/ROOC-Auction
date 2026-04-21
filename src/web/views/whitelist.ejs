@@ -1,9 +1,11 @@
+<link rel="stylesheet" href="/css/lottery.css">
+
 <div class="flex space-between items-center" style="margin-bottom: 2rem;">
-  <h1>Whitelist Management</h1>
+  <h1>Whitelist & Selection</h1>
 </div>
 
 <div class="card" style="border-left: 4px solid var(--primary);">
-  <h3 style="margin-bottom: 1.5rem;">Add to Whitelist</h3>
+  <h3 style="margin-bottom: 1.5rem;">Add New Member</h3>
   <p style="color: var(--text-light); margin-bottom: 1rem; font-size: 0.9rem;">
     💡 ใส่เพียง <b>Discord User ID</b> ระบบจะดึงชื่อมาให้โดยอัตโนมัติครับ
   </p>
@@ -16,47 +18,190 @@
   </form>
 </div>
 
+<!-- 🎡 Spin Wheel Section -->
+<div class="card lottery-section">
+    <div class="flex-desktop flex space-between items-center" style="margin-bottom: 1.5rem;">
+        <h3>🎡 Whitelist Lottery (สุ่มรายชื่อ)</h3>
+        <div class="lottery-controls">
+            <span style="font-size: 0.9rem; color: var(--text-light);">สุ่มออกกี่คน? :</span>
+            <input type="number" id="lottery-count" value="1" min="1" max="<%= whitelist.length %>" style="width: 70px; padding: 0.4rem; border-radius: 6px; border: 1px solid #ddd;">
+            <button class="btn btn-primary" onclick="startLottery()" id="spin-btn">🔥 START SPIN</button>
+        </div>
+    </div>
+
+    <div class="wheel-container">
+        <canvas id="wheel-canvas" width="400" height="400"></canvas>
+        <div class="wheel-pointer"></div>
+        <div id="lottery-result" style="display:none; text-align:center; width: 100%; max-width: 400px; z-index: 20;">
+            <div class="winner-card shadow-lg">
+                <h2 style="color: var(--primary); margin-bottom: 1rem; font-family: 'Outfit';">🎊 THE WINNERS 🎊</h2>
+                <div id="winners-list" style="max-height: 200px; overflow-y: auto;"></div>
+                <form action="/whitelist/lottery-apply" method="POST" style="margin-top: 1.5rem;">
+                    <div id="winners-hidden-input"></div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">บันทึกผล (Active เฉพาะกลุ่มนี้)</button>
+                    <button type="button" class="btn btn-secondary" onclick="resetWheel()" style="width: 100%; margin-top: 0.5rem;">สุ่มใหม่ (Try Again)</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
   <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
-    <h3 style="margin: 0;">Whitelisted Users (<%= whitelist.length %>)</h3>
+    <h3 style="margin: 0;">Members Management (<%= whitelist.length %>)</h3>
   </div>
   
-  <% if (whitelist.length === 0) { %>
-    <div style="text-align: center; padding: 3rem 1rem;">
-      <p style="color: var(--text-light); font-style: italic;">No users in the whitelist yet.</p>
-    </div>
-  <% } else { %>
-    <div class="table-responsive">
-      <table>
-        <thead>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>User Info</th>
+          <th>Discord ID</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (whitelist.length === 0) { %>
           <tr>
-            <th>User</th>
-            <th>Discord ID</th>
-            <th>Added At</th>
-            <th style="text-align: right;">Actions</th>
+            <td colspan="4" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
           </tr>
-        </thead>
-        <tbody>
+        <% } else { %>
           <% for(let user of whitelist) { %>
-            <tr>
+            <tr style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %>">
+              <td style="width: 120px;">
+                <form action="/whitelist/<%= user.id %>/toggle" method="POST">
+                    <input type="hidden" name="is_active" value="<%= !user.is_active %>">
+                    <button type="submit" class="badge <%= user.is_active ? 'badge-success' : 'badge-gray' %>" style="border:none; cursor:pointer;" title="คลิกเพื่อสลับสถานะ">
+                        <%= user.is_active ? '● ACTIVE' : '○ STANDBY' %>
+                    </button>
+                </form>
+              </td>
               <td>
                 <div style="font-weight: 700; color: var(--text);"><%= user.discord_username %></div>
               </td>
               <td>
-                <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= user.discord_user_id || '-' %></code>
-              </td>
-              <td style="color: var(--text-light); font-size: 0.9rem;">
-                <%= new Date(user.created_at).toLocaleString('th-TH') %>
+                <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= user.discord_user_id %></code>
               </td>
               <td style="text-align: right;">
-                <form action="/whitelist/<%= user.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบรายชื่อออกจาก Whitelist?');">
-                  <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Remove</button>
+                <form action="/whitelist/<%= user.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบถาวร?');">
+                  <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.8rem; padding: 0.3rem 0.6rem;">Delete</button>
                 </form>
               </td>
             </tr>
           <% } %>
-        </tbody>
-      </table>
-    </div>
-  <% } %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
 </div>
+
+<script>
+    const whitelistData = <%- JSON.stringify(whitelist) %>;
+    const canvas = document.getElementById('wheel-canvas');
+    const ctx = canvas.getContext('2d');
+    const pointer = document.querySelector('.wheel-pointer');
+    const resultDiv = document.getElementById('lottery-result');
+    const spinBtn = document.getElementById('spin-btn');
+
+    let currentRotation = 0;
+
+    function drawWheel() {
+        if (!whitelistData.length) return;
+        const segments = whitelistData.length;
+        const anglePerSegment = (Math.PI * 2) / segments;
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = centerX - 10;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < segments; i++) {
+            const startAngle = i * anglePerSegment;
+            const endAngle = (i + 1) * anglePerSegment;
+            
+            // Draw Segment
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+            ctx.fillStyle = `hsl(${(i * 360/segments) % 360}, 75%, 65%)`;
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw Text
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(startAngle + anglePerSegment / 2);
+            ctx.textAlign = "right";
+            ctx.fillStyle = "white";
+            ctx.font = "bold 13px Inter";
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = "rgba(0,0,0,0.3)";
+            const name = whitelistData[i].discord_username;
+            ctx.fillText(name.length > 12 ? name.substring(0, 10) + '..' : name, radius - 15, 5);
+            ctx.restore();
+        }
+
+        // Center circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 40, 0, Math.PI * 2);
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.stroke();
+    }
+
+    drawWheel();
+
+    function startLottery() {
+        const count = parseInt(document.getElementById('lottery-count').value);
+        if (!whitelistData.length) return alert('ไม่มีรายชื่อให้สุ่มครับ');
+        if (count > whitelistData.length) return alert('จำนวนสุ่มต้องไม่เกินจำนวนคนทั้งหมด');
+
+        spinBtn.disabled = true;
+        const extraSpins = 5 + Math.floor(Math.random() * 5);
+        const randomDegree = Math.floor(Math.random() * 360);
+        currentRotation += (extraSpins * 360) + randomDegree;
+        
+        canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+        setTimeout(() => {
+            // Pick Winners logic
+            const shuffled = [...whitelistData].sort(() => 0.5 - Math.random());
+            const winners = shuffled.slice(0, count);
+            displayWinners(winners);
+        }, 5000);
+    }
+
+    function displayWinners(winners) {
+        canvas.style.opacity = '0.1';
+        pointer.style.display = 'none';
+        resultDiv.style.display = 'block';
+
+        const listDiv = document.getElementById('winners-list');
+        const hiddenDiv = document.getElementById('winners-hidden-input');
+
+        listDiv.innerHTML = winners.map(w => `
+            <div class="winner-item">
+                <span style="font-size: 1.2rem;">🏆</span>
+                <strong>${w.discord_username}</strong>
+            </div>
+        `).join('');
+
+        hiddenDiv.innerHTML = winners.map(w => `
+            <input type="hidden" name="winners[]" value="${w.id}">
+        `).join('');
+    }
+
+    function resetWheel() {
+        canvas.style.opacity = '1';
+        canvas.style.transform = 'rotate(0deg)';
+        currentRotation = 0;
+        pointer.style.display = 'block';
+        resultDiv.style.display = 'none';
+        spinBtn.disabled = false;
+    }
+</script>
+

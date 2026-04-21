@@ -266,18 +266,31 @@ async function getRoundHistoryItems(roundId) {
 
 // ─── Whitelist ────────────────────────────────────────────────────────────────
 
-async function getAllWhitelist() {
-  return db.all('SELECT * FROM whitelist ORDER BY id ASC');
+async function getAllWhitelist(onlyActive = false) {
+  if (onlyActive) {
+    return db.all('SELECT * FROM whitelist WHERE is_active = true ORDER BY id ASC');
+  }
+  return db.all('SELECT * FROM whitelist ORDER BY is_active DESC, id ASC');
 }
 
 async function isWhitelisted(discordUserId) {
-  const row = await db.get('SELECT 1 FROM whitelist WHERE discord_user_id = ?', [discordUserId]);
+  const row = await db.get('SELECT 1 FROM whitelist WHERE discord_user_id = ? AND is_active = true', [discordUserId]);
   return !!row;
+}
+
+async function toggleWhitelistStatus(id, isActive) {
+  return db.run('UPDATE whitelist SET is_active = ? WHERE id = ?', [isActive, id]);
+}
+
+async function bulkUpdateWhitelistStatus(ids, isActive) {
+  if (ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(',');
+  return db.run(`UPDATE whitelist SET is_active = ? WHERE id IN (${placeholders})`, [isActive, ...ids]);
 }
 
 async function addToWhitelist(username, discordUserId) {
   const r = await db.run(
-    'INSERT INTO whitelist (discord_username, discord_user_id) VALUES (?, ?) RETURNING id',
+    'INSERT INTO whitelist (discord_username, discord_user_id, is_active) VALUES (?, ?, true) RETURNING id',
     [username, discordUserId]
   );
   return r.lastInsertRowid;
@@ -286,6 +299,7 @@ async function addToWhitelist(username, discordUserId) {
 async function removeFromWhitelist(id) {
   return db.run('DELETE FROM whitelist WHERE id = ?', [id]);
 }
+
 
 // ─── Available / MyStuff ──────────────────────────────────────────────────────
 
@@ -372,8 +386,9 @@ module.exports = {
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
   saveRoundSnapshot, getRoundHistoryItems,
-  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist,
+  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus,
   getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin,
+
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
 

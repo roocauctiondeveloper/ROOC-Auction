@@ -70,4 +70,39 @@ router.post('/:id/delete', async (req, res) => {
   res.redirect('/whitelist');
 });
 
+// POST /whitelist/:id/toggle
+router.post('/:id/toggle', async (req, res) => {
+  try {
+    const { is_active } = req.body;
+    await db.toggleWhitelistStatus(req.params.id, is_active === 'true');
+    req.session.success_msg = 'อัปเดตสถานะสำเร็จ';
+  } catch (err) {
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการอัปเดตสถานะ';
+  }
+  res.redirect('/whitelist');
+});
+
+// POST /whitelist/lottery-apply
+router.post('/lottery-apply', async (req, res) => {
+  try {
+    const { winners } = req.body; // Array of IDs
+    const winnerIds = Array.isArray(winners) ? winners : [winners];
+    const allMembers = await db.getAllWhitelist();
+    const allIds = allMembers.map(m => m.id);
+    
+    const losersIds = allIds.filter(id => !winnerIds.includes(id.toString()));
+
+    // บันทึกผล: คนชนะเป็น Active คนแพ้เป็น Inactive
+    await db.bulkUpdateWhitelistStatus(winnerIds, true);
+    await db.bulkUpdateWhitelistStatus(losersIds, false);
+
+    req.session.success_msg = 'บันทึกผลการสุ่มเรียบร้อยแล้ว!';
+  } catch (err) {
+    console.error(err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการบันทึกผลการสุ่ม';
+  }
+  res.redirect('/whitelist');
+});
+
+
 module.exports = router;
