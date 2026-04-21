@@ -181,8 +181,12 @@ async function buildBoardButtons(round) {
     const btn = new ButtonBuilder()
       .setCustomId(`${entry.type === 'feather' ? LB_FEATHER_PREFIX : LB_BOOK_PREFIX}${entry.id}`)
       .setLabel(entry.label)
-      .setStyle(entry.type === 'feather' ? ButtonStyle.Success : ButtonStyle.Primary)
-      .setEmoji(entry.emoji);
+      .setStyle(entry.type === 'feather' ? ButtonStyle.Success : ButtonStyle.Primary);
+    
+    if (entry.emoji) {
+      btn.setEmoji(entry.emoji);
+    }
+
     
     currentRow.addComponents(btn);
 
@@ -198,12 +202,17 @@ async function buildBoardButtons(round) {
   if (remainingEntries.length > 0 && rows.length < 5) {
     const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
     
-    const options = remainingEntries.map(entry => 
-      new StringSelectMenuOptionBuilder()
+    const options = remainingEntries.map(entry => {
+      const opt = new StringSelectMenuOptionBuilder()
         .setLabel(entry.label)
-        .setValue(`${entry.type}:${entry.id}`)
-        .setEmoji(entry.emoji)
-    );
+        .setValue(`${entry.type}:${entry.id}`);
+      
+      if (entry.emoji) {
+        opt.setEmoji(entry.emoji);
+      }
+      return opt;
+    });
+
 
     const menu = new StringSelectMenuBuilder()
       .setCustomId('lb_more_items')
