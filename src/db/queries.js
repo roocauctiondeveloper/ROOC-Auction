@@ -157,6 +157,15 @@ async function deletePageReservationsForUser(roundId, pageId, discordUserId) {
   `, [roundId, discordUserId, pageId]);
 }
 
+async function deleteAllUserReservationsInRound(roundId, discordUserId) {
+  // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน
+  return db.run(`
+    DELETE FROM reservations 
+    WHERE round_id = ? AND discord_user_id = ?
+  `, [roundId, discordUserId]);
+}
+
+
 
 async function deleteAllUserReservationsInRound(roundId, discordUserId) {
   // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน
@@ -358,6 +367,7 @@ module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
   getCurrentReservations, getReservationsByRound, addReservation, deleteReservation, isItemReserved,
+  getReservationById, deletePageReservationsForUser, deleteAllUserReservationsInRound,
   getCurrentRound, getOrCreateCurrentRound, updateRoundStatus,
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
@@ -366,4 +376,5 @@ module.exports = {
   getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin,
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
+
 };
