@@ -7,7 +7,12 @@
     "start": "node src/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "deploy-commands": "node src/bot/deploy-commands.js"
+    "deploy-commands": "node src/bot/deploy-commands.js",
+    "push-github": "git push origin main",
+    "push-hf": "git push hf main",
+    "push-all": "git push origin main && git push hf main",
+    "update": "git add . && git commit -m \"Update\" && npm run push-all",
+    "ai-update": "ai_update.bat"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
