@@ -8,6 +8,7 @@ const config = require('../config');
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
 const db = require('../db/queries');
+const { version } = require('../../package.json');
 
 const app = express();
 
@@ -85,6 +86,7 @@ app.use(passport.session());
 app.use((req, res, next) => {
   res.locals.user = req.user || null;
   res.locals.req = req;
+  res.locals.version = version;
   
   // Handle Passport failure messages
   let passport_error = null;
