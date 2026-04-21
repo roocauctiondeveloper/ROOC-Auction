@@ -1,17 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../db/queries');
-const { updateLiveBoard } = require('../liveboard');
+const { ICONS, ITEM_TYPES } = require('../../utils/constants');
 
-const HINT = '\n\n💡 ดูรายการที่ว่างได้ด้วย `/available` • ดูของที่จองไว้ด้วย `/mystuff`';
-
-const DISPLAY = { 
-  'Album': '📒 Album', 
-  'Light-Dark': '🐔 Light-Dark', 
-  'Time-Space': '🐓 Time-Space',
-  'light-dark': '🐔 Light-Dark', 
-  'time-space': '🐓 Time-Space' 
-};
-const disp = (t) => DISPLAY[t] ?? t;
+const HINT = `\n\n💡 ดูรายการที่ว่างได้ด้วย \`/available\` • ดูของที่จองไว้ด้วย \`/mystuff\``;
+const disp = (t) => ITEM_TYPES[t]?.emoji + ' ' + ITEM_TYPES[t]?.label || t;
 
 module.exports = {
   data: new SlashCommandBuilder()

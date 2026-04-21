@@ -9,6 +9,7 @@ const {
 } = require('discord.js');
 const db = require('../../db/queries');
 const { updateLiveBoard } = require('../liveboard');
+const { ICONS, ITEM_TYPES } = require('../../utils/constants');
 
 // Button custom ID prefixes
 const BTN_FEATHER_PREFIX = 'avail_f:'; // avail_f:<pageId>
@@ -19,23 +20,9 @@ const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
 const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
-const FEATHER_EMOJI = { 
-  'Light-Dark': '🐔', 'Time-Space': '🐓',
-  'light-dark': '🐔', 'time-space': '🐓' 
-};
+const getEmoji = (t) => ITEM_TYPES[t]?.emoji || ICONS.FEATHER || '🪶';
+const disp = (t) => ITEM_TYPES[t]?.label || t;
 
-// ลำดับการแสดงผล: Album → light-dark → time-space (DB values)
-const TYPE_ORDER = { 'Album': 0, 'Light-Dark': 1, 'Time-Space': 2, 'light-dark': 1, 'time-space': 2 };
-
-// Display names สำหรับแสดงใน Discord
-const DISP = { 
-  'Album': 'Album', 
-  'Light-Dark': 'Light-Dark', 
-  'Time-Space': 'Time-Space',
-  'light-dark': 'Light-Dark', 
-  'time-space': 'Time-Space' 
-};
-const disp = (t) => DISP[t] ?? t;
 
 /** แยก available items ตาม type และเรียงลำดับ */
 function splitByType(availableItems) {
@@ -75,9 +62,9 @@ function buildEmbed(featherPages, bookItems, roundName) {
 
   // Album ขึ้นก่อน
   if (bookItems.length > 0) {
-    const lines = bookItems.map(i => `📒 **${i.page_name}** ชิ้นที่ ${i.position}`);
+    const lines = bookItems.map(i => `${ICONS.ALBUM || '📒'} **${i.page_name}** ชิ้นที่ ${i.position}`);
     embed.addFields({
-      name: '📒 Album — กดปุ่มชิ้นที่ต้องการ',
+      name: `${ICONS.ALBUM || '📒'} Album — กดปุ่มชิ้นที่ต้องการ`,
       value: lines.join('\n'),
       inline: false,
     });
@@ -89,11 +76,11 @@ function buildEmbed(featherPages, bookItems, roundName) {
     for (const [, { page_name, items }] of featherPages) {
       const types = [...new Set(items.map(i => i.item_type))]
         .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
-      const emojis = types.map(t => FEATHER_EMOJI[t] || '🪶').join('');
+      const emojis = types.map(t => getEmoji(t)).join('');
       lines.push(`${emojis} **${page_name}** — ${types.map(disp).join(', ')} (${items.length} ชิ้น)`);
     }
     embed.addFields({
-      name: '🪶 Feather — กดปุ่มหน้าเพื่อจองทั้งหน้า',
+      name: `${ICONS.FEATHER || '🪶'} Feather — กดปุ่มหน้าเพื่อจองทั้งหน้า`,
       value: lines.join('\n'),
       inline: false,
     });

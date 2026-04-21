@@ -1,13 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const db = require('../../db/queries');
+const { ICONS, ITEM_TYPES } = require('../../utils/constants');
 
-const DISP = { 
-  'Album': '📒 Album', 
-  'Light-Dark': '🐔 Light-Dark', 
-  'Time-Space': '🐓 Time-Space',
-  'light-dark': '🐔 Light-Dark', 
-  'time-space': '🐓 Time-Space' 
-};
+const DISP = (t) => ITEM_TYPES[t]?.emoji + ' ' + ITEM_TYPES[t]?.label || t;
 
 module.exports = {
   data: new SlashCommandBuilder()

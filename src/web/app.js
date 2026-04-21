@@ -121,15 +121,10 @@ app.use((req, res, next) => {
   res.locals.success_msg = req.session.success_msg || null;
   req.session.success_msg = null;
 
-  // Helper: แปลง item_type (DB value) → Display name
-  const ITEM_TYPE_DISPLAY = {
-    'Album':      '📒 Album',
-    'Light-Dark': '🐔 Light-Dark',
-    'Time-Space': '🐓 Time-Space',
-    'light-dark': '🐔 Light-Dark',
-    'time-space': '🐓 Time-Space',
-  };
-  res.locals.displayItemType = (type) => ITEM_TYPE_DISPLAY[type] ?? type;
+  const { ICONS, ITEM_TYPES } = require('../utils/constants');
+  res.locals.ICONS = ICONS;
+  res.locals.displayItemType = (type) => ITEM_TYPES[type]?.emoji + ' ' + ITEM_TYPES[type]?.label || type;
+
   
   next();
 });

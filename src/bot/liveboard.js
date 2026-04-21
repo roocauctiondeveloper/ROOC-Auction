@@ -11,15 +11,11 @@ const {
   ButtonStyle,
 } = require('discord.js');
 const db = require('../db/queries');
+const { ICONS, ITEM_TYPES } = require('../utils/constants');
 
-const DISP = {
-  'Album': 'Album',
-  'Light-Dark': 'Light-Dark',
-  'Time-Space': 'Time-Space',
-  'light-dark': 'Light-Dark',
-  'time-space': 'Time-Space'
-};
-const d = (t) => DISP[t] ?? t;
+
+const d = (t) => ITEM_TYPES[t]?.label || t;
+const getEmoji = (t) => ITEM_TYPES[t]?.emoji || ICONS.FEATHER || '🪶';
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 
@@ -53,8 +49,7 @@ async function buildBoardEmbed(round) {
 
     // หา types ที่มีในหน้านี้เพื่อโชว์ไอคอนหน้า Page Name
     const types = [...new Set(items.map(i => i.item_type))];
-    const FEATHER_ICON = { 'Light-Dark': '🐔', 'Time-Space': '🐓', 'light-dark': '🐔', 'time-space': '🐓' };
-    const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
+    const pageEmojis = types.map(t => getEmoji(t)).join('');
 
     const lines = items.map(i => {
       if (i.reserved_by) {
@@ -121,10 +116,7 @@ async function buildBoardButtons(round) {
     }
   }
 
-  const FEATHER_EMOJI = {
-    'Light-Dark': '🐔', 'Time-Space': '🐓',
-    'light-dark': '🐔', 'time-space': '🐓'
-  };
+  // Using getEmoji helper
 
   // เตรียมรายการทั้งหมดที่จะทำเป็นปุ่มหรือเมนู
   const allEntries = []; // { type: 'book'|'feather', id, label, emoji, data }
@@ -135,7 +127,8 @@ async function buildBoardButtons(round) {
       type: 'book',
       id: item.id,
       label: `หน้า ${item.page_name} #${item.position}`,
-      emoji: '📒'
+      label: `หน้า ${item.page_name} #${item.position}`,
+      emoji: ICONS.ALBUM || '📒'
     });
   }
 
@@ -150,13 +143,13 @@ async function buildBoardButtons(round) {
 
   for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))];
-    const emojis = types.map(t => FEATHER_EMOJI[t] || '🪶').join('');
+    const emojis = types.map(t => getEmoji(t)).join('');
 
     allEntries.push({
       type: 'feather',
       id: pageId,
       label: `${emojis} หน้า ${page_name}`,
-      emoji: null // ใส่ใน Label แล้ว ไม่ต้องใส่ที่ช่อง Emoji แยก
+      emoji: null
     });
   }
 
@@ -325,8 +318,7 @@ async function closeLiveBoard(client, round) {
       totalItems += items.length;
 
       const types = [...new Set(items.map(i => i.item_type))];
-      const FEATHER_ICON = { 'Light-Dark': '🐔', 'Time-Space': '🐓', 'light-dark': '🐔', 'time-space': '🐓' };
-      const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
+      const pageEmojis = types.map(t => getEmoji(t)).join('');
 
       const lines = items.map(i => {
         if (i.reserved_by) {
