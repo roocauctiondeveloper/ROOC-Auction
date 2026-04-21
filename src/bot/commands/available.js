@@ -240,11 +240,11 @@ async function reserveFeatherPage(interaction, pageId) {
   // 📢 Update Live Board
   await updateLiveBoard(interaction.client, round.id);
 
-  let msg = `✅ **${discordUsername}** จองหน้า **${pageName}** สำเร็จ!\n📦 ${success.join(', ')}`;
-  if (fail.length > 0) msg += `\n⚠️ จองไม่ได้ (ถูกจองไปแล้ว): ${fail.join(', ')}`;
-  msg += '\n\n💡 ดูของที่จองไว้ทั้งหมดด้วย `/mystuff`';
-  return interaction.reply({ content: msg, ephemeral: false });
+  // ตอบรับเงียบๆ (ไม่ต้องส่งข้อความใหม่ เพราะดูได้จาก Live Board)
+  if (interaction.deferred || interaction.replied) return;
+  return interaction.deferUpdate();
 }
+
 
 async function reserveBookItem(interaction, itemId) {
   const discordUserId = interaction.user.id;
@@ -280,11 +280,11 @@ async function reserveBookItem(interaction, itemId) {
     // 📢 Update Live Board
     await updateLiveBoard(interaction.client, round.id);
 
-    return interaction.reply({
-      content: `✅ **${discordUsername}** จองสำเร็จ!\n📒 ${disp(item.item_type)} **${pageName}** ชิ้นที่ ${item.position}\n\n💡 ดูของที่จองไว้ทั้งหมดด้วย \`/mystuff\``,
-      ephemeral: false,
-    });
+    // ตอบรับเงียบๆ
+    if (interaction.deferred || interaction.replied) return;
+    return interaction.deferUpdate();
   } catch (err) {
+
     if (err.message?.includes('UNIQUE') || err.code === '23505') {
       return interaction.reply({ content: '❌ Album ชิ้นนี้ถูกจองไปแล้ว', ephemeral: true });
     }
