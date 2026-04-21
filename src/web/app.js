@@ -1,0 +1,127 @@
+const express = require('express');
+const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
+const path = require('path');
+const expressLayouts = require('express-ejs-layouts');
+const config = require('../config');
+
+const passport = require('passport');
+const DiscordStrategy = require('passport-discord').Strategy;
+const db = require('../db/queries');
+
+const app = express();
+
+// Passport setup
+passport.serializeUser((user, done) => {
+  done(null, user.discord_user_id);
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await db.getAdminByDiscordId(id);
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
+});
+
+passport.use(new DiscordStrategy({
+    clientID: config.discordClientId,
+    clientSecret: config.discordClientSecret,
+    callbackURL: config.discordCallbackUrl,
+    scope: ['identify']
+}, async (accessToken, refreshToken, profile, done) => {
+    try {
+        // Check if user is an admin
+        const admin = await db.getAdminByDiscordId(profile.id);
+        if (admin) {
+            // Return admin merged with current profile info (like username)
+            return done(null, { ...admin, discord_username: profile.username || profile.global_name });
+        } else {
+            return done(null, false, { message: 'คุณไม่มีสิทธิ์เข้าใช้งานระบบ' });
+        }
+    } catch (err) {
+        return done(err);
+    }
+}));
+
+// EJS setup
+app.use(expressLayouts);
+app.set('layout', 'layout'); // Set default layout
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Middleware
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public'))); 
+
+// Session
+let sessionStore;
+if (config.databaseType === 'postgres') {
+  const pgSession = require('connect-pg-simple')(session);
+  sessionStore = new pgSession({
+    conString: config.databaseUrl,
+    createTableIfMissing: true
+  });
+} else {
+  const SQLiteStore = require('connect-sqlite3')(session);
+  sessionStore = new SQLiteStore({ dir: path.join(__dirname, '../../'), db: 'database.sqlite' });
+}
+
+app.use(session({
+  store: sessionStore,
+  secret: config.sessionSecret || 'default_secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 1 week
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Provide session user variable to all EJS templates
+app.use((req, res, next) => {
+  res.locals.user = req.user || null;
+  
+  // Handle Passport failure messages
+  let passport_error = null;
+  if (req.session.messages && req.session.messages.length > 0) {
+    passport_error = req.session.messages[0];
+    req.session.messages = []; // Clear after use
+  }
+
+  res.locals.error_msg = req.session.error_msg || passport_error || null;
+  req.session.error_msg = null; 
+  
+  res.locals.success_msg = req.session.success_msg || null;
+  req.session.success_msg = null;
+
+  // Helper: แปลง item_type (DB value) → Display name
+  const ITEM_TYPE_DISPLAY = {
+    'Album':      'Album',
+    'Light-Dark': 'Light-Dark',
+    'Time-Space': 'Time-Space',
+    'light-dark': 'Light-Dark',
+    'time-space': 'Time-Space',
+  };
+  res.locals.displayItemType = (type) => ITEM_TYPE_DISPLAY[type] ?? type;
+  
+  next();
+});
+
+// Routes (will define shortly)
+app.use('/', require('./routes/auth'));
+app.use('/pages', require('./routes/pages'));
+app.use('/items', require('./routes/items'));
+app.use('/reservations', require('./routes/reservations'));
+app.use('/history', require('./routes/history'));
+app.use('/whitelist', require('./routes/whitelist'));
+
+// Catch-all 404
+app.use((req, res) => {
+  res.status(404).send('404 Not Found');
+});
+
+module.exports = app;

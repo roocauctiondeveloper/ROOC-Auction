@@ -1,0 +1,57 @@
+<div class="flex space-between items-center" style="margin-bottom: 2rem;">
+  <div>
+    <a href="/history" style="color: var(--text-light); text-decoration: none; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      กลับหน้าประวัติ
+    </a>
+    <h2 style="margin-top: 0.5rem; margin-bottom: 0;"><%= round.name %></h2>
+    <p style="color: var(--text-light); font-size: 0.8rem; margin: 0;">สรุปรายการจองประมูล (Snapshot)</p>
+  </div>
+  <div class="badge badge-gray" style="padding: 0.4rem 0.8rem;">CLOSED</div>
+</div>
+
+<% 
+  const groupedPages = {};
+  reservations.forEach(item => {
+    if (!groupedPages[item.page_name]) groupedPages[item.page_name] = [];
+    groupedPages[item.page_name].push(item);
+  });
+  
+  const sortedPageNames = Object.keys(groupedPages).sort((a, b) => a.length - b.length || a.localeCompare(b));
+%>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;">
+  <% for(let pageName of sortedPageNames) { %>
+    <% const items = groupedPages[pageName]; %>
+    <% const reserved = items.filter(i => i.discord_user_id).length; %>
+    <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 0; border: 1px solid #e2e8f0; border-top: 3px solid <%= reserved === items.length ? 'var(--success)' : 'var(--primary)' %>;">
+      <div style="background: #f8fafc; padding: 0.5rem 0.75rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: var(--text); font-size: 1rem;">Page <%= pageName %></strong>
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-light);"><%= reserved %>/<%= items.length %></span>
+      </div>
+      <div style="padding: 0.4rem;">
+        <% for(let i of items) { %>
+          <div style="padding: 0.5rem 0.6rem; border-radius: 6px; margin-bottom: 0.2rem; font-size: 0.8rem; border: 1px solid <%= i.discord_user_id ? '#dbeafe' : '#f8fafc' %>; background: <%= i.discord_user_id ? '#f0f9ff' : 'transparent' %>;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 600; color: <%= i.discord_user_id ? '#1e40af' : '#94a3b8' %>;">
+                <%= i.item_pos %>. <%= displayItemType(i.item_type) %>
+              </span>
+              <% if (i.discord_user_id) { %>
+                <span title="เวลาจอง" style="font-size: 0.65rem; color: #94a3b8;"><%= i.reserved_at ? new Date(i.reserved_at).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) : '' %></span>
+              <% } %>
+            </div>
+            
+            <% if (i.discord_user_id) { %>
+              <div style="margin-top: 2px; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 0.85rem;">👤</span> <%= i.discord_username %>
+              </div>
+              <div style="font-size: 0.65rem; color: #93c5fd; font-family: monospace; margin-left: 1.1rem;">ID: <%= i.discord_user_id %></div>
+            <% } else { %>
+              <div style="margin-top: 2px; color: #e2e8f0; font-size: 0.75rem;">Available</div>
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+</div>

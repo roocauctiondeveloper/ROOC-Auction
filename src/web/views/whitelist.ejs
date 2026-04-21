@@ -1,0 +1,63 @@
+<div class="flex space-between items-center" style="margin-bottom: 2rem;">
+  <h1>Whitelist Management</h1>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom: 1.5rem;">Add New User</h3>
+  <form action="/whitelist" method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0;">
+      <label for="discord_user_id">Discord User ID <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="discord_user_id" name="discord_user_id" required placeholder="e.g. 295747827517227009">
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label for="discord_username">Display Name (Optional)</label>
+      <input type="text" id="discord_username" name="discord_username" placeholder="e.g. Username">
+    </div>
+    <button class="btn btn-primary" type="submit">Add to Whitelist</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
+    <h3 style="margin: 0;">Whitelisted Users (<%= whitelist.length %>)</h3>
+  </div>
+  
+  <% if (whitelist.length === 0) { %>
+    <div style="text-align: center; padding: 3rem 1rem;">
+      <p style="color: var(--text-light); font-style: italic;">No users in the whitelist yet.</p>
+    </div>
+  <% } else { %>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Discord ID</th>
+            <th>Added At</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for(let user of whitelist) { %>
+            <tr>
+              <td>
+                <div style="font-weight: 700; color: var(--text);"><%= user.discord_username %></div>
+              </td>
+              <td>
+                <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= user.discord_user_id || '-' %></code>
+              </td>
+              <td style="color: var(--text-light); font-size: 0.9rem;">
+                <%= new Date(user.created_at).toLocaleString('th-TH') %>
+              </td>
+              <td style="text-align: right;">
+                <form action="/whitelist/<%= user.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบรายชื่อออกจาก Whitelist?');">
+                  <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Remove</button>
+                </form>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

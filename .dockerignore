@@ -1,0 +1,12 @@
+node_modules
+.env
+database.sqlite*
+*.log
+.git
+.vscode
+tests
+test_output.txt
+migrate_to_supabase.js
+reset_db.js
+create-admin.js
+supabase_schema.sql

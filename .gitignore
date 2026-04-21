@@ -1,0 +1,30 @@
+# Dependency
+node_modules/
+
+# Secrets & Config
+.env
+.env.test
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Database files (previously used)
+database.sqlite*
+
+# Test & Junk
+test_output.txt
+test-results/
+
+# OS/System
+.DS_Store
+Thumbs.db
+
+# VS Code settings
+.vscode/
+
+# Scripts for migration/testing
+reset_db.js
+migrate_to_supabase.js
+fix-views.js

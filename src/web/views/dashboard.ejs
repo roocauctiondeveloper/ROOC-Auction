@@ -1,0 +1,165 @@
+<div class="flex space-between flex-desktop items-center" style="margin-bottom: 2rem;">
+  <div>
+    <h1>Admin Dashboard</h1>
+    <% if (user.discord_username) { %>
+      <p style="color: var(--text-light); margin: 0;">ยินดีต้อนรับคุณ <%= user.discord_username %></p>
+    <% } else { %>
+      <p style="color: var(--text-light); margin: 0;">ยินดีต้อนรับ Admin</p>
+    <% } %>
+  </div>
+  <div style="margin-top: 1rem;">
+    <div id="round-status-container">
+      <% if (round && round.status === 'preparing') { %>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 0.5rem 1rem;">เตรียมพร้อม (Preparing)</span>
+          <form action="/round/open" method="POST">
+            <button type="submit" class="btn btn-primary" style="background: var(--success);" onclick="return confirm('ยืนยันเปิดรับจอง? บอทจะประกาศลง Discord ทันที');">
+              เปิดรับจอง (Start)
+            </button>
+          </form>
+        </div>
+      <% } else if (round && round.status === 'open') { %>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 0.9rem; padding: 0.5rem 1rem;">กำลังเปิดรับจอง (OPEN)</span>
+          <form action="/round/close" method="POST">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('ยืนยันปิดการจองรอบนี้?');">
+              ปิดการจอง (End Round)
+            </button>
+          </form>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Overview -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
+  <div class="card" style="margin-bottom: 0; display: flex; align-items: center; gap: 1.5rem;">
+    <div style="background: #eff6ff; color: #3b82f6; width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📋</div>
+    <div>
+      <h3 style="color: var(--text-light); font-size: 0.85rem; text-transform: uppercase; margin: 0; letter-spacing: 0.05em;">Reserved</h3>
+      <div id="stats-reserved" style="font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1.2;"><%= reservationsCount %></div>
+    </div>
+  </div>
+  
+  <div class="card" style="margin-bottom: 0; display: flex; align-items: center; gap: 1.5rem;">
+    <div style="background: #f0fdf4; color: #10b981; width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">📑</div>
+    <div>
+      <h3 style="color: var(--text-light); font-size: 0.85rem; text-transform: uppercase; margin: 0; letter-spacing: 0.05em;">Pages</h3>
+      <div id="stats-pages" style="font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1.2;"><%= pagesCount %></div>
+    </div>
+  </div>
+  
+  <div class="card" style="margin-bottom: 0; display: flex; align-items: center; gap: 1.5rem;">
+    <div style="background: #f5f3ff; color: #8b5cf6; width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🛡️</div>
+    <div>
+      <h3 style="color: var(--text-light); font-size: 0.85rem; text-transform: uppercase; margin: 0; letter-spacing: 0.05em;">Whitelist</h3>
+      <div id="stats-whitelist" style="font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1.2;"><%= whitelistCount %></div>
+    </div>
+  </div>
+</div>
+
+<!-- Live Progress -->
+<div class="card">
+  <div class="flex space-between items-center" style="margin-bottom: 2rem;">
+    <div>
+      <h3 style="margin: 0;">Live Progress / Items Overview</h3>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">อัปเดตอัตโนมัติทุก 5 วินาที • <span id="last-update" style="font-weight: 600;">Loading...</span></p>
+    </div>
+    <div style="text-align: right;" id="progress-badges">
+       <span class="badge badge-success"><%= reservationsCount %> RESERVED</span>
+       <span class="badge badge-gray"><%= (pagesCount * 4) - reservationsCount %> REMAINING</span>
+    </div>
+  </div>
+
+  <div id="pages-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
+    <!-- Will be filled by JS or initial Load -->
+    <% for(let p of pagesWithItems) { %>
+      <div class="page-card" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+        <div style="background: #f8fafc; padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between;">
+          <strong style="color: var(--primary);">Page <%= p.name %></strong>
+          <span style="font-size: 0.75rem; color: var(--text-light);"><%= p.items.filter(i => i.reserved_by).length %>/4</span>
+        </div>
+        <div style="padding: 0.5rem;">
+          <% for(let i of p.items) { %>
+            <div style="padding: 0.6rem 0.75rem; border-radius: 8px; margin-bottom: 0.25rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: <%= i.reserved_by ? '#eff6ff' : '#ffffff' %>; border: 1px solid <%= i.reserved_by ? '#dbeafe' : 'transparent' %>;">
+              <span style="font-weight: 500;"><%= i.position %>. <%= displayItemType(i.item_type) %></span>
+              <% if (i.reserved_by) { %>
+                <span style="color: var(--primary); font-weight: 700;">👤 <%= i.reserved_by %></span>
+              <% } else { %>
+                <span style="color: #cbd5e1;">Available</span>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+  const ITEM_TYPE_DISPLAY = { 
+    'Album':      'Album', 
+    'Light-Dark': 'Light-Dark', 
+    'Time-Space': 'Time-Space',
+    // Fallback for any old lowercase data
+    'light-dark': 'Light-Dark',
+    'time-space': 'Time-Space'
+  };
+  const displayType = (t) => ITEM_TYPE_DISPLAY[t] || t;
+
+  async function refreshDashboard() {
+    try {
+      const response = await fetch('/api/dashboard-stats');
+      const data = await response.json();
+      
+      // Update Stats
+      document.getElementById('stats-reserved').innerText = data.reservationsCount;
+      document.getElementById('stats-pages').innerText = data.pagesCount;
+      document.getElementById('stats-whitelist').innerText = data.whitelistCount;
+      
+      // Update Badges
+      const remaining = (data.pagesCount * 4) - data.reservationsCount;
+      document.getElementById('progress-badges').innerHTML = `
+        <span class="badge badge-success">${data.reservationsCount} RESERVED</span>
+        <span class="badge badge-gray">${remaining} REMAINING</span>
+      `;
+      
+      // Update Pages Container
+      const container = document.getElementById('pages-container');
+      if (data.pagesWithItems.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-light); border: 2px dashed #e2e8f0; border-radius: 12px; grid-column: 1/-1;">ยังไม่มีการสร้างหน้าประมูล</div>';
+      } else {
+        const pagesHtml = data.pagesWithItems.map(p => {
+          const reservedCount = p.items.filter(i => i.reserved_by).length;
+          const itemsHtml = p.items.map(i => `
+            <div style="padding: 0.6rem 0.75rem; border-radius: 8px; margin-bottom: 0.25rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: ${i.reserved_by ? '#eff6ff' : '#ffffff'}; border: 1px solid ${i.reserved_by ? '#dbeafe' : 'transparent'};">
+              <span style="font-weight: 500;">${i.position}. ${displayType(i.item_type)}</span>
+              ${i.reserved_by ? `<span style="color: var(--primary); font-weight: 700;">👤 ${i.reserved_by}</span>` : `<span style="color: #cbd5e1;">Available</span>`}
+            </div>
+          `).join('');
+          
+          return `
+            <div class="page-card" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+              <div style="background: #f8fafc; padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between;">
+                <strong style="color: var(--primary);">Page ${p.name}</strong>
+                <span style="font-size: 0.75rem; color: var(--text-light);">${reservedCount}/4</span>
+              </div>
+              <div style="padding: 0.5rem;">${itemsHtml}</div>
+            </div>
+          `;
+        }).join('');
+        container.innerHTML = pagesHtml;
+      }
+      
+      document.getElementById('last-update').innerText = 'Last updated: ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      console.error('Failed to refresh dashboard:', err);
+      document.getElementById('last-update').innerText = 'Connection lost...';
+    }
+  }
+
+  // Refresh every 5 seconds
+  setInterval(refreshDashboard, 5000);
+  document.getElementById('last-update').innerText = 'Connected';
+</script>

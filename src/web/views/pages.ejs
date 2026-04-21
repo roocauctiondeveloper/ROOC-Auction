@@ -1,0 +1,93 @@
+<div class="flex space-between items-center" style="margin-bottom: 2rem;">
+  <h1>Pages Management</h1>
+</div>
+
+<div class="card" style="border: 2px solid #e0e7ff; background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);">
+  <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
+    <div style="background: var(--primary); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">🚀</div>
+    <div>
+      <h3 style="color: var(--primary); margin: 0;">Bulk Reset & Setup</h3>
+      <p style="color: var(--text-light); font-size: 0.875rem; margin-top: 0.25rem;">
+        ล้างข้อมูลทั้งหมดแล้วสร้างหน้าใหม่พร้อมสินค้าตามจำนวนที่ระบุ (Album &raquo; Light-Dark &raquo; Time-Space)
+      </p>
+    </div>
+  </div>
+  
+  <form action="/pages/bulk-setup" method="POST" onsubmit="return confirm('คำเตือน: ข้อมูลหน้าและสินค้าเดิมจะถูกลบทั้งหมดเพื่อเริ่มใหม่ ยืนยันหรือไม่?');">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>📁 Album ทั้งหมด</label>
+        <input type="number" name="card_total" min="0" value="0" required>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>🤍 Light-Dark ทั้งหมด</label>
+        <input type="number" name="white_total" min="0" value="0" required>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>🖤 Time-Space ทั้งหมด</label>
+        <input type="number" name="black_total" min="0" value="0" required>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit" style="width: 100%; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);">Generate All Pages & Items</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom: 1.5rem;">All Pages (<%= pages.length %>)</h3>
+  <% if (pages.length === 0) { %>
+    <div style="text-align: center; padding: 3rem 1rem;">
+      <p style="color: var(--text-light); font-style: italic;">No pages found.</p>
+      <form action="/pages" method="POST" style="max-width: 400px; margin: 2rem auto auto;">
+        <div class="flex" style="gap: 0.5rem;">
+          <input type="text" name="name" required placeholder="Page Name (e.g. 1)" style="flex: 1;">
+          <button class="btn btn-primary" type="submit">Create Page</button>
+        </div>
+      </form>
+    </div>
+  <% } else { %>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Page ID</th>
+            <th>Name</th>
+            <th>Items Status</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for(let p of pages) { %>
+            <tr>
+              <td><span style="color: var(--text-light); font-family: monospace;">#<%= p.id %></span></td>
+              <td><strong style="font-size: 1.1rem;">Page <%= p.name %></strong></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                  <div style="flex: 1; min-width: 80px; height: 8px; background: #f1f5f9; border-radius: 10px; overflow: hidden; display: block;">
+                    <div style="width: <%= (p.item_count / 4) * 100 %>%; height: 100%; background: <%= p.item_count === 4 ? 'var(--success)' : 'var(--primary)' %>;"></div>
+                  </div>
+                  <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-light);"><%= p.item_count %>/4</span>
+                </div>
+              </td>
+              <td style="text-align: right;">
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                  <a href="/items/page/<%= p.id %>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Edit Items</a>
+                  <form action="/pages/<%= p.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบหน้านี้และสินค้าทั้งหมดในหน้านี้?');">
+                    <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    
+    <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #f1f5f9;">
+      <h4 style="margin-bottom: 1rem;">Add Single Page</h4>
+      <form action="/pages" method="POST" class="flex flex-desktop">
+        <input type="text" name="name" required placeholder="Page Name (e.g. Special Page)" style="flex: 1;">
+        <button class="btn btn-secondary" type="submit">Create</button>
+      </form>
+    </div>
+  <% } %>
+</div>

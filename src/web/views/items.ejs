@@ -1,0 +1,91 @@
+<div class="flex space-between items-center" style="margin-bottom: 2rem;">
+  <div>
+    <a href="/pages" style="color: var(--text-light); text-decoration: none; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      Back to Pages
+    </a>
+    <h1 style="margin-top: 0.5rem;">Manage Items - Page <%= page.name %></h1>
+  </div>
+</div>
+
+<div class="card" style="border-left: 4px solid var(--primary);">
+  <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
+    <h3 style="margin: 0;">Configure Items</h3>
+    <form action="/items/page/<%= page.id %>/clear" method="POST" onsubmit="return confirm('ลบสินค้าทั้งหมดในหน้านี้เพื่อตั้งค่าใหม่?');">
+      <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+        Clear Page Items
+      </button>
+    </form>
+  </div>
+  
+  <form action="/items/page/<%= page.id %>" method="POST">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="color: #4f46e5;">📁 Album (จำนวน)</label>
+        <input type="number" name="card_count" min="0" max="4" value="<%= items.filter(i => i.item_type === 'Album').length %>" required>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="color: var(--text-light);">🤍 Light-Dark (จำนวน)</label>
+        <input type="number" name="white_count" min="0" max="4" value="<%= items.filter(i => i.item_type === 'light-dark').length %>" required>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="color: #111827;">🖤 Time-Space (จำนวน)</label>
+        <input type="number" name="black_count" min="0" max="4" value="<%= items.filter(i => i.item_type === 'time-space').length %>" required>
+      </div>
+    </div>
+    
+    <div style="background: #fdf2f2; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border-left: 3px solid #ef4444; font-size: 0.85rem;">
+      <p style="margin: 0; color: #991b1b; font-weight: 500;">
+        * ระบบจะเรียงลำดับให้โดยอัตโนมัติ: Album &raquo; Light-Dark &raquo; Time-Space (รวมกันต้องไม่เกิน 4 ชิ้น)
+      </p>
+    </div>
+
+    <button class="btn btn-primary" type="submit" style="width: 100%; padding: 0.85rem; font-size: 1rem; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);">Update Page Items</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom: 1.5rem;">Current Items List</h3>
+  <% if (items.length === 0) { %>
+    <div style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">
+      ยังไม่มีสินค้าในหน้านี้
+    </div>
+  <% } else { %>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 80px;">Pos</th>
+            <th>Item Type</th>
+            <th>Status</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for(let i of items) { %>
+            <tr>
+              <td><span style="font-weight: 700; color: var(--primary);">#<%= i.position %></span></td>
+              <td>
+                <span class="badge" style="background: #f1f5f9; color: #1e293b; padding: 0.4rem 0.8rem; font-size: 0.9rem;">
+                  <%= displayItemType(i.item_type) %>
+                </span>
+              </td>
+              <td>
+                <% if (i.reserved_by) { %>
+                  <span class="badge" style="background: #eff6ff; color: #2563eb;">Reserved: <%= i.reserved_by %></span>
+                <% } else { %>
+                  <span style="color: var(--success); font-weight: 600;">Available</span>
+                <% } %>
+              </td>
+              <td style="text-align: right;">
+                <form action="/items/<%= i.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ลบไอเทมชิ้นนี้?');">
+                  <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

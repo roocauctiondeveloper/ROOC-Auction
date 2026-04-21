@@ -1,0 +1,229 @@
+﻿# แผนการ Implementation
+
+## Tasks
+
+- [ ] 1. Project Setup
+  - [ ] 1.1 สร้าง package.json พร้อม dependencies: discord.js v14, express, ejs, better-sqlite3, express-session, connect-sqlite3, dotenv
+  - [ ] 1.2 สร้าง jest.config.js และติดตั้ง dev dependencies: jest, fast-check
+  - [ ] 1.3 สร้าง .env.example พร้อม DISCORD_TOKEN, DISCORD_CLIENT_ID, DISCORD_GUILD_ID, PORT, SESSION_SECRET
+  - [ ] 1.4 สร้างโครงสร้างโฟลเดอร์: src/bot/commands/, src/web/routes/, src/web/views/, src/web/middleware/, src/db/, tests/unit/, tests/property/
+
+- [ ] 2. Database Layer
+  - [ ] 2.1 สร้าง src/db/database.js — เปิด better-sqlite3 connection, เปิด WAL mode, export db instance
+  - [ ] 2.2 สร้าง schema initialization ใน database.js — สร้างตาราง admin_users, pages, items (พร้อม item_type CHECK constraint), rounds, reservations, whitelist
+  - [ ] 2.3 สร้าง src/db/queries.js — page queries: getAllPages, addPage, deletePage
+  - [ ] 2.4 เพิ่ม item queries ใน queries.js: getItemsForPage, addItem (พร้อม item_type), deleteItem, getItemById
+  - [ ] 2.5 เพิ่ม reservation queries ใน queries.js: getCurrentReservations, addReservation, deleteReservation, isItemReserved
+  - [ ] 2.6 เพิ่ม round/history queries ใน queries.js: getCurrentRound, getOrCreateCurrentRound, getHistoryByRound, deleteRoundHistory, deleteAllHistory
+  - [ ] 2.7 เพิ่ม whitelist queries ใน queries.js: getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist
+  - [ ] 2.8 เพิ่ม admin queries ใน queries.js: getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin
+  - [x] 2.9 เพิ่ม available/mystuff queries ใน queries.js: getAvailableItems(roundId), getMyReservations(discordUsername, roundId)
+
+- [ ] 3. Config และ Entry Point
+  - [ ] 3.1 สร้าง src/config.js — อ่าน process.env, validateConfig() throw error พร้อมระบุ key ที่ขาด
+  - [ ] 3.2 สร้าง src/index.js — import config, db, bot client, express app แล้ว start พร้อมกัน
+
+- [ ] 4. Discord Bot
+  - [ ] 4.1 สร้าง src/bot/client.js — สร้าง discord.js Client พร้อม Intents, register interactionCreate event
+  - [ ] 4.2 สร้าง src/bot/deploy-commands.js — register /reserve, /available, /mystuff slash commands กับ Discord API
+  - [ ] 4.3 สร้าง src/bot/commands/reserve.js — handler สำหรับ /reserve command
+    - validate page/item exists
+    - ตรวจสอบ ItemType ของ item ที่จะจอง
+    - ถ้า ItemType เป็น Album → ตรวจสอบ whitelist ด้วย Discord username
+    - ถ้าไม่อยู่ใน whitelist → reply ephemeral "ไม่มีสิทธิ์จองAlbum"
+    - ถ้า ItemType เป็น light-dark/time-space → ข้ามการตรวจ whitelist
+    - ถ้าจองทั้งหน้า: ตรวจสอบว่ามี item type Albumหรือไม่ → ถ้ามี reject
+    - จอง item ที่ว่าง, ตอบกลับสรุปผล
+    - _Requirements: 1.1–1.10, 12.1–12.3_
+  - [x] 4.4 สร้าง src/bot/commands/available.js — handler สำหรับ /available command
+    - เรียก getAvailableItems(roundId) ดึง item ที่ว่าง
+    - ถ้าไม่มี item ว่าง → reply "ทุก Item ถูกจองหมดแล้ว"
+    - สร้าง Discord Embed + Buttons/Select Menu สำหรับแต่ละ item ว่าง
+    - handle button/select interaction: ตรวจสอบ ItemType → ถ้าAlbumตรวจ whitelist → จอง → reply ผลการจอง
+    - light-dark/time-space ข้ามการตรวจ whitelist
+    - _Requirements: 10.1–10.8, 12.4–12.6_
+  - [ ]* 4.5 เขียน unit tests สำหรับ available.js
+    - ทดสอบ: ไม่มี item ว่าง, มี item ว่าง, whitelist check บน interaction, race condition
+    - _Requirements: 10.3, 10.5, 10.7_
+  - [ ]* 4.6 เขียน property test สำหรับ getAvailableItems
+    - **Property 26: getAvailableItems returns only unreserved items**
+    - **Validates: Requirements 10.1, 10.2**
+  - [ ]* 4.7 เขียน property test สำหรับ whitelist check บน /available interaction
+    - **Property 27: Whitelist check enforced only for Album on /available interaction**
+    - **Validates: Requirements 10.4, 10.5, 12.4, 12.5, 12.6**
+  - [ ]* 4.8 เขียน property test สำหรับ race condition บน /available
+    - **Property 28: /available interaction handles race condition correctly**
+    - **Validates: Requirements 10.7**
+  - [x] 4.9 สร้าง src/bot/commands/mystuff.js — handler สำหรับ /mystuff command
+    - เรียก getMyReservations(discordUsername, roundId) ดึงรายการจองของผู้ใช้
+    - ถ้าไม่มีการจอง → reply ephemeral "ยังไม่มีการจองในรอบนี้"
+    - สร้าง embed แสดง page name, item name, item type ของแต่ละรายการ
+    - reply ephemeral
+    - _Requirements: 11.1, 11.2, 11.3, 11.4_
+  - [ ]* 4.10 เขียน unit tests สำหรับ mystuff.js
+    - ทดสอบ: ไม่มีการจอง, มีการจองหลายรายการ, ephemeral flag
+    - _Requirements: 11.3, 11.4_
+  - [ ]* 4.11 เขียน property test สำหรับ getMyReservations
+    - **Property 29: getMyReservations returns only the requesting user's reservations**
+    - **Validates: Requirements 11.1, 11.2**
+
+- [ ] 5. Express Web App และ Middleware
+  - [ ] 5.1 สร้าง src/web/app.js — Express app, ตั้งค่า EJS engine, express-session, static files, mount routes
+  - [ ] 5.2 สร้าง src/web/middleware/auth.js — middleware ตรวจสอบ session, redirect ไป /login ถ้าไม่ได้ login
+
+- [ ] 6. Auth Routes
+  - [ ] 6.1 สร้าง src/web/routes/auth.js — GET /login, POST /login (ตรวจสอบ discord_user_id กับ admin_users), POST /logout
+  - [ ] 6.2 สร้าง src/web/views/login.ejs — หน้า login form
+
+- [ ] 7. Page Management Routes และ Views
+  - [ ] 7.1 สร้าง src/web/routes/pages.js — GET /pages, POST /pages, POST /pages/:id/delete
+  - [ ] 7.2 สร้าง src/web/views/pages.ejs — แสดงรายการ pages พร้อม item count, form เพิ่ม/ลบ
+
+- [ ] 8. Item Management Routes และ Views
+  - [ ] 8.1 สร้าง src/web/routes/items.js — GET /pages/:id/items, POST /pages/:id/items (พร้อม item_type validation), POST /items/:id/delete
+  - [ ] 8.2 สร้าง src/web/views/items.ejs — แสดงรายการ items พร้อม item_type และสถานะจอง, form เพิ่ม item พร้อม dropdown ItemType
+
+- [ ] 9. Reservation Management Routes และ Views
+  - [ ] 9.1 สร้าง src/web/routes/reservations.js — GET /reservations, POST /reservations, POST /reservations/:id/delete
+  - [ ] 9.2 สร้าง src/web/views/reservations.ejs — แสดงรายการ reservations พร้อม item_type, form เพิ่ม/ลบ
+
+- [ ] 10. History Routes และ Views
+  - [ ] 10.1 สร้าง src/web/routes/history.js — GET /history, POST /history/:roundId/delete, POST /history/delete-all
+  - [ ] 10.2 สร้าง src/web/views/history.ejs — แสดง history แยก round พร้อม reservation count
+
+- [ ] 11. Whitelist Management Routes และ Views
+  - [ ] 11.1 สร้าง src/web/routes/whitelist.js — GET /whitelist, POST /whitelist, POST /whitelist/:id/delete
+  - [ ] 11.2 สร้าง src/web/views/whitelist.ejs — แสดงรายชื่อ whitelist พร้อม discord_username และ discord_user_id (optional), form เพิ่ม/ลบ
+
+- [ ] 12. EJS Layout
+  - [ ] 12.1 สร้าง src/web/views/layout.ejs — base layout พร้อม navigation bar และ flash messages
+  - [ ] 12.2 สร้าง src/web/views/dashboard.ejs — หน้า dashboard หลักพร้อม summary
+
+- [ ] 13. Unit Tests
+  - [ ] 13.1 สร้าง tests/unit/config.test.js — ทดสอบ validateConfig() กับ env vars ที่ขาดหาย (Property 25)
+  - [ ] 13.2 สร้าง tests/unit/queries.test.js — ทดสอบ DB queries ด้วย in-memory SQLite: CRUD pages, items, reservations, whitelist
+  - [ ] 13.3 สร้าง tests/unit/reserve.test.js — ทดสอบ bot command logic: whitelist check, item type rules, reservation flow
+
+- [ ] 14. Property-Based Tests
+  - [ ] 14.1 สร้าง tests/property/reservation.prop.test.js
+    - Property 1: reserveItem() write correctness — item reserved, duplicate returns conflict
+    - Property 2: reservePage() only reserves available items (light-dark/time-space pages)
+    - Property 3: reservePage() blocked when page contains Album
+    - Property 4: response messages contain username and item name
+    - Property 5: invalid page/item returns not-found, no DB changes
+  - [ ] 14.2 สร้าง tests/property/whitelist.prop.test.js
+    - Property 6: non-whitelisted user blocked, no reservation written
+    - Property 7: addToWhitelist/isWhitelisted/removeFromWhitelist round-trip
+    - Property 8: duplicate whitelist entry rejected, count unchanged
+  - [ ] 14.3 สร้าง tests/property/itemType.prop.test.js
+    - Property 9: invalid item_type value rejected by DB constraint
+  - [ ] 14.4 สร้าง tests/property/pageItem.prop.test.js
+    - Property 10: getAllPages() item_count accuracy
+    - Property 11: addPage/getAllPages round-trip
+    - Property 12: deletePage cascades to items and reservations
+    - Property 13: getItemsForPage() reserved_by reflects reservation state
+    - Property 14: addItem with valid ItemType round-trip
+    - Property 15: addItem on full page (4 items) returns error
+    - Property 16: deleteItem cascades to reservations
+  - [ ] 14.5 สร้าง tests/property/history.prop.test.js
+    - Property 17: reservation data completeness (all fields non-null)
+    - Property 18: getHistoryByRound() grouped correctly with correct counts
+    - Property 19: deleteRoundHistory removes only targeted round, deleteAllHistory empties table
+  - [ ] 14.6 สร้าง tests/property/auth.prop.test.js
+    - Property 20: protected routes redirect to /login without session
+    - Property 21: valid admin ID creates session
+    - Property 22: invalid admin ID rejected, no session
+    - Property 23: logout invalidates session
+  - [ ] 14.7 สร้าง tests/property/query.prop.test.js
+    - Property 24: query filtering by round_id/page_id/item_id/discord_user_id returns exact matches
+  - [ ] 14.8 เพิ่ม property tests สำหรับ /available และ /mystuff ใน tests/property/reservation.prop.test.js
+    - Property 26: getAvailableItems returns only unreserved items
+    - Property 27: Whitelist check enforced on /available interaction
+    - Property 28: /available interaction handles race condition correctly
+    - Property 29: getMyReservations returns only the requesting user's reservations
+
+- [ ] 15. Whitelist Logic Update — เฉพาะAlbum (Feature 12)
+  - [ ] 15.1 อัปเดต src/bot/commands/reserve.js — เปลี่ยน whitelist check ให้ตรวจเฉพาะ ItemType Album
+    - ดึง ItemType ของ item ที่จะจองก่อน
+    - ถ้า ItemType เป็น Album → เรียก isWhitelisted(username) → ถ้า false → reject
+    - ถ้า ItemType เป็น light-dark/time-space → ข้ามการตรวจ whitelist ทั้งหมด
+    - _Requirements: 12.1, 12.2, 12.3_
+  - [ ] 15.2 อัปเดต src/bot/commands/available.js — เปลี่ยน whitelist check ใน interaction handler
+    - ตรวจสอบ ItemType ของ item ที่ถูกเลือกก่อน
+    - ถ้า ItemType เป็น Album → เรียก isWhitelisted(username) → ถ้า false → reject ephemeral
+    - ถ้า ItemType เป็น light-dark/time-space → ข้ามการตรวจ whitelist
+    - _Requirements: 12.4, 12.5, 12.6_
+  - [ ]* 15.3 เขียน unit tests สำหรับ whitelist logic ใหม่ใน reserve.js และ available.js
+    - ทดสอบ: ผู้ใช้ไม่อยู่ whitelist จอง Album → reject
+    - ทดสอบ: ผู้ใช้ไม่อยู่ whitelist จอง light-dark → สำเร็จ
+    - ทดสอบ: ผู้ใช้ไม่อยู่ whitelist จอง time-space → สำเร็จ
+    - _Requirements: 12.1–12.6_
+  - [ ]* 15.4 เขียน property test สำหรับ whitelist skip logic
+    - **Property 30: Whitelist check skipped for ขนนก items**
+    - **Validates: Requirements 12.1, 12.4**
+  - [ ]* 15.5 เขียน property test สำหรับ whitelist enforce on Album
+    - **Property 31: Whitelist check enforced only for Album items**
+    - **Validates: Requirements 12.2, 12.3, 12.5, 12.6**
+
+- [ ] 16. Checkpoint — ทดสอบ whitelist logic ใหม่
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 17. Preset System — Database Layer (Feature 13)
+  - [ ] 17.1 อัปเดต src/db/database.js — เพิ่ม CREATE TABLE item_presets ใน schema initialization
+    - สร้างตาราง item_presets พร้อม CHECK constraint (total ≤ 4, total ≥ 1)
+    - _Requirements: 13.3_
+  - [ ] 17.2 เพิ่ม preset queries ใน src/db/queries.js
+    - `getAllPresets()` — ดึง preset ทั้งหมด
+    - `getPresetById(id)` — ดึง preset ตาม id
+    - `addPreset(name, cardCount, whiteFeatherCount, blackFeatherCount)` — เพิ่ม preset ใหม่
+    - `updatePreset(id, name, cardCount, whiteFeatherCount, blackFeatherCount)` — แก้ไข preset
+    - `deletePreset(id)` — ลบ preset
+    - _Requirements: 13.1, 13.2, 13.5, 13.6_
+  - [ ] 17.3 เพิ่ม `createPageWithPreset(pageName, presetId)` ใน queries.js
+    - ใช้ db.transaction() เพื่อ atomic: สร้าง page + เพิ่ม items ตาม preset ในคราวเดียว
+    - สร้าง items ตามจำนวน card_count (Album), white_feather_count (light-dark), black_feather_count (time-space)
+    - _Requirements: 13.7, 13.8_
+  - [ ]* 17.4 เขียน property test สำหรับ preset constraint
+    - **Property 32: Preset total item count constraint**
+    - **Validates: Requirements 13.3, 13.4**
+  - [ ]* 17.5 เขียน property test สำหรับ preset add round-trip
+    - **Property 33: Preset add round-trip**
+    - **Validates: Requirements 13.2**
+  - [ ]* 17.6 เขียน property test สำหรับ preset name uniqueness
+    - **Property 34: Preset name uniqueness enforced**
+    - **Validates: Requirements 13.11**
+  - [ ]* 17.7 เขียน property test สำหรับ createPageWithPreset
+    - **Property 35: Page creation with preset creates correct items**
+    - **Validates: Requirements 13.7, 13.8**
+
+- [ ] 18. Preset System — Web Routes และ Views (Feature 13)
+  - [ ] 18.1 สร้าง src/web/routes/presets.js — CRUD routes สำหรับ preset management
+    - GET /presets — แสดงรายการ presets ทั้งหมด
+    - POST /presets — สร้าง preset ใหม่ (validate total ≤ 4)
+    - POST /presets/:id/edit — แก้ไข preset
+    - POST /presets/:id/delete — ลบ preset
+    - _Requirements: 13.1, 13.2, 13.4, 13.5, 13.6, 13.11_
+  - [ ] 18.2 สร้าง src/web/views/presets.ejs — หน้าจัดการ Presets
+    - แสดงตารางรายการ presets พร้อมชื่อและจำนวน items แต่ละประเภท
+    - form สร้าง preset ใหม่ (ชื่อ + จำนวน Album/light-dark/time-space)
+    - ปุ่มแก้ไขและลบแต่ละ preset
+    - _Requirements: 13.1, 13.2, 13.5, 13.6_
+  - [ ] 18.3 อัปเดต src/web/routes/pages.js — เพิ่ม preset selector ใน POST /pages
+    - รับ optional `preset_id` จาก form
+    - ถ้ามี preset_id → เรียก createPageWithPreset(name, presetId)
+    - ถ้าไม่มี → สร้าง page เปล่าแบบเดิม
+    - _Requirements: 13.7, 13.8, 13.9_
+  - [ ] 18.4 อัปเดต src/web/views/pages.ejs — เพิ่ม preset dropdown ใน form สร้าง Page ใหม่
+    - เพิ่ม `<select>` สำหรับเลือก Preset (optional, มี option "ไม่ใช้ Preset")
+    - แสดงชื่อ preset และจำนวน items แต่ละประเภทใน dropdown
+    - _Requirements: 13.7, 13.9_
+  - [ ] 18.5 mount presets routes ใน src/web/app.js
+    - import และ mount `/presets` router
+    - _Requirements: 13.1_
+  - [ ]* 18.6 เขียน unit tests สำหรับ preset routes
+    - ทดสอบ: สร้าง preset ที่ valid, สร้าง preset ที่ total > 4 → reject, ชื่อซ้ำ → reject
+    - ทดสอบ: createPageWithPreset สร้าง items ถูกต้อง
+    - _Requirements: 13.2–13.4, 13.7, 13.8, 13.11_
+
+- [ ] 19. Final Checkpoint — Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

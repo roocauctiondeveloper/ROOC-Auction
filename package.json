@@ -1,0 +1,30 @@
+{
+  "name": "discord-reservation-bot",
+  "version": "1.0.0",
+  "description": "Discord Reservation Bot with Web Dashboard",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "deploy-commands": "node src/bot/deploy-commands.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "connect-pg-simple": "^10.0.0",
+    "connect-sqlite3": "^0.9.15",
+    "discord.js": "^14.15.2",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-ejs-layouts": "^2.5.1",
+    "express-session": "^1.18.0",
+    "passport": "^0.7.0",
+    "passport-discord": "^0.1.4",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "fast-check": "^3.18.0",
+    "jest": "^29.7.0"
+  }
+}

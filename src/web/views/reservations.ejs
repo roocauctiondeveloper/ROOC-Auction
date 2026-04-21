@@ -1,0 +1,70 @@
+<div class="flex space-between items-center" style="margin-bottom: 2rem;">
+  <h1>Reservations</h1>
+</div>
+
+<div class="card" style="border-left: 4px solid var(--primary);">
+  <h3 style="margin-bottom: 1.5rem;">Manual Reservation (Admin)</h3>
+  <form action="/reservations" method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0;">
+      <label for="item_id">Select Item</label>
+      <select id="item_id" name="item_id" required>
+        <option value="" disabled selected>เลือกสินค้าที่ว่าง...</option>
+        <% for(let item of availableItems) { %>
+          <option value="<%= item.id %>">Page: <%= item.page_name %> - ชิ้นที่ <%= item.position %> (<%= displayItemType(item.item_type) %>)</option>
+        <% } %>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label for="discord_user_id">Select User (from Whitelist)</label>
+      <input type="text" id="discord_user_id" name="discord_user_id" list="whitelist-users" required placeholder="พิมพ์ชื่อหรือ ID...">
+      <datalist id="whitelist-users">
+        <% for(let u of whitelist) { %>
+          <option value="<%= u.discord_user_id %>"><%= u.discord_username %></option>
+        <% } %>
+      </datalist>
+    </div>
+    <button class="btn btn-primary" type="submit">Confirm Reservation</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom: 1.5rem;">Active Reservations in Current Round</h3>
+  <% if (reservations.length === 0) { %>
+    <div style="text-align: center; padding: 3rem 1rem;">
+      <div style="font-size: 3rem; margin-bottom: 1rem;">📭</div>
+      <p style="color: var(--text-light); font-style: italic;">ยังไม่มีการจองในรอบปัจจุบัน</p>
+    </div>
+  <% } else { %>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Member</th>
+            <th>Discord ID</th>
+            <th>Details</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for(let r of reservations) { %>
+            <tr>
+              <td><%= new Date(r.reserved_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) %></td>
+              <td><strong><%= r.discord_username %></strong></td>
+              <td><code style="font-size: 0.85rem;"><%= r.discord_user_id %></code></td>
+              <td>
+                <span class="badge badge-blue">Page <%= r.page_name %></span>
+                <span style="font-size: 0.85rem; color: var(--text-light);">ชิ้นที่ <%= r.item_pos %> (<%= displayItemType(r.item_type) %>)</span>
+              </td>
+              <td style="text-align: right;">
+                <form action="/reservations/<%= r.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยกเลิกรายการจองนี้?');">
+                  <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Cancel</button>
+                </form>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
