@@ -156,10 +156,17 @@ async function buildBoardButtons(round) {
   if (allEntries.length === 0) return [];
 
   const rows = [];
-  const buttonEntries = allEntries.slice(0, 25);
-  const remainingEntries = allEntries.slice(25, 50); // Dropdown รับได้อีก 25
+  
+  // ปรับ Logic: ถ้ามีเกิน 25 อย่าง (ล้นปุ่ม) ให้แบ่งที่ว่างให้ Dropdown ด้วย
+  let buttonLimit = 25;
+  if (allEntries.length > 25) {
+    buttonLimit = 20; // ใช้ 4 แถวสำหรับปุ่ม อีก 1 แถวสำหรับ Dropdown
+  }
 
-  // 1. สร้างปุ่ม (Max 25)
+  const buttonEntries = allEntries.slice(0, buttonLimit);
+  const remainingEntries = allEntries.slice(buttonLimit, buttonLimit + 25);
+
+  // 1. สร้างปุ่ม (Max 20 หรือ 25)
   let currentRow = new ActionRowBuilder();
   for (let i = 0; i < buttonEntries.length; i++) {
     const entry = buttonEntries[i];
@@ -179,13 +186,10 @@ async function buildBoardButtons(round) {
     }
   }
 
-  // 2. ถ้ามีเหลือ ใส่ใน Dropdown (ต้องไม่เกิน 5 แถวรวมปุ่ม)
+  // 2. ถ้ามีเหลือ ใส่ใน Dropdown (แถวที่ 5)
   if (remainingEntries.length > 0 && rows.length < 5) {
     const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
     
-    // ถ้าแถวเต็มแล้ว ต้องเอาแถวสุดท้ายออกเพื่อใส่ dropdown (ถ้าจำเป็น)
-    if (rows.length === 5) rows.pop();
-
     const options = remainingEntries.map(entry => 
       new StringSelectMenuOptionBuilder()
         .setLabel(entry.label)
@@ -203,6 +207,7 @@ async function buildBoardButtons(round) {
 
   return rows;
 }
+
 
 
 /**
