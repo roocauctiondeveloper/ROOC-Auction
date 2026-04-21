@@ -7,7 +7,11 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-  ]
+  ],
+  rest: {
+    timeout: 60000, // เพิ่มเป็น 60 วินาที
+    retries: 5      // ลองใหม่ 5 ครั้ง
+  }
 });
 
 client.commands = new Collection();
