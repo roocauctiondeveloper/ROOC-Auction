@@ -5,8 +5,8 @@
 module.exports = {
   ICONS: {
     ALBUM: '📒',
-    LIGHT_DARK: '🕊️', // เปลี่ยนจาก 🐔 เป็น 🕊️ ตามคำขอ
-    TIME_SPACE: '🐓',
+    LIGHT_DARK: '🤍', 
+    TIME_SPACE: '❤️',
     PAGE: '📄',
     WHITELIST: '🛡️',
     HISTORY: '🕰️',
@@ -22,9 +22,9 @@ module.exports = {
   // Mapping สำหรับแสดงผลสินค้า
   ITEM_TYPES: {
     'Album': { label: 'Album', emoji: '📒' },
-    'Light-Dark': { label: 'Light-Dark', emoji: '🕊️' },
-    'Time-Space': { label: 'Time-Space', emoji: '🐓' },
-    'light-dark': { label: 'Light-Dark', emoji: '🕊️' },
-    'time-space': { label: 'Time-Space', emoji: '🐓' },
+    'Light-Dark': { label: 'Light-Dark', emoji: '🤍' },
+    'Time-Space': { label: 'Time-Space', emoji: '❤️' },
+    'light-dark': { label: 'Light-Dark', emoji: '🤍' },
+    'time-space': { label: 'Time-Space', emoji: '❤️' },
   }
 };
