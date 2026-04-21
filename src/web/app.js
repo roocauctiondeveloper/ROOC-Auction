@@ -123,7 +123,11 @@ app.use((req, res, next) => {
 
   const { ICONS, ITEM_TYPES } = require('../utils/constants');
   res.locals.ICONS = ICONS;
-  res.locals.displayItemType = (type) => ITEM_TYPES[type]?.emoji + ' ' + ITEM_TYPES[type]?.label || type;
+  res.locals.ITEM_TYPES = ITEM_TYPES;
+  res.locals.displayItemType = (type) => {
+    const entry = ITEM_TYPES[type];
+    return entry ? `${entry.emoji} ${entry.label}` : type;
+  };
 
   
   next();

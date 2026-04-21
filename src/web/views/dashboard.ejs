@@ -137,11 +137,11 @@
 
 <script>
   const ITEM_TYPE_DISPLAY = { 
-    'Album':      '<%- ITEM_TYPES["Album"].emoji %> <%- ITEM_TYPES["Album"].label %>', 
-    'Light-Dark': '<%- ITEM_TYPES["Light-Dark"].emoji %> <%- ITEM_TYPES["Light-Dark"].label %>', 
-    'Time-Space': '<%- ITEM_TYPES["Time-Space"].emoji %> <%- ITEM_TYPES["Time-Space"].label %>',
-    'light-dark': '<%- ITEM_TYPES["light-dark"].emoji %> <%- ITEM_TYPES["light-dark"].label %>',
-    'time-space': '<%- ITEM_TYPES["time-space"].emoji %> <%- ITEM_TYPES["time-space"].label %>'
+    'Album':      '<%- ITEM_TYPES["Album"] ? ITEM_TYPES["Album"].emoji + " " + ITEM_TYPES["Album"].label : "Album" %>', 
+    'Light-Dark': '<%- ITEM_TYPES["Light-Dark"] ? ITEM_TYPES["Light-Dark"].emoji + " " + ITEM_TYPES["Light-Dark"].label : "Light-Dark" %>', 
+    'Time-Space': '<%- ITEM_TYPES["Time-Space"] ? ITEM_TYPES["Time-Space"].emoji + " " + ITEM_TYPES["Time-Space"].label : "Time-Space" %>',
+    'light-dark': '<%- ITEM_TYPES["light-dark"] ? ITEM_TYPES["light-dark"].emoji + " " + ITEM_TYPES["light-dark"].label : "Light-Dark" %>',
+    'time-space': '<%- ITEM_TYPES["time-space"] ? ITEM_TYPES["time-space"].emoji + " " + ITEM_TYPES["time-space"].label : "Time-Space" %>'
   };
   const displayType = (t) => ITEM_TYPE_DISPLAY[t] || t;
 
