@@ -12,8 +12,16 @@ const {
 } = require('discord.js');
 const db = require('../db/queries');
 
-const DISP = { 'Album': 'Album', 'light-dark': 'Light-Dark', 'time-space': 'Time-Space' };
+const DISP = { 
+  'Album': 'Album', 
+  'Light-Dark': 'Light-Dark', 
+  'Time-Space': 'Time-Space',
+  'light-dark': 'Light-Dark', 
+  'time-space': 'Time-Space' 
+};
 const d = (t) => DISP[t] ?? t;
+
+const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 
 // Button prefix สำหรับ live board (แยกจาก /available)
 const LB_FEATHER_PREFIX = 'lb_f:'; // lb_f:<pageId>
@@ -79,7 +87,8 @@ async function buildBoardButtons(round) {
   const bookItems = [];
 
   for (const item of availableItems) {
-    if (item.item_type === 'light-dark' || item.item_type === 'time-space') {
+    const type = item.item_type;
+    if (type === 'Light-Dark' || type === 'Time-Space' || type === 'light-dark' || type === 'time-space') {
       if (!featherPages.has(item.page_id)) {
         featherPages.set(item.page_id, { page_name: item.page_name, items: [] });
       }
@@ -89,7 +98,10 @@ async function buildBoardButtons(round) {
     }
   }
 
-  const FEATHER_EMOJI = { 'light-dark': '🤍', 'time-space': '❤️' };
+  const FEATHER_EMOJI = { 
+    'Light-Dark': '🤍', 'Time-Space': '❤️',
+    'light-dark': '🤍', 'time-space': '❤️' 
+  };
   const allButtons = [];
 
   // Album ก่อน
@@ -129,18 +141,20 @@ async function buildBoardButtons(round) {
  * ส่ง Live Board message ใหม่ตอนเปิดรอบ
  */
 async function sendLiveBoard(client, channelId, round) {
-  if (!client.isReady()) {
-    console.warn('⚠️ Bot not ready, cannot send live board');
-    return null;
-  }
-
+  console.log('🏁 sendLiveBoard started | Channel:', channelId, '| Round:', round.id);
+  
   try {
     const channel = await client.channels.fetch(channelId);
-    if (!channel?.isTextBased()) return null;
+    if (!channel?.isTextBased()) {
+      console.warn('⚠️ Channel not found or not text-based:', channelId);
+      return null;
+    }
 
+    console.log('📋 Building board components...');
     const { embed } = await buildBoardEmbed(round);
     const components = await buildBoardButtons(round);
 
+    console.log('📤 Sending message to Discord...');
     const msg = await channel.send({ embeds: [embed], components });
     console.log('✅ Live board sent, message ID:', msg.id);
 
@@ -148,7 +162,7 @@ async function sendLiveBoard(client, channelId, round) {
     await db.saveRoundBoardMessage(round.id, channelId, msg.id);
     return msg;
   } catch (err) {
-    console.error('❌ Failed to send live board:', err.message);
+    console.error('❌ Failed to send live board:', err);
     return null;
   }
 }
@@ -157,9 +171,13 @@ async function sendLiveBoard(client, channelId, round) {
  * Edit Live Board message เมื่อมีการจอง
  */
 async function updateLiveBoard(client, roundId) {
+  console.log('🔄 updateLiveBoard started | Round:', roundId);
   try {
     const boardInfo = await db.getRoundBoardMessage(roundId);
-    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) return;
+    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) {
+      console.log('ℹ️ No live board message found for this round. Skipping update.');
+      return;
+    }
 
     const round = await db.getCurrentRound();
     if (!round) return;
@@ -174,8 +192,9 @@ async function updateLiveBoard(client, roundId) {
     const components = await buildBoardButtons(round);
 
     await msg.edit({ embeds: [embed], components });
+    console.log('✅ Live board updated');
   } catch (err) {
-    console.error('❌ Failed to update live board:', err.message);
+    console.error('❌ Failed to update live board:', err);
   }
 }
 
@@ -183,15 +202,23 @@ async function updateLiveBoard(client, roundId) {
  * Edit Live Board ตอนปิดรอบ — แสดงสรุปและลบ buttons
  */
 async function closeLiveBoard(client, round) {
+  console.log('🏁 closeLiveBoard started | Round:', round.id);
   try {
     const boardInfo = await db.getRoundBoardMessage(round.id);
-    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) return;
+    console.log('🔍 Board Info from DB:', boardInfo);
+    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) {
+      console.warn('⚠️ No board message found for this round');
+      return;
+    }
 
     const channel = await client.channels.fetch(boardInfo.board_channel_id);
     if (!channel?.isTextBased()) return;
 
     const msg = await channel.messages.fetch(boardInfo.board_message_id);
-    if (!msg) return;
+    if (!msg) {
+      console.warn('⚠️ Message not found:', boardInfo.board_message_id);
+      return;
+    }
 
     const pages = await db.getAllPages();
     const embed = new EmbedBuilder()

@@ -98,8 +98,12 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
 
       // 📢 Live Board
       const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
+      console.log('📢 Round Open: Attempting to send Live Board. Channel:', channelId);
       if (channelId) {
-        await sendLiveBoard(discordClient, channelId, round);
+        const result = await sendLiveBoard(discordClient, channelId, round);
+        if (!result) console.warn('⚠️ sendLiveBoard returned null');
+      } else {
+        console.warn('⚠️ No DISCORD_ANNOUNCE_CHANNEL_ID found in env');
       }
 
       req.session.success_msg = 'เปิดรับจองรอบแล้ว! ส่ง Live Board ใน Discord แล้ว';

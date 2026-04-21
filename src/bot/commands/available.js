@@ -18,14 +18,23 @@ const BTN_BOOK_PREFIX    = 'avail_b:'; // avail_b:<itemId>
 const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
 const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
 
-const FEATHER_TYPES = ['light-dark', 'time-space'];
-const FEATHER_EMOJI = { 'light-dark': '🤍', 'time-space': '❤️' };
+const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
+const FEATHER_EMOJI = { 
+  'Light-Dark': '🤍', 'Time-Space': '❤️',
+  'light-dark': '🤍', 'time-space': '❤️' 
+};
 
 // ลำดับการแสดงผล: Album → light-dark → time-space (DB values)
-const TYPE_ORDER = { 'Album': 0, 'light-dark': 1, 'time-space': 2 };
+const TYPE_ORDER = { 'Album': 0, 'Light-Dark': 1, 'Time-Space': 2, 'light-dark': 1, 'time-space': 2 };
 
 // Display names สำหรับแสดงใน Discord
-const DISP = { 'Album': 'Album', 'light-dark': 'Light-Dark', 'time-space': 'Time-Space' };
+const DISP = { 
+  'Album': 'Album', 
+  'Light-Dark': 'Light-Dark', 
+  'Time-Space': 'Time-Space',
+  'light-dark': 'Light-Dark', 
+  'time-space': 'Time-Space' 
+};
 const disp = (t) => DISP[t] ?? t;
 
 /** แยก available items ตาม type และเรียงลำดับ */
