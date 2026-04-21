@@ -115,8 +115,16 @@ async function buildBoardButtons(round) {
     );
   }
 
-  // ขนนก
-  for (const [pageId, { page_name, items }] of [...featherPages.entries()].slice(0, 13)) {
+  // ขนนก - เรียงหน้าที่มี Light-Dark ขึ้นมาก่อน (ตามความชอบผู้ใช้)
+  const sortedFeatherEntries = [...featherPages.entries()].sort((a, b) => {
+    const aHasLight = a[1].items.some(i => i.item_type.toLowerCase() === 'light-dark');
+    const bHasLight = b[1].items.some(i => i.item_type.toLowerCase() === 'light-dark');
+    if (aHasLight && !bHasLight) return -1;
+    if (!aHasLight && bHasLight) return 1;
+    return 0;
+  });
+
+  for (const [pageId, { page_name, items }] of sortedFeatherEntries.slice(0, 13)) {
     const types = [...new Set(items.map(i => i.item_type))];
     const emoji = types.length === 1 ? (FEATHER_EMOJI[types[0]] || '🪶') : '🪶';
     allButtons.push(
