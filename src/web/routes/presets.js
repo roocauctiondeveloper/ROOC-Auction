@@ -73,8 +73,8 @@ router.post('/apply/:id', ensureAuthenticated, async (req, res) => {
 
     // ทำทีละอย่าง
     if (preset.album_count > 0) await setupItems(preset.album_count, 'Album', 1);
-    if (preset.light_dark_count > 0) await setupItems(preset.light_dark_count, 'Light-Dark', 1);
-    if (preset.time_space_count > 0) await setupItems(preset.time_space_count, 'Time-Space', 1);
+    if (preset.light_dark_count > 0) await setupItems(preset.light_dark_count, 'light-dark', 1);
+    if (preset.time_space_count > 0) await setupItems(preset.time_space_count, 'time-space', 1);
 
     req.session.success_msg = `Apply Preset "${preset.name}" สำเร็จ! สร้างไอเทมทั้งหมดให้เรียบร้อยแล้ว`;
   } catch (err) {

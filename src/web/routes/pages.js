@@ -54,8 +54,8 @@ router.post('/bulk-setup', async (req, res) => {
     // 2. สร้างรายการสินค้าทั้งหมดใส่ Array ไว้เพื่อเตรียมแจกจ่ายลงหน้า
     const allItemsList = [];
     for (let i = 0; i < nCard; i++) allItemsList.push('Album');
-    for (let i = 0; i < nWhite; i++) allItemsList.push('Light-Dark');
-    for (let i = 0; i < nBlack; i++) allItemsList.push('Time-Space');
+    for (let i = 0; i < nWhite; i++) allItemsList.push('light-dark');
+    for (let i = 0; i < nBlack; i++) allItemsList.push('time-space');
 
     // 3. สร้าง Pages และใส่ Items (หน้าละ 4 ชิ้น)
     const numPages = Math.ceil(totalItems / 4);

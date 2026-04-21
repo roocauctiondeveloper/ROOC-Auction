@@ -17,11 +17,15 @@ const BTN_BOOK_PREFIX    = 'avail_b:'; // avail_b:<itemId>
 const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
 const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
 
-const FEATHER_TYPES = ['Light-Dark', 'Time-Space'];
-const FEATHER_EMOJI = { 'Light-Dark': '🤍', 'Time-Space': '🖤' };
+const FEATHER_TYPES = ['light-dark', 'time-space'];
+const FEATHER_EMOJI = { 'light-dark': '🤍', 'time-space': '🖤' };
 
-// ลำดับการแสดงผล: Album → Light-Dark → Time-Space
-const TYPE_ORDER = { 'Album': 0, 'Light-Dark': 1, 'Time-Space': 2 };
+// ลำดับการแสดงผล: Album → light-dark → time-space (DB values)
+const TYPE_ORDER = { 'Album': 0, 'light-dark': 1, 'time-space': 2 };
+
+// Display names สำหรับแสดงใน Discord
+const DISP = { 'Album': 'Album', 'light-dark': 'Light-Dark', 'time-space': 'Time-Space' };
+const disp = (t) => DISP[t] ?? t;
 
 /** แยก available items ตาม type และเรียงลำดับ */
 function splitByType(availableItems) {
@@ -76,7 +80,7 @@ function buildEmbed(featherPages, bookItems, roundName) {
       const types = [...new Set(items.map(i => i.item_type))]
         .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
       const emojis = types.map(t => FEATHER_EMOJI[t] || '🪶').join('');
-      lines.push(`${emojis} **${page_name}** — ${types.join(', ')} (${items.length} ชิ้น)`);
+      lines.push(`${emojis} **${page_name}** — ${types.map(disp).join(', ')} (${items.length} ชิ้น)`);
     }
     embed.addFields({
       name: '🪶 Feather — กดปุ่มหน้าเพื่อจองทั้งหน้า',
@@ -115,8 +119,8 @@ function buildButtonRows(featherPages, bookItems) {
 
   // Light-Dark ก่อน Time-Space ทีหลัง (สีเขียว)
   const sortedFeatherEntries = [...featherPages.entries()].sort((a, b) => {
-    const aHasLight = a[1].items.some(i => i.item_type === 'Light-Dark');
-    const bHasLight = b[1].items.some(i => i.item_type === 'Light-Dark');
+    const aHasLight = a[1].items.some(i => i.item_type === 'light-dark');
+    const bHasLight = b[1].items.some(i => i.item_type === 'light-dark');
     if (aHasLight && !bHasLight) return -1;
     if (!aHasLight && bHasLight) return 1;
     return 0;
@@ -148,7 +152,7 @@ function buildDropdownFallback(featherPages, bookItems) {
 
   if (featherPages.size > 0) {
     const options = [...featherPages.entries()].slice(0, 25).map(([pageId, { page_name, items }]) => {
-      const types = [...new Set(items.map(i => i.item_type))].join(', ');
+      const types = [...new Set(items.map(i => i.item_type))].map(disp).join(', ');
       return new StringSelectMenuOptionBuilder()
         .setLabel(page_name)
         .setDescription(`${types} — ${items.length} ชิ้นว่าง`)
@@ -219,7 +223,7 @@ async function reserveFeatherPage(interaction, pageId) {
   for (const item of available) {
     try {
       await db.addReservation(round.id, item.id, discordUserId, discordUsername);
-      success.push(`ชิ้นที่ ${item.position} (${item.item_type})`);
+      success.push(`ชิ้นที่ ${item.position} (${disp(item.item_type)})`);
     } catch { fail.push(`ชิ้นที่ ${item.position}`); }
   }
 
@@ -255,7 +259,7 @@ async function reserveBookItem(interaction, itemId) {
   try {
     await db.addReservation(round.id, itemId, discordUserId, discordUsername);
     return interaction.reply({
-      content: `✅ **${discordUsername}** จองสำเร็จ!\n📒 Album **${pageName}** ชิ้นที่ ${item.position}\n\n💡 ดูของที่จองไว้ทั้งหมดด้วย \`/mystuff\``,
+      content: `✅ **${discordUsername}** จองสำเร็จ!\n📒 ${disp(item.item_type)} **${pageName}** ชิ้นที่ ${item.position}\n\n💡 ดูของที่จองไว้ทั้งหมดด้วย \`/mystuff\``,
       ephemeral: false,
     });
   } catch (err) {

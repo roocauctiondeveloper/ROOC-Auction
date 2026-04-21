@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const db = require('../../db/queries');
 
+const DISP = { 'Album': 'Album', 'light-dark': 'Light-Dark', 'time-space': 'Time-Space' };
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('mystuff')
@@ -44,7 +46,7 @@ module.exports = {
     }
 
     for (const [pageName, items] of grouped) {
-      const lines = items.map(i => `ชิ้นที่ ${i.position} — ${i.item_type}`);
+      const lines = items.map(i => `ชิ้นที่ ${i.position} — ${DISP[i.item_type] ?? i.item_type}`);
       embed.addFields({ name: `📄 ${pageName}`, value: lines.join('\n'), inline: false });
     }
 
