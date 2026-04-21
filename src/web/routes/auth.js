@@ -97,6 +97,8 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
       
       // Announce to discord
       const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
+      console.log('📢 Attempting to announce OPEN round to channel:', channelId);
+      
       if (channelId) {
         try {
           const channel = await discordClient.channels.fetch(channelId);
@@ -173,14 +175,17 @@ router.post('/round/close', ensureAuthenticated, async (req, res) => {
       req.session.success_msg = 'ปิดการจองในรอบนี้ บันทึกประวัติ และล้างรายการสินค้าเพื่อรอรอบใหม่สำเร็จ!';
       
       const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
+      console.log('📢 Attempting to announce CLOSE round to channel:', channelId);
+      
       if (channelId) {
         try {
           const channel = await discordClient.channels.fetch(channelId);
           if (channel && channel.isTextBased()) {
             await channel.send(`🛑 **ปิดรับจองประมูล ${round.name} แล้ว!**\nไม่สามารถทำรายการเพิ่มได้แล้วครับ`);
+            console.log('✅ Close announcement sent!');
           }
         } catch (err) {
-          // ignore block
+          console.error('❌ Failed to announce close:', err.message);
         }
       }
     }

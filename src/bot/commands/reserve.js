@@ -25,14 +25,7 @@ module.exports = {
       : interaction.user.username;
     const discordUserId = interaction.user.id;
 
-    // ตรวจสอบ whitelist
-    const isWhitelisted = await db.isWhitelisted(discordUserId);
-    if (!isWhitelisted) {
-      return interaction.reply({
-        content: `❌ **${discordUsername}** ยังไม่ได้อยู่ใน Whitelist ไม่สามารถจองได้\n\nหากคิดว่าเป็นข้อผิดพลาด กรุณาติดต่อ Admin ครับ`,
-        ephemeral: true,
-      });
-    }
+    const discordUserId = interaction.user.id;
 
     // ตรวจสอบสถานะรอบ
     const currentRound = await db.getOrCreateCurrentRound();
@@ -83,6 +76,17 @@ module.exports = {
         });
       }
 
+      // ถ้าเป็น Album ต้องเช็ค Whitelist
+      if (item.item_type === 'Album') {
+        const isWhitelisted = await db.isWhitelisted(discordUserId);
+        if (!isWhitelisted) {
+          return interaction.reply({
+            content: `❌ **${discordUsername}** ไม่สามารถจอง Album ได้เนื่องจากยังไม่ได้อยู่ใน Whitelist\n\n(ส่วน Light-Dark/Time-Space จองได้ปกติครับ)`,
+            ephemeral: true,
+          });
+        }
+      }
+
       try {
         await db.addReservation(currentRound.id, item.id, discordUserId, discordUsername);
         return interaction.reply({
@@ -104,6 +108,14 @@ module.exports = {
     // ── จองทั้งหน้า ──────────────────────────────────────────────
     const hasCardBook = items.some(i => i.item_type === 'Album');
     if (hasCardBook) {
+      const isWhitelisted = await db.isWhitelisted(discordUserId);
+      if (!isWhitelisted) {
+        return interaction.reply({
+          content: `❌ หน้า **${page.name}** มี Album อยู่ ไม่สามารถจองทั้งหน้าได้หากไม่อยู่ใน Whitelist${HINT}`,
+          ephemeral: true,
+        });
+      }
+
       const itemList = items.map(i => `• ชิ้นที่ ${i.position} — ${i.item_type}${i.reserved_by ? ` (จองแล้วโดย ${i.reserved_by})` : ' ✅ ว่าง'}`).join('\n');
       return interaction.reply({
         content: `❌ หน้า **${page.name}** มี Album ไม่สามารถจองทั้งหน้าได้\nกรุณาระบุชิ้นที่ต้องการ เช่น \`/reserve page:${pageNum} item:1\`\n\nรายการในหน้านี้:\n${itemList}${HINT}`,
