@@ -8,19 +8,19 @@ services:
         value: postgres
       - key: PORT
         value: 10000
-      - fromContext: true
-        key: DISCORD_TOKEN
-      - fromContext: true
-        key: DISCORD_CLIENT_ID
-      - fromContext: true
-        key: DISCORD_CLIENT_SECRET
-      - fromContext: true
-        key: DISCORD_CALLBACK_URL
-      - fromContext: true
-        key: DISCORD_GUILD_ID
-      - fromContext: true
-        key: DISCORD_ANNOUNCE_CHANNEL_ID
-      - fromContext: true
-        key: SESSION_SECRET
-      - fromContext: true
-        key: DATABASE_URL
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_CALLBACK_URL
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DISCORD_ANNOUNCE_CHANNEL_ID
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
