@@ -27,13 +27,11 @@ del temp_status.txt
 
 :: 4. ทำการ Bump Version ใน package.json
 echo 📦 Bumping version (%bump_type%)...
-call npm version %bump_type% --no-git-tag-version
+for /f "tokens=*" %%v in ('call npm version %bump_type% --no-git-tag-version') do set "new_ver=%%v"
 
-:: 5. เตรียม Commit Message (สรุปสิ่งทึ่แก้)
-echo 📝 Generating commit message...
-:: หากใช้ผ่าน Antigravity ผมจะช่วยเขียนสรุปในขั้นตอนนี้ครับ
-:: แต่สำหรับ script จะใช้ list ของไฟล์ที่แก้เป็นพื้นฐาน
-set "commit_msg=chore: bump version and update items [!filelist!]"
+:: 5. เตรียม Commit Message (สรุปสิ่งทึ่แก้ + เลขเวอร์ชัน)
+echo 📝 Generating commit message for !new_ver!...
+set "commit_msg=chore: release !new_ver! - update items [!filelist!]"
 
 :: 6. Git Operations
 git add .
@@ -44,9 +42,6 @@ echo --- Pushing to GitHub ---
 git push origin main
 
 echo.
-echo ✅ Successfully updated to version:
-for /f "tokens=2 delims=:, " %%a in ('findstr "version" package.json') do set "new_ver=%%~a"
-echo v!new_ver!
-echo.
+echo ✅ Successfully updated to version: !new_ver!
 echo Message: %commit_msg%
 pause
