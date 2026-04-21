@@ -71,9 +71,7 @@ async function getItemById(id) {
 async function getCurrentReservations() {
   const round = await getOrCreateCurrentRound();
   
-  // ดึงข้อมูลแบบจัดกลุ่ม: 
-  // - ถ้าเป็น Album ให้แยกเป็นรายชิ้นเหมือนเดิม
-  // - ถ้าไม่ใช่ Album (ขนนก) ให้ Group รวมกันตามรอบ/หน้า/และคนจอง
+  // ดึงข้อมูลแบบจัดกลุ่ม (Postgres-Compliant + Grouping Fix)
   return db.all(`
     SELECT 
       MIN(r.id) as id, 
@@ -84,11 +82,11 @@ async function getCurrentReservations() {
       r.discord_username,
       MIN(r.reserved_at) as reserved_at,
       CASE 
-        WHEN i.item_type = 'Album' THEN 'Album'
+        WHEN MAX(i.item_type) = 'Album' THEN 'Album'
         ELSE 'Page-Based'
       END as display_type,
       CASE 
-        WHEN i.item_type = 'Album' THEN i.item_type || ' ชิ้นที่ ' || i.position
+        WHEN MAX(i.item_type) = 'Album' THEN MAX(i.item_type) || ' ชิ้นที่ ' || MAX(i.position)
         ELSE 'ยกหน้า (' || COUNT(r.id) || ' ชิ้น)'
       END as item_display_name
     FROM reservations r
@@ -101,11 +99,12 @@ async function getCurrentReservations() {
       p.name, 
       r.discord_user_id, 
       r.discord_username,
-      (CASE WHEN i.item_type = 'Album' THEN i.id ELSE 0 END),
-      (CASE WHEN i.item_type = 'Album' THEN 'Album' ELSE 'Page' END)
+      (CASE WHEN i.item_type = 'Album' THEN i.id ELSE 0 END)
     ORDER BY reserved_at DESC
   `, [round.id]);
 }
+
+
 
 async function getReservationsByRound(roundId) {
   return db.all(`
