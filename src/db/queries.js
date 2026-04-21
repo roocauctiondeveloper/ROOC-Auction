@@ -105,6 +105,7 @@ async function isItemReserved(roundId, itemId) {
 }
 
 async function getReservationById(id) {
+  // ดึงข้อมูลการจองพร้อมประเภทไอเทมและหน้า
   return db.get(`
     SELECT r.*, i.page_id, i.item_type 
     FROM reservations r
@@ -114,13 +115,24 @@ async function getReservationById(id) {
 }
 
 async function deletePageReservationsForUser(roundId, pageId, discordUserId) {
+  // ลบทุกการจองของ User นี้ ในหน้าและรอบที่กำหนด
   return db.run(`
     DELETE FROM reservations 
-    WHERE round_id = ? 
-    AND discord_user_id = ?
-    AND item_id IN (SELECT id FROM items WHERE page_id = ?)
+    WHERE round_id = $1 
+    AND discord_user_id = $2
+    AND item_id IN (SELECT id FROM items WHERE page_id = $3)
   `, [roundId, discordUserId, pageId]);
 }
+
+async function deleteAllUserReservationsInRound(roundId, discordUserId) {
+  // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน
+  return db.run(`
+    DELETE FROM reservations 
+    WHERE round_id = ? AND discord_user_id = ?
+  `, [roundId, discordUserId]);
+}
+
+
 
 
 // ─── Rounds / History ─────────────────────────────────────────────────────────

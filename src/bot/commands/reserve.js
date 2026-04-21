@@ -37,14 +37,14 @@ module.exports = {
       });
     }
 
-    // 1 คน 1 ครั้ง
     const myReservations = await db.getMyReservations(discordUserId, currentRound.id);
     if (myReservations.length > 0) {
       return interaction.reply({
-        content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์ครับ)\n💡 ใช้ \`/mystuff\` เพื่อดูรายการที่จองไว้${HINT}`,
+        content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์)\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยคำสั่ง \`/unreserve\``,
         ephemeral: true,
       });
     }
+
 
 
     // หา page
@@ -72,8 +72,9 @@ module.exports = {
       }
 
       if (item.reserved_by) {
-        return interaction.reply({ content: `❌ หน้า **${page.name}** ชิ้นที่ ${item.position} (${disp(item.item_type)}) ถูกจองไปแล้วโดย **${item.reserved_by}**${HINT}`, ephemeral: false });
+        return interaction.reply({ content: `❌ หน้า **${page.name}** ชิ้นที่ ${item.position} (${disp(item.item_type)}) ถูกจองไปแล้วโดย **${item.reserved_by}**`, ephemeral: true });
       }
+
 
       // Album ต้องเช็ค Whitelist
       if (item.item_type === 'Album') {
@@ -89,11 +90,23 @@ module.exports = {
         // 📢 Update Live Board
         await updateLiveBoard(interaction.client, currentRound.id);
 
-        return interaction.reply({ content: `✅ **${discordUsername}** จองสำเร็จ!\n📄 หน้า **${page.name}** — ชิ้นที่ ${item.position} (${disp(item.item_type)})${HINT}`, ephemeral: false });
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
+        );
+
+        return interaction.reply({ 
+          content: `✅ จองสำเร็จ! **${discordUsername}** จองหน้า **${page.name}** ชิ้นที่ ${item.position}\n💡 หากต้องการยกเลิก ให้กดปุ่มด้านล่างหรือพิมพ์ \`/unreserve\``, 
+          components: [row],
+          ephemeral: true 
+        });
+
+
       } catch (err) {
         if (err.message?.includes('unique') || err.message?.includes('UNIQUE') || err.code === '23505') {
-          return interaction.reply({ content: `❌ ชิ้นที่ ${item.position} ถูกจองไปแล้วโดยคนอื่น${HINT}`, ephemeral: false });
+          return interaction.reply({ content: `❌ ชิ้นที่ ${item.position} ถูกจองไปแล้วโดยคนอื่น`, ephemeral: true });
         }
+
         console.error('[reserve] error:', err);
         return interaction.reply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true });
       }
@@ -112,8 +125,9 @@ module.exports = {
     const unreserved = items.filter(i => !i.reserved_by);
     if (unreserved.length === 0) {
       const msg = items.map(i => `• ชิ้นที่ ${i.position} (${disp(i.item_type)}) — จองโดย **${i.reserved_by}**`).join('\n');
-      return interaction.reply({ content: `❌ หน้า **${page.name}** ถูกจองหมดแล้ว\n\n${msg}${HINT}`, ephemeral: false });
+      return interaction.reply({ content: `❌ หน้า **${page.name}** ถูกจองหมดแล้ว\n\n${msg}`, ephemeral: true });
     }
+
 
     const success = [], fail = [];
     for (const item of unreserved) {
@@ -124,15 +138,23 @@ module.exports = {
     }
 
     if (success.length === 0) {
-      return interaction.reply({ content: `❌ ไม่สามารถจองได้ ทุกชิ้นถูกจองไปแล้ว${HINT}`, ephemeral: false });
+      return interaction.reply({ content: '❌ ไม่สามารถจองได้ ทุกชิ้นถูกจองไปแล้ว', ephemeral: true });
     }
+
 
     // 📢 Update Live Board
     await updateLiveBoard(interaction.client, currentRound.id);
 
-    let out = `✅ **${discordUsername}** ยกหน้า **${page.name}** สำเร็จ!\n📦 ${success.join(', ')}`;
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
+    );
+
+    let out = `✅ **${discordUsername}** ยกหน้า **${page.name}** สำเร็จ!\n📦 ${success.join(', ')}\n💡 หากต้องการยกเลิก ให้กดปุ่มหรือพิมพ์ \`/unreserve\``;
     if (fail.length > 0) out += `\n⚠️ จองไม่ได้: ${fail.join(', ')}`;
-    out += HINT;
-    return interaction.reply({ content: out, ephemeral: false });
+
+    return interaction.reply({ content: out, components: [row], ephemeral: true });
+
+
   },
 };

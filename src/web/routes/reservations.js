@@ -80,16 +80,20 @@ router.post('/:id/delete', async (req, res) => {
     if (reservation) {
       const { round_id, page_id, item_type, discord_user_id } = reservation;
 
-      // ถ้าเป็น Feather (Light-Dark หรือ Time-Space) ให้ลบยกหน้าของ User นั้น
-      if (item_type !== 'Album') {
+      // เช็คแบบไม่สนตัวพิมพ์เล็ก-ใหญ่ (Case-Insensitive)
+      const type = item_type.toLowerCase();
+
+      // ถ้าไม่ใช่ Album (คือเป็น Light-Dark หรือ Time-Space) ให้ลบยกหน้า
+      if (type !== 'album') {
         await db.deletePageReservationsForUser(round_id, page_id, discord_user_id);
-        req.session.success_msg = 'ยกเลิกการจองยกหน้าสำเร็จ';
+        req.session.success_msg = `ยกเลิกการจองขนนกยกหน้า (${reservation.discord_username}) สำเร็จ`;
       } else {
         // ถ้าเป็น Album ลบแค่ชิ้นเดียว
         await db.deleteReservation(resId);
         req.session.success_msg = 'ลบข้อมูลการจองสำเร็จ';
       }
     }
+
 
     // 📢 Update Live Board
     const currentRound = await db.getCurrentRound();

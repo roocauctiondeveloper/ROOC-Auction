@@ -34,6 +34,31 @@ client.once('clientReady', (c) => {
 
 
 client.on('interactionCreate', async interaction => {
+  // Handle Unreserve Button (จากข้อความจองสำเร็จ)
+  if (interaction.isButton() && interaction.customId === 'unreserve_me') {
+    try {
+      const db = require('../db/queries');
+      const { updateLiveBoard } = require('./liveboard');
+
+      const currentRound = await db.getCurrentRound();
+      
+      if (!currentRound || currentRound.status !== 'open') {
+        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', ephemeral: true });
+      }
+
+      await db.deleteAllUserReservationsInRound(currentRound.id, interaction.user.id);
+      await updateLiveBoard(interaction.client, currentRound.id);
+
+      return interaction.update({
+        content: '✅ ยกเลิกการจองของคุณเรียบร้อยแล้วครับ',
+        components: [] // ลบปุ่มออกหลังกด
+      });
+    } catch (err) {
+      console.error('[client] unreserve button error:', err);
+      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', ephemeral: true });
+    }
+  }
+
   // Handle Buttons จาก /available
   if (interaction.isButton()) {
     const id = interaction.customId;

@@ -219,9 +219,10 @@ async function reserveFeatherPage(interaction, pageId) {
   const myReservations = await db.getMyReservations(discordUserId, round.id);
   if (myReservations.length > 0) {
     return interaction.reply({ 
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์ครับ)\n💡 ใช้ \`/mystuff\` เพื่อดูรายการที่จองไว้`, 
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยคำสั่ง \`/unreserve\``, 
       ephemeral: true 
     });
+
   }
 
   const allItems = await db.getItemsForPage(pageId);
@@ -249,9 +250,16 @@ async function reserveFeatherPage(interaction, pageId) {
   // 📢 Update Live Board
   await updateLiveBoard(interaction.client, round.id);
 
-  // ตอบรับเงียบๆ (ไม่ต้องส่งข้อความใหม่ เพราะดูได้จาก Live Board)
-  if (interaction.deferred || interaction.replied) return;
-  return interaction.deferUpdate();
+  // ส่งปุ่มยกเลิกให้เห็นคนเดียว
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
+  );
+
+  if (interaction.deferred || interaction.replied) {
+    return interaction.followUp({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
+  }
+  return interaction.reply({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
 }
 
 
@@ -267,9 +275,10 @@ async function reserveBookItem(interaction, itemId) {
   const myReservations = await db.getMyReservations(discordUserId, round.id);
   if (myReservations.length > 0) {
     return interaction.reply({ 
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์ครับ)\n💡 ใช้ \`/mystuff\` เพื่อดูรายการที่จองไว้`, 
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยคำสั่ง \`/unreserve\``, 
       ephemeral: true 
     });
+
   }
 
   // Album ต้องเช็ค Whitelist
@@ -298,10 +307,18 @@ async function reserveBookItem(interaction, itemId) {
     // 📢 Update Live Board
     await updateLiveBoard(interaction.client, round.id);
 
-    // ตอบรับเงียบๆ
-    if (interaction.deferred || interaction.replied) return;
-    return interaction.deferUpdate();
+    // ส่งปุ่มยกเลิกให้เห็นคนเดียว
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
+    );
+
+    if (interaction.deferred || interaction.replied) {
+      return interaction.followUp({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
+    }
+    return interaction.reply({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
   } catch (err) {
+
 
     if (err.message?.includes('UNIQUE') || err.code === '23505') {
       return interaction.reply({ content: '❌ Album ชิ้นนี้ถูกจองไปแล้ว', ephemeral: true });

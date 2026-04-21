@@ -51,6 +51,11 @@ async function buildBoardEmbed(round) {
     const items = await db.getItemsForPage(page.id, round.id);
     totalItems += items.length;
 
+    // หา types ที่มีในหน้านี้เพื่อโชว์ไอคอนหน้า Page Name
+    const types = [...new Set(items.map(i => i.item_type))];
+    const FEATHER_ICON = { 'Light-Dark': '🤍', 'Time-Space': '❤️', 'light-dark': '🤍', 'time-space': '❤️' };
+    const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
+
     const lines = items.map(i => {
       if (i.reserved_by) {
         reservedCount++;
@@ -61,11 +66,12 @@ async function buildBoardEmbed(round) {
     });
 
     embed.addFields({
-      name: `📄 หน้า ${page.name}`,
+      name: `${pageEmojis} หน้า ${page.name}`,
       value: lines.join('\n') || '-',
       inline: true,
     });
   }
+
 
   // คำนวณ totalItems และ reservedCount สำหรับหน้าที่ไม่ได้แสดงด้วย (เพื่อให้เลขสรุปถูกต้อง)
   if (pages.length > 25) {
@@ -144,14 +150,16 @@ async function buildBoardButtons(round) {
 
   for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))];
-    const emoji = types.length === 1 ? (FEATHER_EMOJI[types[0]] || '🪶') : '🪶';
+    const emojis = types.map(t => FEATHER_EMOJI[t] || '🪶').join('');
+    
     allEntries.push({
       type: 'feather',
       id: pageId,
-      label: `หน้า ${page_name}`,
-      emoji: emoji
+      label: `${emojis} หน้า ${page_name}`,
+      emoji: null // ใส่ใน Label แล้ว ไม่ต้องใส่ที่ช่อง Emoji แยก
     });
   }
+
 
   if (allEntries.length === 0) return [];
 
@@ -306,6 +314,11 @@ async function closeLiveBoard(client, round) {
     for (const page of displayPages) {
       const items = await db.getItemsForPage(page.id, round.id);
       totalItems += items.length;
+
+      const types = [...new Set(items.map(i => i.item_type))];
+      const FEATHER_ICON = { 'Light-Dark': '🤍', 'Time-Space': '❤️', 'light-dark': '🤍', 'time-space': '❤️' };
+      const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
+
       const lines = items.map(i => {
         if (i.reserved_by) { 
           reservedCount++; 
@@ -314,8 +327,9 @@ async function closeLiveBoard(client, round) {
         }
         return `${i.position}. ${d(i.item_type)} ❌ ไม่มีคนจอง`;
       });
-      embed.addFields({ name: `📄 หน้า ${page.name}`, value: lines.join('\n') || '-', inline: true });
+      embed.addFields({ name: `${pageEmojis} หน้า ${page.name}`, value: lines.join('\n') || '-', inline: true });
     }
+
 
     // รวมสถิติหน้าที่ซ่อนอยู่
     if (pages.length > 25) {
