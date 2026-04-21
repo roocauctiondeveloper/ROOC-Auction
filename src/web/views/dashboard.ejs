@@ -72,7 +72,7 @@
         <select id="preset-selector" class="form-control" style="min-width: 250px; padding: 0.6rem;">
           <option value="">-- เลือก Preset ที่ต้องการ --</option>
           <% presets.forEach(p => { %>
-            <option value="<%= p.id %>"><%= p.name %> (Album:<%= p.album_count %>, LD:<%= p.light_dark_count %>, TS:<%= p.time_space_count %>)</option>
+            <option value="<%= p.id %>"><%= p.name %> (📒:<%= p.album_count %>, 🐔:<%= p.light_dark_count %>, 🐓:<%= p.time_space_count %>)</option>
           <% }) %>
         </select>
         <button type="button" class="btn" onclick="applyPreset()" style="background: var(--primary);">Apply</button>
@@ -137,12 +137,12 @@
 
 <script>
   const ITEM_TYPE_DISPLAY = { 
-    'Album':      'Album', 
-    'Light-Dark': 'Light-Dark', 
-    'Time-Space': 'Time-Space',
+    'Album':      '📒 Album', 
+    'Light-Dark': '🐔 Light-Dark', 
+    'Time-Space': '🐓 Time-Space',
     // Fallback for any old lowercase data
-    'light-dark': 'Light-Dark',
-    'time-space': 'Time-Space'
+    'light-dark': '🐔 Light-Dark',
+    'time-space': '🐓 Time-Space'
   };
   const displayType = (t) => ITEM_TYPE_DISPLAY[t] || t;
 

@@ -12,12 +12,12 @@ const {
 } = require('discord.js');
 const db = require('../db/queries');
 
-const DISP = { 
-  'Album': 'Album', 
-  'Light-Dark': 'Light-Dark', 
+const DISP = {
+  'Album': 'Album',
+  'Light-Dark': 'Light-Dark',
   'Time-Space': 'Time-Space',
-  'light-dark': 'Light-Dark', 
-  'time-space': 'Time-Space' 
+  'light-dark': 'Light-Dark',
+  'time-space': 'Time-Space'
 };
 const d = (t) => DISP[t] ?? t;
 
@@ -25,7 +25,7 @@ const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 
 // Button prefix สำหรับ live board (แยกจาก /available)
 const LB_FEATHER_PREFIX = 'lb_f:'; // lb_f:<pageId>
-const LB_BOOK_PREFIX    = 'lb_b:'; // lb_b:<itemId>
+const LB_BOOK_PREFIX = 'lb_b:'; // lb_b:<itemId>
 
 /**
  * สร้าง embed แสดง grid ของทุก page และ items พร้อมสถานะ
@@ -86,11 +86,11 @@ async function buildBoardEmbed(round) {
   const remaining = totalItems - reservedCount;
   let description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\n` +
     `พิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
-  
+
   if (pages.length > 25) {
     description += `\n⚠️ *แสดงผลเพียง 25 หน้าแรกจากทั้งหมด ${pages.length} หน้า*`;
   }
-  
+
   embed.setDescription(description);
   embed.setFooter({ text: 'อัปเดตอัตโนมัติทุกครั้งที่มีการจอง • /mystuff เพื่อดูของที่จองไว้' });
 
@@ -121,9 +121,9 @@ async function buildBoardButtons(round) {
     }
   }
 
-  const FEATHER_EMOJI = { 
+  const FEATHER_EMOJI = {
     'Light-Dark': '🐔', 'Time-Space': '🐓',
-    'light-dark': '🐔', 'time-space': '🐓' 
+    'light-dark': '🐔', 'time-space': '🐓'
   };
 
   // เตรียมรายการทั้งหมดที่จะทำเป็นปุ่มหรือเมนู
@@ -151,7 +151,7 @@ async function buildBoardButtons(round) {
   for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))];
     const emojis = types.map(t => FEATHER_EMOJI[t] || '🪶').join('');
-    
+
     allEntries.push({
       type: 'feather',
       id: pageId,
@@ -164,7 +164,7 @@ async function buildBoardButtons(round) {
   if (allEntries.length === 0) return [];
 
   const rows = [];
-  
+
   // ปรับ Logic: ถ้ามีเกิน 25 อย่าง (ล้นปุ่ม) ให้แบ่งที่ว่างให้ Dropdown ด้วย
   let buttonLimit = 25;
   if (allEntries.length > 25) {
@@ -182,12 +182,12 @@ async function buildBoardButtons(round) {
       .setCustomId(`${entry.type === 'feather' ? LB_FEATHER_PREFIX : LB_BOOK_PREFIX}${entry.id}`)
       .setLabel(entry.label)
       .setStyle(entry.type === 'feather' ? ButtonStyle.Success : ButtonStyle.Primary);
-    
+
     if (entry.emoji) {
       btn.setEmoji(entry.emoji);
     }
 
-    
+
     currentRow.addComponents(btn);
 
     if ((i + 1) % 5 === 0 || i === buttonEntries.length - 1) {
@@ -201,12 +201,12 @@ async function buildBoardButtons(round) {
   // 2. ถ้ามีเหลือ ใส่ใน Dropdown (แถวที่ 5)
   if (remainingEntries.length > 0 && rows.length < 5) {
     const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
-    
+
     const options = remainingEntries.map(entry => {
       const opt = new StringSelectMenuOptionBuilder()
         .setLabel(entry.label)
         .setValue(`${entry.type}:${entry.id}`);
-      
+
       if (entry.emoji) {
         opt.setEmoji(entry.emoji);
       }
@@ -232,7 +232,7 @@ async function buildBoardButtons(round) {
  */
 async function sendLiveBoard(client, channelId, round) {
   console.log('🏁 sendLiveBoard started | Channel:', channelId, '| Round:', round.id);
-  
+
   try {
     const channel = await client.channels.fetch(channelId);
     if (!channel?.isTextBased()) {
@@ -319,7 +319,7 @@ async function closeLiveBoard(client, round) {
 
     let totalItems = 0, reservedCount = 0;
     const displayPages = pages.slice(0, 25);
-    
+
     for (const page of displayPages) {
       const items = await db.getItemsForPage(page.id, round.id);
       totalItems += items.length;
@@ -329,10 +329,10 @@ async function closeLiveBoard(client, round) {
       const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
 
       const lines = items.map(i => {
-        if (i.reserved_by) { 
-          reservedCount++; 
+        if (i.reserved_by) {
+          reservedCount++;
           const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
-          return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`; 
+          return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`;
         }
         return `${i.position}. ${d(i.item_type)} ❌ ไม่มีคนจอง`;
       });
