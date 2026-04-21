@@ -187,15 +187,11 @@ function buildDropdownFallback(featherPages, bookItems) {
   return rows;
 }
 
-/** ตรวจสอบ whitelist + round */
+/** ตรวจสอบความพร้อมของรอบ */
 async function checkEligibility(interaction) {
-  const isWhitelisted = await db.isWhitelisted(interaction.user.id);
-  if (!isWhitelisted) {
-    return { ok: false, msg: '❌ คุณไม่มีสิทธิ์จอง (ยังไม่ได้อยู่ใน Whitelist)' };
-  }
   const round = await db.getOrCreateCurrentRound();
   if (round.status !== 'open') {
-    return { ok: false, msg: '❌ ปิดรับจองไปแล้วครับ' };
+    return { ok: false, msg: '❌ ขณะนี้ยังไม่ได้เปิดรับจอง หรือปิดรับจองไปแล้วครับ' };
   }
   return { ok: true, round };
 }
@@ -248,6 +244,15 @@ async function reserveBookItem(interaction, itemId) {
   const check = await checkEligibility(interaction);
   if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
   const { round } = check;
+
+  // Album ต้องเช็ค Whitelist
+  const ok = await db.isWhitelisted(discordUserId);
+  if (!ok) {
+    return interaction.reply({ 
+      content: `❌ **${discordUsername}** ไม่สามารถจอง Album ได้ (ต้องอยู่ใน Whitelist)\n\nหน้า Feather (Light-Dark / Time-Space) สามารถจองได้ปกติครับ`, 
+      ephemeral: true 
+    });
+  }
 
   const isReserved = await db.isItemReserved(round.id, itemId);
   if (isReserved) {
