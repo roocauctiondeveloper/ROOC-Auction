@@ -87,6 +87,7 @@ async function start() {
   // 4. Bump Version
   console.log('📦 Bumping version...');
   const newVer = run('npm version patch --no-git-tag-version');
+  run('git add .'); // เพิ่มจุดนี้เพื่อให้ package.json ติดไปด้วย
 
   // 5. เตรียม Full Message (แบบละเอียดมาก)
   const commitTitle = `[${newVer}] feat: ${summary}`;
