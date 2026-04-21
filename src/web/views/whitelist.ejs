@@ -2,18 +2,17 @@
   <h1>Whitelist Management</h1>
 </div>
 
-<div class="card">
-  <h3 style="margin-bottom: 1.5rem;">Add New User</h3>
-  <form action="/whitelist" method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: flex-end;">
-    <div class="form-group" style="margin-bottom: 0;">
-      <label for="discord_user_id">Discord User ID <span style="color:var(--danger);">*</span></label>
-      <input type="text" id="discord_user_id" name="discord_user_id" required placeholder="e.g. 295747827517227009">
+<div class="card" style="border-left: 4px solid var(--primary);">
+  <h3 style="margin-bottom: 1.5rem;">Add to Whitelist</h3>
+  <p style="color: var(--text-light); margin-bottom: 1rem; font-size: 0.9rem;">
+    💡 ใส่เพียง <b>Discord User ID</b> ระบบจะดึงชื่อมาให้โดยอัตโนมัติครับ
+  </p>
+  <form action="/whitelist" method="POST" style="display: flex; gap: 1rem; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0; flex-grow: 1;">
+      <label for="discord_user_id">Discord User ID</label>
+      <input type="text" id="discord_user_id" name="discord_user_id" required placeholder="ตัวอย่าง: 123456789012345678">
     </div>
-    <div class="form-group" style="margin-bottom: 0;">
-      <label for="discord_username">Display Name (Optional)</label>
-      <input type="text" id="discord_username" name="discord_username" placeholder="e.g. Username">
-    </div>
-    <button class="btn btn-primary" type="submit">Add to Whitelist</button>
+    <button class="btn btn-primary" type="submit">Add User</button>
   </form>
 </div>
 
