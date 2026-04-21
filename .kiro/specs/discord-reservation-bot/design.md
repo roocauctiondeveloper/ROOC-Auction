@@ -8,7 +8,7 @@
 1. **Discord Bot** — รับคำสั่งจองจากผู้ใช้ใน Text Channel ผ่าน slash commands (`/reserve`) โดยใช้ `discord.js` v14
 2. **Web Dashboard** — หน้าเว็บสำหรับ Admin จัดการ Page, Item, Reservation, History และ Whitelist โดยใช้ `Express.js` + `EJS` templates (SSR)
 
-ทั้งสองส่วนแชร์ฐานข้อมูล SQLite ไฟล์เดียวกัน ผ่าน `better-sqlite3` ซึ่งเป็น synchronous driver ทำให้ไม่ต้องจัดการ async/await สำหรับ DB operations และป้องกัน race condition ได้โดยธรรมชาติ
+ทั้งสองส่วนแชร์ฐานข้อมูล **PostgreSQL บน Supabase** ผ่าน `pg` (node-postgres) ซึ่งเป็น async driver รองรับ connection pooling ผ่าน PgBouncer
 
 Bot และ Dashboard รันใน Node.js process เดียวกัน โดย Express HTTP server และ discord.js client ถูก start พร้อมกันใน `src/index.js`
 
@@ -24,10 +24,10 @@ graph TB
 
     subgraph Node.js Process
         DC -->|discord.js event| BOT[Bot Handler]
-        BOT -->|read/write sync| DB[(SQLite\nbetter-sqlite3)]
+        BOT -->|read/write async| DB[(PostgreSQL\nSupabase)]
 
         ADMIN[Admin Browser] -->|HTTP| WEB[Express.js Dashboard]
-        WEB -->|read/write sync| DB
+        WEB -->|read/write async| DB
     end
 
     subgraph Config
@@ -47,7 +47,7 @@ sequenceDiagram
     Main->>Express: app.listen(PORT)
     Main->>Bot: client.login(TOKEN)
     Note over Express,Bot: ทั้งสองรันใน Node.js process เดียวกัน
-    Note over Express,Bot: better-sqlite3 เป็น synchronous — ไม่มี async DB
+    Note over Express,Bot: pg (node-postgres) เป็น async — ใช้ await ทุก DB call
 ```
 
 ---
@@ -138,8 +138,8 @@ User → /mystuff
 
 ### 3. Database Layer (`src/db/`)
 
-- `src/db/database.js` — เปิด connection, WAL mode setup, schema initialization
-- `src/db/queries.js` — SQL query functions แยกตาม domain (pages, items, reservations, whitelist)
+- `src/db/database.js` — เปิด `pg.Pool` connection กับ Supabase, helper `toPostgres()` แปลง `?` → `$1,$2,...`, export `db.all/get/run/exec`
+- `src/db/queries.js` — SQL query functions แยกตาม domain (pages, items, reservations, whitelist, presets)
 
 **Query functions ใหม่สำหรับ /available และ /mystuff:**
 
@@ -162,77 +162,88 @@ function getMyReservations(discordUsername, roundId) { /* ... */ }
 
 ### 4. Auth Middleware (`src/web/middleware/auth.js`)
 
-Session-based authentication โดยใช้ `express-session` + `connect-sqlite3` เก็บ session ใน SQLite ตรวจสอบ Discord User ID กับตาราง `admin_users` ใน Database
+Session-based authentication โดยใช้ `express-session` + `connect-pg-simple` เก็บ session ใน PostgreSQL ตรวจสอบ Discord User ID กับตาราง `admin_users` ใน Database
 
 ---
 
 ## Data Models
 
-### Schema ฐานข้อมูล SQLite
+### Schema ฐานข้อมูล PostgreSQL (Supabase)
 
 ```sql
 -- Admin Users
 CREATE TABLE IF NOT EXISTS admin_users (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              SERIAL PRIMARY KEY,
     discord_user_id TEXT NOT NULL UNIQUE,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Pages
 CREATE TABLE IF NOT EXISTS pages (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Items (สูงสุด 4 ชิ้นต่อ Page)
 -- item_type: 'Album' | 'light-dark' | 'time-space'
 CREATE TABLE IF NOT EXISTS items (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id         SERIAL PRIMARY KEY,
     page_id    INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-    name       TEXT NOT NULL,
     item_type  TEXT NOT NULL CHECK (item_type IN ('Album', 'light-dark', 'time-space')),
     position   INTEGER NOT NULL CHECK (position BETWEEN 1 AND 4),
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (page_id, position)
 );
 
 -- Rounds
 CREATE TABLE IF NOT EXISTS rounds (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    status     TEXT NOT NULL DEFAULT 'preparing' CHECK (status IN ('preparing', 'open', 'closed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Reservations
 CREATE TABLE IF NOT EXISTS reservations (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    id               SERIAL PRIMARY KEY,
     round_id         INTEGER NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
     item_id          INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
     discord_user_id  TEXT NOT NULL,
     discord_username TEXT NOT NULL,
-    reserved_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE (round_id, item_id)  -- 1 item ต่อ 1 reservation ต่อ round
+    reserved_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (round_id, item_id)
 );
 
 -- Whitelist
 CREATE TABLE IF NOT EXISTS whitelist (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    id               SERIAL PRIMARY KEY,
     discord_username TEXT NOT NULL UNIQUE,
-    discord_user_id  TEXT,           -- optional: รองรับการเปลี่ยนมาใช้ ID ในอนาคต
-    created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+    discord_user_id  TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Item Presets (ชุด Items สำเร็จรูปสำหรับ auto-fill ตอนสร้าง Page ใหม่)
--- ผลรวม card_count + white_feather_count + black_feather_count ต้องไม่เกิน 4
+-- Round History Items (Snapshot)
+CREATE TABLE IF NOT EXISTS round_history_items (
+    id               SERIAL PRIMARY KEY,
+    round_id         INTEGER NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+    page_name        TEXT NOT NULL,
+    item_type        TEXT NOT NULL,
+    item_pos         INTEGER NOT NULL,
+    discord_user_id  TEXT,
+    discord_username TEXT,
+    reserved_at      TIMESTAMPTZ
+);
+
+-- Item Presets
 CREATE TABLE IF NOT EXISTS item_presets (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    name                TEXT NOT NULL UNIQUE,
-    card_count          INTEGER NOT NULL DEFAULT 0 CHECK (card_count >= 0),
-    white_feather_count INTEGER NOT NULL DEFAULT 0 CHECK (white_feather_count >= 0),
-    black_feather_count INTEGER NOT NULL DEFAULT 0 CHECK (black_feather_count >= 0),
-    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
-    CHECK (card_count + white_feather_count + black_feather_count BETWEEN 1 AND 4)
+    id               SERIAL PRIMARY KEY,
+    name             TEXT NOT NULL UNIQUE,
+    album_count      INTEGER NOT NULL DEFAULT 0 CHECK (album_count >= 0),
+    light_dark_count INTEGER NOT NULL DEFAULT 0 CHECK (light_dark_count >= 0),
+    time_space_count INTEGER NOT NULL DEFAULT 0 CHECK (time_space_count >= 0),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (album_count + light_dark_count + time_space_count BETWEEN 1 AND 4)
 );
 ```
 
@@ -636,10 +647,10 @@ discord-reservation-bot/
 
 ### Database Error Handling
 
-- ใช้ `better-sqlite3` ซึ่งเป็น synchronous — ไม่มี async/await สำหรับ DB
-- เปิด WAL mode: `db.pragma('journal_mode = WAL')` ที่ startup
-- ใช้ `db.transaction()` สำหรับ write operations ที่ต้องการ atomicity
-- SQLite CHECK constraint บังคับ ItemType ที่ DB level
+- ใช้ `pg` (node-postgres) Pool — async/await ทุก query
+- Connection string จาก Supabase พร้อม `ssl: { rejectUnauthorized: false }`
+- PostgreSQL unique violation error code: `23505` — ใช้ตรวจ duplicate reservation
+- ใช้ `db.pool` สำหรับ transaction เมื่อต้องการ atomicity
 
 ---
 
@@ -660,6 +671,7 @@ npm install --save-dev jest fast-check
 
 - **Jest** — test runner และ assertion library
 - **fast-check** — property-based testing library สำหรับ JavaScript/TypeScript
+- **pg** — ใช้ test database บน Supabase หรือ local PostgreSQL
 
 ### Property Test Configuration
 
