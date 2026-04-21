@@ -18,7 +18,7 @@ const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
 const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
 
 const FEATHER_TYPES = ['light-dark', 'time-space'];
-const FEATHER_EMOJI = { 'light-dark': '🤍', 'time-space': '🖤' };
+const FEATHER_EMOJI = { 'light-dark': '🤍', 'time-space': '❤️' };
 
 // ลำดับการแสดงผล: Album → light-dark → time-space (DB values)
 const TYPE_ORDER = { 'Album': 0, 'light-dark': 1, 'time-space': 2 };

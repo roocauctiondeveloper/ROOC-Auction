@@ -94,18 +94,17 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
     const round = await db.getOrCreateCurrentRound();
     if (round && round.status === 'preparing') {
       await db.updateRoundStatus(round.id, 'open');
-      
-      // Announce to discord
-      const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
-      console.log('📢 Attempting to announce OPEN round to channel:', channelId);
-      
-      if (channelId) {
-        try {
-          const channel = await discordClient.channels.fetch(channelId);
-          if (channel && channel.isTextBased()) {
-            const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-            // ดึงรายการที่ว่างทั้งหมดเพื่อแสดงใน embed
+      // Announce to Discord
+      const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
+      console.log('📢 Announce channel:', channelId, '| Bot ready:', discordClient.isReady());
+
+      if (channelId && discordClient.isReady()) {
+        try {
+          const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+          const channel = await discordClient.channels.fetch(channelId);
+
+          if (channel && channel.isTextBased()) {
             const availableItems = await db.getAvailableItems(round.id);
             const grouped = new Map();
             for (const item of availableItems) {
@@ -113,11 +112,13 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
               grouped.get(item.page_name).push(item);
             }
 
+            const DISP = { 'Album': 'Album', 'light-dark': 'Light-Dark', 'time-space': 'Time-Space' };
+
             const embed = new EmbedBuilder()
-              .setTitle(`🎉 เปิดรับจอง — ${round.name}`)
+              .setTitle(`🎉 เปิดรับจอง (Reservation Open) — ${round.name}`)
               .setColor(0x57F287)
               .setDescription(
-                '**รายการที่ว่างอยู่ในขณะนี้**\n' +
+                '**รายการที่ว่างอยู่ในขณะนี้ (Available Items)**\n' +
                 'พิมพ์ `/available` เพื่อดูรายการและจองได้เลย!\n' +
                 'หรือ `/reserve page:<หน้า> item:<ชิ้น>` ถ้ารู้ตำแหน่งแล้ว'
               )
@@ -125,8 +126,8 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
 
             if (grouped.size > 0) {
               for (const [pageName, items] of grouped) {
-                const lines = items.map(i => `ชิ้นที่ ${i.position} — ${i.item_type}`);
-                embed.addFields({ name: `📄 ${pageName}`, value: lines.join('\n'), inline: true });
+                const lines = items.map(i => `ชิ้นที่ ${i.position} — ${DISP[i.item_type] ?? i.item_type}`);
+                embed.addFields({ name: `📄 หน้า ${pageName}`, value: lines.join('\n'), inline: true });
               }
             } else {
               embed.addFields({ name: 'รายการ', value: 'ยังไม่มีสินค้าในระบบ', inline: false });
@@ -140,17 +141,20 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
                 .setLabel('พิมพ์ /available เพื่อจอง')
                 .setStyle(ButtonStyle.Success)
                 .setEmoji('📋')
-                .setDisabled(true)  // disabled เพราะ slash command ต้องพิมพ์เอง
+                .setDisabled(true)
             );
 
             await channel.send({ embeds: [embed], components: [row] });
+            console.log('✅ Announcement sent to channel', channelId);
           }
         } catch (err) {
-          console.error('Failed to announce auction opening on Discord:', err);
+          console.error('❌ Failed to announce on Discord:', err.message, err.code);
         }
+      } else if (channelId && !discordClient.isReady()) {
+        console.warn('⚠️ Bot not ready, skipping announcement');
       }
-      
-      req.session.success_msg = 'เปิดรับจองรอบเข้าแล้ว แจ้งเตือนใน Discord แล้ว (ถ้าตั้งค่าช่องไว้)!';
+
+      req.session.success_msg = 'เปิดรับจองรอบแล้ว! แจ้งเตือนใน Discord แล้ว (ถ้าตั้งค่าช่องไว้)';
     }
   } catch (err) {
     console.error(err);

@@ -47,36 +47,32 @@ router.post('/apply/:id', ensureAuthenticated, async (req, res) => {
 
     const round = await db.getOrCreateCurrentRound();
     if (round.status !== 'preparing') {
-        req.session.error_msg = 'กรุณาปิดรอบเก่าก่อน หรือต้องอยู่ในสถานะกำลังเตรียมของเท่านั้น';
-        return res.redirect('/');
+      req.session.error_msg = 'กรุณาปิดรอบเก่าก่อน หรือต้องอยู่ในสถานะกำลังเตรียมของเท่านั้น';
+      return res.redirect('/');
     }
 
-    // Helper: สร้างไอเทมลงหน้า
-    async function setupItems(count, type, startPageNum) {
-      let currentIdx = 0;
-      let pageNum = startPageNum;
-      
-      while (currentIdx < count) {
-        const pageName = `${type} หน้าที่ ${pageNum}`;
-        const pageId = await db.addPage(pageName);
-        
-        // ใส่หน้าละ 4 ชิ้นตามมาตรฐาน
-        const itemsToCreate = Math.min(4, count - currentIdx);
-        for (let i = 1; i <= itemsToCreate; i++) {
-          await db.addItem(pageId, type, i);
-          currentIdx++;
-        }
-        pageNum++;
+    // สร้าง queue ของ items เรียงต่อกัน: Album → light-dark → time-space
+    const queue = [];
+    for (let i = 0; i < preset.album_count;      i++) queue.push('Album');
+    for (let i = 0; i < preset.light_dark_count; i++) queue.push('light-dark');
+    for (let i = 0; i < preset.time_space_count; i++) queue.push('time-space');
+
+    if (queue.length === 0) {
+      req.session.error_msg = 'Preset นี้ไม่มีไอเทม';
+      return res.redirect('/');
+    }
+
+    // ยัดหน้าละ 4 ชิ้นต่อเนื่อง ไม่แยก type
+    const numPages = Math.ceil(queue.length / 4);
+    for (let p = 1; p <= numPages; p++) {
+      const pageId = await db.addPage(p.toString());
+      for (let pos = 1; pos <= 4; pos++) {
+        if (queue.length === 0) break;
+        await db.addItem(pageId, queue.shift(), pos);
       }
-      return pageNum;
     }
 
-    // ทำทีละอย่าง
-    if (preset.album_count > 0) await setupItems(preset.album_count, 'Album', 1);
-    if (preset.light_dark_count > 0) await setupItems(preset.light_dark_count, 'light-dark', 1);
-    if (preset.time_space_count > 0) await setupItems(preset.time_space_count, 'time-space', 1);
-
-    req.session.success_msg = `Apply Preset "${preset.name}" สำเร็จ! สร้างไอเทมทั้งหมดให้เรียบร้อยแล้ว`;
+    req.session.success_msg = `Apply Preset "${preset.name}" สำเร็จ! สร้าง ${numPages} หน้า รวม ${preset.album_count + preset.light_dark_count + preset.time_space_count} ชิ้น`;
   } catch (err) {
     console.error(err);
     req.session.error_msg = 'เกิดข้อผิดพลาดในการ Apply Preset';
