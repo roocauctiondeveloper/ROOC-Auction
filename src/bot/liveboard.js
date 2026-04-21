@@ -53,7 +53,7 @@ async function buildBoardEmbed(round) {
 
     // หา types ที่มีในหน้านี้เพื่อโชว์ไอคอนหน้า Page Name
     const types = [...new Set(items.map(i => i.item_type))];
-    const FEATHER_ICON = { 'Light-Dark': '🤍', 'Time-Space': '❤️', 'light-dark': '🤍', 'time-space': '❤️' };
+    const FEATHER_ICON = { 'Light-Dark': '🐔', 'Time-Space': '🐓', 'light-dark': '🐔', 'time-space': '🐓' };
     const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
 
     const lines = items.map(i => {
@@ -122,8 +122,8 @@ async function buildBoardButtons(round) {
   }
 
   const FEATHER_EMOJI = { 
-    'Light-Dark': '🤍', 'Time-Space': '❤️',
-    'light-dark': '🤍', 'time-space': '❤️' 
+    'Light-Dark': '🐔', 'Time-Space': '🐓',
+    'light-dark': '🐔', 'time-space': '🐓' 
   };
 
   // เตรียมรายการทั้งหมดที่จะทำเป็นปุ่มหรือเมนู
@@ -325,7 +325,7 @@ async function closeLiveBoard(client, round) {
       totalItems += items.length;
 
       const types = [...new Set(items.map(i => i.item_type))];
-      const FEATHER_ICON = { 'Light-Dark': '🤍', 'Time-Space': '❤️', 'light-dark': '🤍', 'time-space': '❤️' };
+      const FEATHER_ICON = { 'Light-Dark': '🐔', 'Time-Space': '🐓', 'light-dark': '🐔', 'time-space': '🐓' };
       const pageEmojis = types.map(t => FEATHER_ICON[t] || (t === 'Album' ? '📒' : '🪶')).join('');
 
       const lines = items.map(i => {

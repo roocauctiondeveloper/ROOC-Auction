@@ -123,11 +123,11 @@ app.use((req, res, next) => {
 
   // Helper: แปลง item_type (DB value) → Display name
   const ITEM_TYPE_DISPLAY = {
-    'Album':      'Album',
-    'Light-Dark': 'Light-Dark',
-    'Time-Space': 'Time-Space',
-    'light-dark': 'Light-Dark',
-    'time-space': 'Time-Space',
+    'Album':      '📒 Album',
+    'Light-Dark': '🐔 Light-Dark',
+    'Time-Space': '🐓 Time-Space',
+    'light-dark': '🐔 Light-Dark',
+    'time-space': '🐓 Time-Space',
   };
   res.locals.displayItemType = (type) => ITEM_TYPE_DISPLAY[type] ?? type;
   

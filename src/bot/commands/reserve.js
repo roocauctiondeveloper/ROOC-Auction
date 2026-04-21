@@ -5,11 +5,11 @@ const { updateLiveBoard } = require('../liveboard');
 const HINT = '\n\n💡 ดูรายการที่ว่างได้ด้วย `/available` • ดูของที่จองไว้ด้วย `/mystuff`';
 
 const DISPLAY = { 
-  'Album': 'Album', 
-  'Light-Dark': 'Light-Dark', 
-  'Time-Space': 'Time-Space',
-  'light-dark': 'Light-Dark', 
-  'time-space': 'Time-Space' 
+  'Album': '📒 Album', 
+  'Light-Dark': '🐔 Light-Dark', 
+  'Time-Space': '🐓 Time-Space',
+  'light-dark': '🐔 Light-Dark', 
+  'time-space': '🐓 Time-Space' 
 };
 const disp = (t) => DISPLAY[t] ?? t;
 
