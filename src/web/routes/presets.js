@@ -60,8 +60,8 @@ router.post('/apply/:id', ensureAuthenticated, async (req, res) => {
         const pageName = `${type} หน้าที่ ${pageNum}`;
         const pageId = await db.addPage(pageName);
         
-        // ใส่หน้าละ 10 ชิ้นตามมาตรฐาน
-        const itemsToCreate = Math.min(10, count - currentIdx);
+        // ใส่หน้าละ 4 ชิ้นตามมาตรฐาน
+        const itemsToCreate = Math.min(4, count - currentIdx);
         for (let i = 1; i <= itemsToCreate; i++) {
           await db.addItem(pageId, type, i);
           currentIdx++;
