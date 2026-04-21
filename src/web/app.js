@@ -84,6 +84,7 @@ app.use(passport.session());
 // Provide session user variable to all EJS templates
 app.use((req, res, next) => {
   res.locals.user = req.user || null;
+  res.locals.req = req;
   
   // Handle Passport failure messages
   let passport_error = null;
