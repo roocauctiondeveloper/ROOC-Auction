@@ -74,19 +74,34 @@ router.post('/', async (req, res) => {
 // POST /reservations/:id/delete
 router.post('/:id/delete', async (req, res) => {
   try {
-    await db.deleteReservation(req.params.id);
+    const resId = req.params.id;
+    const reservation = await db.getReservationById(resId);
+
+    if (reservation) {
+      const { round_id, page_id, item_type, discord_user_id } = reservation;
+
+      // ถ้าเป็น Feather (Light-Dark หรือ Time-Space) ให้ลบยกหน้าของ User นั้น
+      if (item_type !== 'Album') {
+        await db.deletePageReservationsForUser(round_id, page_id, discord_user_id);
+        req.session.success_msg = 'ยกเลิกการจองยกหน้าสำเร็จ';
+      } else {
+        // ถ้าเป็น Album ลบแค่ชิ้นเดียว
+        await db.deleteReservation(resId);
+        req.session.success_msg = 'ลบข้อมูลการจองสำเร็จ';
+      }
+    }
 
     // 📢 Update Live Board
     const currentRound = await db.getCurrentRound();
     if (currentRound) {
       await updateLiveBoard(discordClient, currentRound.id);
     }
-
-    req.session.success_msg = 'ลบข้อมูลการจองสำเร็จ';
   } catch (err) {
+    console.error('[web] delete reservation error:', err);
     req.session.error_msg = 'เกิดข้อผิดพลาดในการลบข้อมูลการจอง';
   }
   res.redirect('/reservations');
 });
+
 
 module.exports = router;

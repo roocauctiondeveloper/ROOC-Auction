@@ -104,6 +104,25 @@ async function isItemReserved(roundId, itemId) {
   return !!row;
 }
 
+async function getReservationById(id) {
+  return db.get(`
+    SELECT r.*, i.page_id, i.item_type 
+    FROM reservations r
+    JOIN items i ON r.item_id = i.id
+    WHERE r.id = ?
+  `, [id]);
+}
+
+async function deletePageReservationsForUser(roundId, pageId, discordUserId) {
+  return db.run(`
+    DELETE FROM reservations 
+    WHERE round_id = ? 
+    AND discord_user_id = ?
+    AND item_id IN (SELECT id FROM items WHERE page_id = ?)
+  `, [roundId, discordUserId, pageId]);
+}
+
+
 // ─── Rounds / History ─────────────────────────────────────────────────────────
 
 async function getCurrentRound() {
