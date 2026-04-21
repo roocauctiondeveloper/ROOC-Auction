@@ -48,7 +48,7 @@ async function buildBoardEmbed(round) {
   // Discord Limit: 25 fields per embed
   const displayPages = pages.slice(0, 25);
   for (const page of displayPages) {
-    const items = await db.getItemsForPage(page.id);
+    const items = await db.getItemsForPage(page.id, round.id);
     totalItems += items.length;
 
     const lines = items.map(i => {
@@ -71,7 +71,7 @@ async function buildBoardEmbed(round) {
   if (pages.length > 25) {
     const hiddenPages = pages.slice(25);
     for (const page of hiddenPages) {
-      const items = await db.getItemsForPage(page.id);
+      const items = await db.getItemsForPage(page.id, round.id);
       totalItems += items.length;
       reservedCount += items.filter(i => i.reserved_by).length;
     }
@@ -299,7 +299,7 @@ async function closeLiveBoard(client, round) {
     const displayPages = pages.slice(0, 25);
     
     for (const page of displayPages) {
-      const items = await db.getItemsForPage(page.id);
+      const items = await db.getItemsForPage(page.id, round.id);
       totalItems += items.length;
       const lines = items.map(i => {
         if (i.reserved_by) { 
@@ -316,7 +316,7 @@ async function closeLiveBoard(client, round) {
     if (pages.length > 25) {
       const hiddenPages = pages.slice(25);
       for (const page of hiddenPages) {
-        const items = await db.getItemsForPage(page.id);
+        const items = await db.getItemsForPage(page.id, round.id);
         totalItems += items.length;
         reservedCount += items.filter(i => i.reserved_by).length;
       }

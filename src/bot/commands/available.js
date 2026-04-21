@@ -215,6 +215,15 @@ async function reserveFeatherPage(interaction, pageId) {
   if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
   const { round } = check;
 
+  // 1 คน 1 ครั้ง เช็คว่าจองไปหรือยัง
+  const myReservations = await db.getMyReservations(discordUserId, round.id);
+  if (myReservations.length > 0) {
+    return interaction.reply({ 
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์ครับ)\n💡 ใช้ \`/mystuff\` เพื่อดูรายการที่จองไว้`, 
+      ephemeral: true 
+    });
+  }
+
   const allItems = await db.getItemsForPage(pageId);
   const available = allItems.filter(i => FEATHER_TYPES.includes(i.item_type) && !i.reserved_by);
 
@@ -253,6 +262,15 @@ async function reserveBookItem(interaction, itemId) {
   const check = await checkEligibility(interaction);
   if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
   const { round } = check;
+
+  // 1 คน 1 ครั้ง เช็คว่าจองไปหรือยัง
+  const myReservations = await db.getMyReservations(discordUserId, round.id);
+  if (myReservations.length > 0) {
+    return interaction.reply({ 
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์ครับ)\n💡 ใช้ \`/mystuff\` เพื่อดูรายการที่จองไว้`, 
+      ephemeral: true 
+    });
+  }
 
   // Album ต้องเช็ค Whitelist
   const ok = await db.isWhitelisted(discordUserId);

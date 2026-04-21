@@ -37,6 +37,16 @@ module.exports = {
       });
     }
 
+    // 1 คน 1 ครั้ง
+    const myReservations = await db.getMyReservations(discordUserId, currentRound.id);
+    if (myReservations.length > 0) {
+      return interaction.reply({
+        content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (จำกัดคนละ 1 สิทธิ์ครับ)\n💡 ใช้ \`/mystuff\` เพื่อดูรายการที่จองไว้${HINT}`,
+        ephemeral: true,
+      });
+    }
+
+
     // หา page
     const pages = await db.getAllPages();
     const page = pages.find(p => parseInt(p.name) === pageNum || p.id === pageNum);

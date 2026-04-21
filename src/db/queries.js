@@ -25,8 +25,13 @@ async function deleteAllPages() {
 
 // ─── Items ────────────────────────────────────────────────────────────────────
 
-async function getItemsForPage(pageId) {
-  const round = await getOrCreateCurrentRound();
+async function getItemsForPage(pageId, roundId = null) {
+  let targetRoundId = roundId;
+  if (!targetRoundId) {
+    const round = await getOrCreateCurrentRound();
+    targetRoundId = round.id;
+  }
+
   return db.all(`
     SELECT i.*,
            (SELECT discord_username FROM reservations r
@@ -36,8 +41,9 @@ async function getItemsForPage(pageId) {
     FROM items i
     WHERE i.page_id = ?
     ORDER BY i.position ASC
-  `, [round.id, round.id, pageId]);
+  `, [targetRoundId, targetRoundId, pageId]);
 }
+
 
 
 async function addItem(pageId, itemType, position) {
