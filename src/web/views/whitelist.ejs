@@ -53,9 +53,9 @@
 
             <!-- Final Action (hidden until end) -->
             <div id="final-actions" style="display: none; margin-top: 1.5rem; animation: celebrate 0.5s ease-out;">
-                <form action="/whitelist/lottery-apply" method="POST">
+                <form id="lottery-form" onsubmit="applyLottery(event)">
                     <div id="winners-hidden-input"></div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem;">✅ ยืนยันผลการสุ่มทั้งหมด</button>
+                    <button type="submit" id="confirm-winners-btn" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem;">✅ ยืนยันผลการสุ่มทั้งหมด</button>
                 </form>
                 <button type="button" onclick="resetLottery()" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">ยกเลิกและสุ่มใหม่</button>
             </div>
@@ -344,6 +344,50 @@
         
         // ดึงรายชื่อกลับมาวาดวงล้อใหม่ให้เต็มเหมือนตอนแรก
         updateWheelFromSelection();
+    }
+
+    async function applyLottery(e) {
+        if (e) e.preventDefault();
+        
+        const btn = document.getElementById('confirm-winners-btn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⌛ กำลังบันทึกข้อมูล...';
+
+        try {
+            const formData = new URLSearchParams();
+            winnersList.forEach(w => formData.append('winners[]', w.id));
+
+            const response = await fetch('/whitelist/lottery-apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            });
+
+            if (response.ok) {
+                // แจ้งเตือนสำเร็จแบบไม่กระพริบ
+                statusText.innerHTML = '✅ บันทึกผลการสุ่มเรียบร้อยแล้ว!';
+                statusText.style.color = 'var(--success)';
+                
+                // รอสักครู่แล้วรีเซ็ตหน้าวงล้อ
+                setTimeout(() => {
+                    resetLottery();
+                    statusText.style.color = 'var(--text-light)';
+                    // เราอาจจะสั่ง reload เบาๆ เพื่ออัปเดตตัวเลข Win Count ในตาราง
+                    // แต่ถ้าอยากให้เทพสุดๆ คือปล่อยไปแบบนี้ แล้วให้เค้ากดดูเอง
+                    // ในที่นี้ผมจะให้ reload หลังจากบันทึกสำเร็จเพื่อให้ข้อมูลในตารางเป็นปัจจุบันครับ
+                    // แต่ถ้าผู้ใช้ไม่อยากให้ refresh เลย ผมจะข้ามไปก่อน
+                    window.location.reload(); 
+                }, 1500);
+            } else {
+                throw new Error('บันทึกไม่สำเร็จ');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('เกิดข้อผิดพลาด: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 
     // --- AJAX Toggle Status (No Refresh) ---
