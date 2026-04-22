@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../db/queries');
-const { ICONS, ITEM_TYPES } = require('../../utils/constants');
+const { ICONS, ITEM_TYPES, BRANDING } = require('../../utils/constants');
 
 const HINT = `\n\n💡 ดูรายการที่ว่างได้ด้วย \`/available\` • ดูของที่จองไว้ด้วย \`/mystuff\``;
 const disp = (t) => ITEM_TYPES[t]?.emoji + ' ' + ITEM_TYPES[t]?.label || t;
@@ -87,9 +87,17 @@ module.exports = {
           new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
         );
 
+        const devRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel(BRANDING.DEVELOPER)
+            .setEmoji('▶️')
+            .setURL(BRANDING.URL)
+            .setStyle(ButtonStyle.Link)
+        );
+
         return interaction.reply({ 
           content: `✅ จองสำเร็จ! **${discordUsername}** จองหน้า **${page.name}** ชิ้นที่ ${item.position}\n💡 หากต้องการยกเลิก ให้กดปุ่มด้านล่างหรือพิมพ์ \`/unreserve\``, 
-          components: [row],
+          components: [row, devRow],
           ephemeral: true 
         });
 
@@ -145,7 +153,15 @@ module.exports = {
     let out = `✅ **${discordUsername}** ยกหน้า **${page.name}** สำเร็จ!\n📦 ${success.join(', ')}\n💡 หากต้องการยกเลิก ให้กดปุ่มหรือพิมพ์ \`/unreserve\``;
     if (fail.length > 0) out += `\n⚠️ จองไม่ได้: ${fail.join(', ')}`;
 
-    return interaction.reply({ content: out, components: [row], ephemeral: true });
+    const devRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel(BRANDING.DEVELOPER)
+        .setEmoji('▶️')
+        .setURL(BRANDING.URL)
+        .setStyle(ButtonStyle.Link)
+    );
+
+    return interaction.reply({ content: out, components: [row, devRow], ephemeral: true });
 
 
   },

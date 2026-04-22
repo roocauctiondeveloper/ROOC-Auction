@@ -9,7 +9,7 @@ const {
 } = require('discord.js');
 const db = require('../../db/queries');
 const { updateLiveBoard } = require('../liveboard');
-const { ICONS, ITEM_TYPES } = require('../../utils/constants');
+const { ICONS, ITEM_TYPES, BRANDING } = require('../../utils/constants');
 
 // Button custom ID prefixes
 const BTN_FEATHER_PREFIX = 'avail_f:'; // avail_f:<pageId>
@@ -62,7 +62,7 @@ function buildEmbed(featherPages, bookItems, roundName, guild = null) {
   const embed = new EmbedBuilder()
     .setTitle('📋 รายการที่ว่างอยู่')
     .setColor(0x57F287)
-    .setFooter({ text: `รอบ: ${roundName} • /mystuff เพื่อดูของที่จองไว้` })
+    .setFooter({ text: `Round: ${roundName} • /mystuff to view yours` })
     .setTimestamp();
 
   if (featherPages.size === 0 && bookItems.length === 0) {
@@ -255,10 +255,18 @@ async function reserveFeatherPage(interaction, pageId) {
     new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
   );
 
+  const devRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel(BRANDING.DEVELOPER)
+      .setEmoji('▶️')
+      .setURL(BRANDING.URL)
+      .setStyle(ButtonStyle.Link)
+  );
+
   if (interaction.deferred || interaction.replied) {
-    return interaction.followUp({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
+    return interaction.followUp({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
   }
-  return interaction.reply({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
+  return interaction.reply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
 }
 
 
@@ -312,10 +320,18 @@ async function reserveBookItem(interaction, itemId) {
       new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
     );
 
+    const devRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel(BRANDING.DEVELOPER)
+        .setEmoji('▶️')
+        .setURL(BRANDING.URL)
+        .setStyle(ButtonStyle.Link)
+    );
+
     if (interaction.deferred || interaction.replied) {
-      return interaction.followUp({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
+      return interaction.followUp({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
     }
-    return interaction.reply({ content: '✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:', components: [row], ephemeral: true });
+    return interaction.reply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
   } catch (err) {
 
 

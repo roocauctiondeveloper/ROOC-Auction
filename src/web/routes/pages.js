@@ -90,4 +90,15 @@ router.post('/:id/delete', async (req, res) => {
   res.redirect('/pages');
 });
 
+// POST /pages/delete-all
+router.post('/delete-all', async (req, res) => {
+  try {
+    await db.deleteAllPages();
+    req.session.success_msg = 'ลบทุกหน้าและสินค้าทั้งหมดสำเร็จ';
+  } catch (err) {
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการลบทั้งหมด';
+  }
+  res.redirect('/pages');
+});
+
 module.exports = router;

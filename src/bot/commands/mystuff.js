@@ -43,7 +43,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle(`🎒 รายการของ ${discordUsername}`)
       .setColor(0x5865F2)
-      .setFooter({ text: `รอบ: ${currentRound.name} • /unreserve เพื่อยกเลิกรายการ` })
+      .setFooter({ text: `Round: ${currentRound.name}` })
       .setTimestamp();
 
     // จัด group ตาม page
@@ -60,6 +60,11 @@ module.exports = {
 
     embed.setDescription(`คุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ`);
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกรายการของฉันทั้งหมด').setStyle(ButtonStyle.Danger)
+    );
+
+    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
   },
 };

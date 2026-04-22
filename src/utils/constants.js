@@ -26,5 +26,11 @@ module.exports = {
     'Time-Space': { label: 'Time-Space', emoji: '❤️' },
     'light-dark': { label: 'Light-Dark', emoji: '🤍' },
     'time-space': { label: 'Time-Space', emoji: '❤️' },
+  },
+
+  BRANDING: {
+    DEVELOPER: 'GadzillaChannel',
+    TEXT: 'Developed by GadzillaChannel',
+    URL: 'https://www.youtube.com/@GadzillaChannel', // Assuming they have a YT channel based on the name
   }
 };

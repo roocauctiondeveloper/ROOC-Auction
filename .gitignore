@@ -4,6 +4,7 @@ node_modules/
 # Secrets & Config
 .env
 .env.test
+.env.prod
 
 # Logs
 logs

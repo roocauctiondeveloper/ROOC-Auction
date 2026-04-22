@@ -78,7 +78,7 @@
                 <% } %>
               </td>
               <td style="text-align: right;">
-                <form action="/items/<%= i.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ลบไอเทมชิ้นนี้?');">
+                <form action="/items/<%= i.id %>/delete" method="POST" class="ajax-delete" data-confirm="ลบไอเทมชิ้นนี้?" style="display:inline;">
                   <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete</button>
                 </form>
               </td>

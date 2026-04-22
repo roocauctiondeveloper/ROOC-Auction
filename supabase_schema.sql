@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS whitelist (
     id               SERIAL PRIMARY KEY,
     discord_username TEXT NOT NULL UNIQUE,
     discord_user_id  TEXT,
+    is_active        BOOLEAN DEFAULT true,
+    win_count        INTEGER DEFAULT 0,
+    spin_count       INTEGER DEFAULT 0,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -66,7 +69,25 @@ CREATE TABLE IF NOT EXISTS round_history_items (
     reserved_at      TIMESTAMPTZ     -- NULL if not reserved
 );
 
--- 8. Session Store (for connect-pg-simple)
+-- 8. Item Presets
+CREATE TABLE IF NOT EXISTS item_presets (
+    id               SERIAL PRIMARY KEY,
+    name             TEXT NOT NULL,
+    album_count      INTEGER NOT NULL,
+    light_dark_count INTEGER NOT NULL,
+    time_space_count INTEGER NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 9. Lottery Logs
+CREATE TABLE IF NOT EXISTS lottery_logs (
+    id               SERIAL PRIMARY KEY,
+    whitelist_id     INTEGER NOT NULL REFERENCES whitelist(id) ON DELETE CASCADE,
+    is_winner        BOOLEAN NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 10. Session Store (for connect-pg-simple)
 CREATE TABLE IF NOT EXISTS "session" (
   "sid" varchar NOT NULL COLLATE "default",
   "sess" json NOT NULL,

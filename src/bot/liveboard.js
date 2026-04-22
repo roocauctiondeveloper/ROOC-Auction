@@ -97,7 +97,9 @@ async function buildBoardEmbed(round, guild = null) {
   }
 
   embed.setDescription(description);
-  embed.setFooter({ text: 'อัปเดตอัตโนมัติทุกครั้งที่มีการจอง • /mystuff เพื่อดูของที่จองไว้' });
+  embed.setFooter({ 
+    text: `Auto-updates on reserve • /mystuff to view yours` 
+  });
 
   return { embed, totalItems, reservedCount };
 }
@@ -352,7 +354,9 @@ async function closeLiveBoard(client, round) {
       embed.setDescription(embed.data.description + `\n*(แสดงผล 25 หน้าจากทั้งหมด ${pages.length} หน้า)*`);
     }
 
-    embed.setFooter({ text: `สรุป: จองแล้ว ${reservedCount}/${totalItems} รายการ` });
+    embed.setFooter({ 
+      text: `Total: ${reservedCount}/${totalItems} Reserved` 
+    });
 
     // ลบ buttons ออก
     await msg.edit({ embeds: [embed], components: [] });

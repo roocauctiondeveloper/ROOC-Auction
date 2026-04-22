@@ -51,11 +51,11 @@ router.post('/apply/:id', ensureAuthenticated, async (req, res) => {
       return res.redirect('/');
     }
 
-    // สร้าง queue ของ items เรียงต่อกัน: Album → light-dark → time-space
+    // สร้าง queue ของ items เรียงต่อกัน: Album → Light-Dark → Time-Space
     const queue = [];
     for (let i = 0; i < preset.album_count;      i++) queue.push('Album');
-    for (let i = 0; i < preset.light_dark_count; i++) queue.push('light-dark');
-    for (let i = 0; i < preset.time_space_count; i++) queue.push('time-space');
+    for (let i = 0; i < preset.light_dark_count; i++) queue.push('Light-Dark');
+    for (let i = 0; i < preset.time_space_count; i++) queue.push('Time-Space');
 
     if (queue.length === 0) {
       req.session.error_msg = 'Preset นี้ไม่มีไอเทม';

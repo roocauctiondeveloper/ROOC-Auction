@@ -33,7 +33,14 @@
 </div>
 
 <div class="card">
-  <h3 style="margin-bottom: 1.5rem;">All Pages (หน้าทั้งหมด) (<%= pages.length %>)</h3>
+  <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
+    <h3 style="margin: 0;">All Pages (หน้าทั้งหมด) (<%= pages.length %>)</h3>
+    <% if (pages.length > 0) { %>
+      <form action="/pages/delete-all" method="POST" class="ajax-delete" data-confirm="ยืนยันลบข้อมูลหน้าและสินค้าทั้งหมดจริงๆ ใช่ไหม?">
+        <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete All (ลบทั้งหมด)</button>
+      </form>
+    <% } %>
+  </div>
   <% if (pages.length === 0) { %>
     <div style="text-align: center; padding: 3rem 1rem;">
       <p style="color: var(--text-light); font-style: italic;">No pages found. Use Bulk Setup or Preset to create pages.</p>
@@ -65,7 +72,7 @@
               <td style="text-align: right;">
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                   <a href="/items/page/<%= p.id %>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Edit Items (แก้ไข)</a>
-                  <form action="/pages/<%= p.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันลบหน้านี้และสินค้าทั้งหมดในหน้านี้? (Confirm delete this page?)');">
+                  <form action="/pages/<%= p.id %>/delete" method="POST" class="ajax-delete" data-confirm="ยืนยันลบหน้านี้และสินค้าทั้งหมดในหน้านี้?" style="display:inline;">
                     <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete (ลบ)</button>
                   </form>
                 </div>

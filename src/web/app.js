@@ -143,9 +143,10 @@ app.use(async (req, res, next) => {
   res.locals.success_msg = req.session.success_msg || null;
   req.session.success_msg = null;
 
-  const { ICONS, ITEM_TYPES } = require('../utils/constants');
+  const { ICONS, ITEM_TYPES, BRANDING } = require('../utils/constants');
   res.locals.ICONS = ICONS;
   res.locals.ITEM_TYPES = ITEM_TYPES;
+  res.locals.BRANDING = BRANDING;
   res.locals.displayItemType = (type) => {
     const entry = ITEM_TYPES[type];
     return entry ? `${entry.emoji} ${entry.label}` : type;
