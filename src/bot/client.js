@@ -46,19 +46,27 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', ephemeral: true });
       }
 
-      // Defer ทันทีเพื่อให้ขึ้น "Bot is thinking..." เหมือนตอนจอง
-      await interaction.deferReply({ ephemeral: true });
+      // Acknowledge ทันที (ปุ่มจะหยุดหมุน) แต่ไม่ขึ้น "Thinking..."
+      await interaction.deferUpdate();
 
       await db.deleteAllUserReservationsInRound(currentRound.id, interaction.user.id);
       
       // อัปเดตบอร์ด (งานหนัก)
       await updateLiveBoard(interaction.client, currentRound.id);
 
-      // ลบปุ่มจากข้อความเดิมออก
-      await interaction.message.edit({ components: [] }).catch(() => null);
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const { BRANDING } = require('../utils/constants');
+      
+      const devRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
+          .setURL(BRANDING.URL)
+          .setStyle(ButtonStyle.Link)
+      );
 
       return interaction.editReply({
-        content: '✅ ยกเลิกการจองของคุณเรียบร้อยแล้วครับ'
+        content: '✅ ยกเลิกการจองของคุณเรียบร้อยแล้วครับ',
+        components: [devRow] 
       });
     } catch (err) {
       console.error('[client] unreserve button error:', err);
