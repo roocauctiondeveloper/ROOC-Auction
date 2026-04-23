@@ -1,4 +1,4 @@
-require('dotenv').config();
+// env โหลดที่ src/index.js แล้ว (entry point)
 
 function validateConfig() {
   const requiredKeys = [

@@ -30,204 +30,229 @@ const getEmoji = (t, guild = null) => {
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 
 // Button prefix สำหรับ live board (แยกจาก /available)
-const LB_FEATHER_PREFIX = 'lb_f:'; // lb_f:<pageId>
-const LB_BOOK_PREFIX = 'lb_b:'; // lb_b:<itemId>
+const LB_FEATHER_PREFIX = 'lb_f_';
+const LB_BOOK_PREFIX = 'lb_b_';
 
 /**
- * สร้าง embed แสดง grid ของทุก page และ items พร้อมสถานะ
+ * แยก Message IDs แบบมีโครงสร้าง
+ * Format: EMB:id1,id2|ALB:id3,id4|LD:id5|TS:id6
+ */
+function parseBoardIds(idStr) {
+  if (!idStr) return { emb: [], alb: [], ld: [], ts: [] };
+  
+  // Backward compatibility
+  if (!idStr.includes('|')) {
+    const ids = idStr.split(',');
+    if (ids.length < 4) return { emb: ids, alb: [], ld: [], ts: [] };
+    const emb = ids.slice(0, ids.length - 3);
+    const alb = [ids[ids.length - 3]];
+    const ld = [ids[ids.length - 2]];
+    const ts = [ids[ids.length - 1]];
+    return { emb, alb, ld, ts };
+  }
+
+  const parts = idStr.split('|');
+  const result = { emb: [], alb: [], ld: [], ts: [] };
+  parts.forEach(p => {
+    const [key, val] = p.split(':');
+    const ids = val ? val.split(',').filter(x => x) : [];
+    if (key === 'EMB') result.emb = ids;
+    if (key === 'ALB') result.alb = ids;
+    if (key === 'LD') result.ld = ids;
+    if (key === 'TS') result.ts = ids;
+  });
+  return result;
+} // lb_b:<itemId>
+
+/**
+ * สร้าง embeds แสดง grid ของทุก page และ items พร้อมสถานะ (รองรับเกิน 25 หน้า)
+ * Optimized: เรียก DB ทีเดียวจบ ป้องกัน N+1 Query
  */
 async function buildBoardEmbed(round, guild = null) {
-  const pages = await db.getAllPages();
-  const embed = new EmbedBuilder()
-    .setTitle(`📋 Live Board — ${round.name}`)
-    .setColor(0x57F287)
-    .setTimestamp();
-
-  if (pages.length === 0) {
-    embed.setDescription('ยังไม่มีสินค้าในระบบ\nใช้ `/available` เพื่อดูรายการที่ว่าง');
-    return { embed, totalItems: 0, reservedCount: 0 };
+  const allData = await db.getAllBoardData(round.id);
+  
+  if (allData.length === 0) {
+    const embed = new EmbedBuilder()
+      .setTitle(`📋 Live Board — ${round.name}`)
+      .setColor(0x57F287)
+      .setDescription('ยังไม่มีสินค้าในระบบ\nใช้ `/available` เพื่อดูรายการที่ว่าง')
+      .setTimestamp();
+    return { embeds: [embed], totalItems: 0, reservedCount: 0 };
   }
 
+  // จัดกลุ่มข้อมูลตาม Page ID
+  const pagesMap = new Map();
+  for (const row of allData) {
+    if (!pagesMap.has(row.page_id)) {
+      pagesMap.set(row.page_id, { name: row.page_name, items: [] });
+    }
+    pagesMap.get(row.page_id).items.push(row);
+  }
+
+  const pages = Array.from(pagesMap.values());
   let totalItems = 0;
   let reservedCount = 0;
+  const embeds = [];
+  
+  // แบ่งหน้าละ 24 หน้าต่อ 1 Embed เพื่อให้ได้รูปแบบ Grid (24 หาร 3 ลงตัวพอดี)
+  for (let i = 0; i < pages.length; i += 24) {
+    const pageSlice = pages.slice(i, i + 24);
+    const embed = new EmbedBuilder().setColor(0x57F287);
 
-  // Discord Limit: 25 fields per embed
-  const displayPages = pages.slice(0, 25);
-  for (const page of displayPages) {
-    const items = await db.getItemsForPage(page.id, round.id);
-    totalItems += items.length;
-
-    // หา types ที่มีในหน้านี้เพื่อโชว์ไอคอนหน้า Page Name
-    const types = [...new Set(items.map(i => i.item_type))];
-    const pageEmojis = types.map(t => getEmoji(t, guild)).join('');
-
-    const lines = items.map(i => {
-      if (i.reserved_by) {
-        reservedCount++;
-        const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
-        return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`;
-      }
-      return `${i.position}. ${d(i.item_type)} ✅`;
-    });
-
-    embed.addFields({
-      name: `${pageEmojis} หน้า ${page.name}`,
-      value: lines.join('\n') || '-',
-      inline: true,
-    });
-  }
-
-
-  // คำนวณ totalItems และ reservedCount สำหรับหน้าที่ไม่ได้แสดงด้วย (เพื่อให้เลขสรุปถูกต้อง)
-  if (pages.length > 25) {
-    const hiddenPages = pages.slice(25);
-    for (const page of hiddenPages) {
-      const items = await db.getItemsForPage(page.id, round.id);
-      totalItems += items.length;
-      reservedCount += items.filter(i => i.reserved_by).length;
+    if (i === 0) {
+      embed.setTitle(`📋 Live Board — ${round.name}`);
     }
+
+    for (const page of pageSlice) {
+      totalItems += page.items.length;
+
+      const types = [...new Set(page.items.map(i => i.item_type))];
+      const pageEmojis = types.map(t => getEmoji(t, guild)).join('');
+
+      const d = (type) => {
+        const tInfo = getItemData(type);
+        return `${resolveEmoji(tInfo?.emoji, guild, ICONS.DEFAULT)} ${tInfo?.label ?? type}`;
+      };
+
+      const lines = page.items.map(i => {
+        if (i.reserved_by) {
+          reservedCount++;
+          const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
+          return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`;
+        }
+        return `${i.position}. ${d(i.item_type)} ✅`;
+      });
+
+      embed.addFields({
+        name: `${pageEmojis} หน้า ${page.name}`,
+        value: lines.join('\n') || '-',
+        inline: true,
+      });
+    }
+
+    // เติมช่องว่างเพื่อให้ Grid ครบ 3 คอลัมน์ (ป้องกัน Discord แสดงผลเบี้ยวกลาง)
+    const fieldCount = pageSlice.length;
+    if (fieldCount % 3 !== 0) {
+      const paddingNeeded = 3 - (fieldCount % 3);
+      for (let p = 0; p < paddingNeeded; p++) {
+        embed.addFields({ name: '\u200b', value: '\u200b', inline: true });
+      }
+    }
+
+    embeds.push(embed);
   }
 
   const remaining = totalItems - reservedCount;
-  let description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\n` +
+  const description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\n` +
     `พิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
+  
+  // Discord บังคับห้ามเกิน 10 Embeds ต่อ 1 ข้อความ
+  const finalEmbeds = embeds.slice(0, 10);
+  
+  finalEmbeds[0].setDescription(description);
+  finalEmbeds[finalEmbeds.length - 1].setFooter({ 
+    text: `Auto-updates on reserve • /mystuff to view yours${embeds.length > 10 ? ' (บางรายการถูกซ่อนเนื่องจากข้อจำกัด)' : ''}`,
+  }).setTimestamp();
 
-  if (pages.length > 25) {
-    description += `\n⚠️ *แสดงผลเพียง 25 หน้าแรกจากทั้งหมด ${pages.length} หน้า*`;
-  }
-
-  embed.setDescription(description);
-  embed.setFooter({ 
-    text: `Auto-updates on reserve • /mystuff to view yours` 
-  });
-
-  return { embed, totalItems, reservedCount };
+  return { embeds: finalEmbeds, totalItems, reservedCount };
 }
 
 /**
- * สร้าง buttons สำหรับ items ที่ยังว่าง (max 25)
- * ขนนก → button ต่อหน้า, Album → button ต่อชิ้น
+ * สร้าง buttons สำหรับ items ที่ยังว่าง
+ * Album -> Light-Dark -> Time-Space
+ * พยายามแสดงเป็นปุ่มให้มากที่สุด ถ้าพื้นที่ (5 แถว) ไม่พอ ค่อยแปลงกลุ่มล่างๆ เป็น Dropdown
  */
 async function buildBoardButtons(round, guild = null) {
   const availableItems = await db.getAvailableItems(round.id);
   if (availableItems.length === 0) return [];
 
-  // จัด feather pages และ book items
-  const featherPages = new Map();
-  const bookItems = [];
+  const albums = [];
+  const featherPagesMap = new Map();
 
   for (const item of availableItems) {
-    const type = item.item_type;
-    if (type === 'Light-Dark' || type === 'Time-Space' || type === 'light-dark' || type === 'time-space') {
-      if (!featherPages.has(item.page_id)) {
-        featherPages.set(item.page_id, { page_name: item.page_name, items: [] });
+    const t = item.item_type.toLowerCase();
+    if (t === 'album') {
+      albums.push(item);
+    } else if (['light-dark', 'time-space'].includes(t)) {
+      if (!featherPagesMap.has(item.page_id)) {
+        featherPagesMap.set(item.page_id, { page_name: item.page_name, page_id: item.page_id, items: [] });
       }
-      featherPages.get(item.page_id).items.push(item);
+      featherPagesMap.get(item.page_id).items.push(item);
+    }
+  }
+
+  const ldPages = [];
+  const tsPages = [];
+  for (const page of featherPagesMap.values()) {
+    const hasLD = page.items.some(i => i.item_type.toLowerCase() === 'light-dark');
+    if (hasLD) {
+      ldPages.push(page); // ถ้ามีขาว ดึงเข้ากลุ่มขาวเลย
     } else {
-      bookItems.push(item);
+      tsPages.push(page); // แดงล้วน ไปอยู่กลุ่มแดง
     }
   }
 
-  // Using getEmoji helper
+  const { StringSelectMenuBuilder } = require('discord.js');
 
-  // เตรียมรายการทั้งหมดที่จะทำเป็นปุ่มหรือเมนู
-  const allEntries = []; // { type: 'book'|'feather', id, label, emoji, data }
+  const createGroupBundles = (items, type, emojiStr, placeholder, prefix, btnStyle) => {
+    const bundles = []; // Array of ActionRowBuilder[] (แต่ละตัวคือ 1 ข้อความ มีได้ไม่เกิน 5 แถว)
+    if (items.length === 0) return bundles;
 
-  // Album ก่อน
-  for (const item of bookItems) {
-    allEntries.push({
-      type: 'book',
-      id: item.id,
-      label: `หน้า ${item.page_name} #${item.position}`,
-      emoji: resolveEmoji(ICONS.ALBUM, guild, '📒')
-    });
-  }
+    let currentRows = [];
+    let currentRow = new ActionRowBuilder();
 
-  // Feather ต่อ
-  const sortedFeatherEntries = [...featherPages.entries()].sort((a, b) => {
-    const aHasLight = a[1].items.some(i => i.item_type.toLowerCase() === 'light-dark');
-    const bHasLight = b[1].items.some(i => i.item_type.toLowerCase() === 'light-dark');
-    if (aHasLight && !bHasLight) return -1;
-    if (!aHasLight && bHasLight) return 1;
-    return 0;
-  });
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const id = type === 'album' ? item.id : item.page_id;
+      
+      let label = '';
+      if (type === 'album') {
+        label = `หน้า ${item.page_name} #${item.position}`;
+      } else {
+        const hasLD = item.items.some(x => x.item_type.toLowerCase() === 'light-dark');
+        const hasTS = item.items.some(x => x.item_type.toLowerCase() === 'time-space');
+        const combinedEmoji = (hasLD && hasTS) ? '🤍❤️' : (hasTS ? '❤️' : '🤍');
+        label = `${combinedEmoji} หน้า ${item.page_name}`;
+      }
+      
+      const btn = new ButtonBuilder()
+        .setCustomId(`${prefix}${id}`)
+        .setLabel(label)
+        .setStyle(btnStyle);
+        
+      if (type === 'album') btn.setEmoji(emojiStr);
+      currentRow.addComponents(btn);
 
-  for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
-    const types = [...new Set(items.map(i => i.item_type))];
-    const emojis = types.map(t => getEmoji(t, guild)).join('');
-
-    allEntries.push({
-      type: 'feather',
-      id: pageId,
-      label: `${emojis} หน้า ${page_name}`,
-      emoji: null
-    });
-  }
-
-
-  if (allEntries.length === 0) return [];
-
-  const rows = [];
-
-  // ปรับ Logic: ถ้ามีเกิน 25 อย่าง (ล้นปุ่ม) ให้แบ่งที่ว่างให้ Dropdown ด้วย
-  let buttonLimit = 25;
-  if (allEntries.length > 25) {
-    buttonLimit = 20; // ใช้ 4 แถวสำหรับปุ่ม อีก 1 แถวสำหรับ Dropdown
-  }
-
-  const buttonEntries = allEntries.slice(0, buttonLimit);
-  const remainingEntries = allEntries.slice(buttonLimit, buttonLimit + 25);
-
-  // 1. สร้างปุ่ม (Max 20 หรือ 25)
-  let currentRow = new ActionRowBuilder();
-  for (let i = 0; i < buttonEntries.length; i++) {
-    const entry = buttonEntries[i];
-    const btn = new ButtonBuilder()
-      .setCustomId(`${entry.type === 'feather' ? LB_FEATHER_PREFIX : LB_BOOK_PREFIX}${entry.id}`)
-      .setLabel(entry.label)
-      .setStyle(entry.type === 'feather' ? ButtonStyle.Success : ButtonStyle.Primary);
-
-    if (entry.emoji) {
-      btn.setEmoji(entry.emoji);
-    }
-
-
-    currentRow.addComponents(btn);
-
-    if ((i + 1) % 5 === 0 || i === buttonEntries.length - 1) {
-      if (currentRow.components.length > 0) {
-        rows.push(currentRow);
+      // ถ้าปุ่มเต็ม 5 ปุ่มแล้ว ให้ปิดแถว
+      if (currentRow.components.length === 5) {
+        currentRows.push(currentRow);
         currentRow = new ActionRowBuilder();
       }
-    }
-  }
 
-  // 2. ถ้ามีเหลือ ใส่ใน Dropdown (แถวที่ 5)
-  if (remainingEntries.length > 0 && rows.length < 5) {
-    const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
-
-    const options = remainingEntries.map(entry => {
-      const opt = new StringSelectMenuOptionBuilder()
-        .setLabel(entry.label)
-        .setValue(`${entry.type}:${entry.id}`);
-
-      if (entry.emoji) {
-        opt.setEmoji(entry.emoji);
+      // ถ้าแถวเต็ม 5 แถวแล้ว (25 ปุ่ม) ให้ปิด bundle (1 ข้อความ)
+      if (currentRows.length === 5) {
+        bundles.push(currentRows);
+        currentRows = [];
       }
-      return opt;
-    });
+    }
 
+    // เก็บเศษที่เหลือ
+    if (currentRow.components.length > 0) {
+      currentRows.push(currentRow);
+    }
+    if (currentRows.length > 0) {
+      bundles.push(currentRows);
+    }
 
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('lb_more_items')
-      .setPlaceholder('📦 เลือกรายการเพิ่มเติมที่นี่...')
-      .addOptions(options);
+    return bundles;
+  };
 
-    rows.push(new ActionRowBuilder().addComponents(menu));
-  }
+  const albumBundles = createGroupBundles(albums, 'album', resolveEmoji(ICONS.ALBUM, guild, '📒'), '📒 เลือกสมุดที่ต้องการจอง...', LB_BOOK_PREFIX, ButtonStyle.Primary);
+  const ldBundles = createGroupBundles(ldPages, 'ld', getEmoji('Light-Dark', guild) || '🤍', '🤍 เลือกหน้า Light-Dark ที่ต้องการจอง...', LB_FEATHER_PREFIX, ButtonStyle.Success);
+  const tsBundles = createGroupBundles(tsPages, 'ts', getEmoji('Time-Space', guild) || '❤️', '❤️ เลือกหน้า Time-Space ที่ต้องการจอง...', LB_FEATHER_PREFIX, ButtonStyle.Secondary);
 
-  return rows;
-}
+  return { albumBundles, ldBundles, tsBundles };
+};
 
 
 
@@ -245,50 +270,155 @@ async function sendLiveBoard(client, channelId, round) {
     }
 
     console.log('📋 Building board components...');
-    const { embed } = await buildBoardEmbed(round, channel.guild);
-    const components = await buildBoardButtons(round, channel.guild);
+    const { embeds } = await buildBoardEmbed(round, channel.guild);
+    const { albumBundles, ldBundles, tsBundles } = await buildBoardButtons(round, channel.guild);
 
-    console.log('📤 Sending message to Discord...');
-    const msg = await channel.send({ embeds: [embed], components });
-    console.log('✅ Live board sent, message ID:', msg.id);
+    console.log('📤 Sending multiple messages to Discord...');
+    const embIds = [], albIds = [], ldIds = [], tsIds = [];
 
-    // เก็บ message ID ไว้ใน DB
-    await db.saveRoundBoardMessage(round.id, channelId, msg.id);
-    return msg;
+    // 1. ส่ง Embeds (แยก bubble ละ 24 หน้า)
+    for (const embed of embeds) {
+      const msg = await channel.send({ embeds: [embed] });
+      embIds.push(msg.id);
+    }
+
+    // 2. ส่งปุ่ม สมุด
+    if (albumBundles.length > 0) {
+      for (const bundle of albumBundles) {
+        const msg = await channel.send({ components: bundle });
+        albIds.push(msg.id);
+      }
+    } else {
+      const msg = await channel.send({ content: '**[ 📒 สมุด / Albums ]** หมดแล้ว / ไม่มีรายการ' });
+      albIds.push(msg.id);
+    }
+
+    // 3. ส่งปุ่ม ขาว
+    if (ldBundles.length > 0) {
+      for (const bundle of ldBundles) {
+        const msg = await channel.send({ components: bundle });
+        ldIds.push(msg.id);
+      }
+    } else {
+      const msg = await channel.send({ content: '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ' });
+      ldIds.push(msg.id);
+    }
+
+    // 4. ส่งปุ่ม แดง
+    if (tsBundles.length > 0) {
+      for (const bundle of tsBundles) {
+        const msg = await channel.send({ components: bundle });
+        tsIds.push(msg.id);
+      }
+    } else {
+      const msg = await channel.send({ content: '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ' });
+      tsIds.push(msg.id);
+    }
+
+    // รวม IDs แบบมีโครงสร้าง: EMB:id1,id2|ALB:id3|LD:id4|TS:id5
+    const structuredIds = [
+      `EMB:${embIds.join(',')}`,
+      `ALB:${albIds.join(',')}`,
+      `LD:${ldIds.join(',')}`,
+      `TS:${tsIds.join(',')}`
+    ].join('|');
+
+    console.log('✅ Live board messages sent:', structuredIds);
+
+    await db.saveRoundBoardMessage(round.id, channelId, structuredIds);
+    return { id: embIds[0] };
   } catch (err) {
     console.error('❌ Failed to send live board:', err);
     return null;
   }
 }
 
+const updateTimeouts = new Map();
+const activeUpdates = new Map();
+
 /**
- * Edit Live Board message เมื่อมีการจอง
+ * Edit Live Board message เมื่อมีการจอง (Debounced & Queued)
+ * เพื่อป้องกันการชนกัน (Concurrency) และการโดน Discord Rate Limit
  */
 async function updateLiveBoard(client, roundId) {
-  console.log('🔄 updateLiveBoard started | Round:', roundId);
+  // ถ้ามีการสั่งอัปเดตเข้ามาใหม่ในขณะที่รอ (Debounce) ให้ยกเลิกอันเก่าแล้วเริ่มนับใหม่
+  if (updateTimeouts.has(roundId)) {
+    clearTimeout(updateTimeouts.get(roundId));
+  }
+
+  const timeout = setTimeout(async () => {
+    updateTimeouts.delete(roundId);
+    await _performUpdate(client, roundId);
+  }, 1200); // รอ 1.2 วินาที เผื่อมีคนกดจองพร้อมๆ กันหลายคน จะได้อัปเดตทีเดียว
+
+  updateTimeouts.set(roundId, timeout);
+}
+
+async function _performUpdate(client, roundId) {
+  // ป้องกันการรันซ้อนกัน (Lock)
+  if (activeUpdates.get(roundId)) {
+    // ถ้ากำลังอัปเดตอยู่ ให้รอและรันใหม่หลังจบ (Queue)
+    activeUpdates.set(`${roundId}_pending`, true);
+    return;
+  }
+
+  activeUpdates.set(roundId, true);
+  
   try {
+    const start = Date.now();
     const boardInfo = await db.getRoundBoardMessage(roundId);
-    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) {
-      console.log('ℹ️ No live board message found for this round. Skipping update.');
-      return;
+    if (!boardInfo?.board_channel_id || !boardInfo?.board_message_id) return;
+
+    const channel = await client.channels.fetch(boardInfo.board_channel_id).catch(() => null);
+    if (!channel) return;
+
+    const ids = parseBoardIds(boardInfo.board_message_id);
+
+    // 1. ดึงข้อมูลใหม่
+    const { embeds } = await buildBoardEmbed({ id: roundId }, channel.guild);
+    const { albumBundles, ldBundles, tsBundles } = await buildBoardButtons({ id: roundId }, channel.guild);
+    
+    const editPromises = [];
+    
+    // 2. เตรียมอัปเดต Embeds
+    for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
+      editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [embeds[i]] }).catch(() => null));
     }
 
-    const round = await db.getCurrentRound();
-    if (!round) return;
+    // Helper: อัปเดตกลุ่มปุ่ม
+    const updateBundleGroup = (bundles, msgIds) => {
+      for (let i = 0; i < msgIds.length; i++) {
+        const msgId = msgIds[i];
+        if (i < bundles.length) {
+          editPromises.push(channel.messages.edit(msgId, { components: bundles[i], content: null }).catch(() => null));
+        } else {
+          if (i === 0) {
+            const emptyLabel = msgIds === ids.alb ? '📒 สมุด' : (msgIds === ids.ld ? '🤍 ขนนก (LD)' : '❤️ ขนนก (TS)');
+            editPromises.push(channel.messages.edit(msgId, { content: `**[ ${emptyLabel} ]** หมดแล้ว / ไม่มีรายการ`, components: [] }).catch(() => null));
+          } else {
+            editPromises.push(channel.messages.edit(msgId, { content: '.', components: [] }).catch(() => null));
+          }
+        }
+      }
+    };
 
-    const channel = await client.channels.fetch(boardInfo.board_channel_id);
-    if (!channel?.isTextBased()) return;
+    updateBundleGroup(albumBundles, ids.alb);
+    updateBundleGroup(ldBundles, ids.ld);
+    updateBundleGroup(tsBundles, ids.ts);
 
-    const msg = await channel.messages.fetch(boardInfo.board_message_id);
-    if (!msg) return;
+    // 3. ยิง Update ไปที่ Discord (parallel)
+    await Promise.all(editPromises);
+    console.log(`✅ Live board updated in ${Date.now() - start}ms (Debounced)`);
 
-    const { embed } = await buildBoardEmbed(round, channel.guild);
-    const components = await buildBoardButtons(round, channel.guild);
-
-    await msg.edit({ embeds: [embed], components });
-    console.log('✅ Live board updated');
   } catch (err) {
     console.error('❌ Failed to update live board:', err);
+  } finally {
+    activeUpdates.set(roundId, false);
+    // ถ้ามีงานค้างอยู่ ให้รันต่อทันที
+    if (activeUpdates.get(`${roundId}_pending`)) {
+      activeUpdates.set(`${roundId}_pending`, false);
+      await _performUpdate(client, roundId);
+    }
   }
 }
 
@@ -299,69 +429,78 @@ async function closeLiveBoard(client, round) {
   console.log('🏁 closeLiveBoard started | Round:', round.id);
   try {
     const boardInfo = await db.getRoundBoardMessage(round.id);
-    console.log('🔍 Board Info from DB:', boardInfo);
-    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) {
-      console.warn('⚠️ No board message found for this round');
-      return;
-    }
+    if (!boardInfo?.board_message_id || !boardInfo?.board_channel_id) return;
 
-    const channel = await client.channels.fetch(boardInfo.board_channel_id);
+    const channel = await client.channels.fetch(boardInfo.board_channel_id).catch(() => null);
     if (!channel?.isTextBased()) return;
 
-    const msg = await channel.messages.fetch(boardInfo.board_message_id);
-    if (!msg) {
-      console.warn('⚠️ Message not found:', boardInfo.board_message_id);
-      return;
+    const ids = parseBoardIds(boardInfo.board_message_id);
+
+    const allData = await db.getAllBoardData(round.id);
+    const pagesMap = new Map();
+    for (const row of allData) {
+      if (!pagesMap.has(row.page_id)) pagesMap.set(row.page_id, { name: row.page_name, items: [] });
+      pagesMap.get(row.page_id).items.push(row);
     }
-
-    const pages = await db.getAllPages();
-    const embed = new EmbedBuilder()
-      .setTitle(`🛑 ปิดรับจองแล้ว — ${round.name}`)
-      .setColor(0xEF4444)
-      .setDescription('รอบนี้ปิดรับจองแล้ว ไม่สามารถจองเพิ่มได้')
-      .setTimestamp();
-
+    const pages = Array.from(pagesMap.values());
+    
+    const embeds = [];
     let totalItems = 0, reservedCount = 0;
-    const displayPages = pages.slice(0, 25);
 
-    for (const page of displayPages) {
-      const items = await db.getItemsForPage(page.id, round.id);
-      totalItems += items.length;
+    for (let i = 0; i < pages.length; i += 24) {
+      const pageSlice = pages.slice(i, i + 24);
+      const embed = new EmbedBuilder().setColor(0xEF4444);
+      if (i === 0) embed.setTitle(`🛑 ปิดรับจองแล้ว — ${round.name}`).setDescription('รอบนี้ปิดรับจองแล้ว ไม่สามารถจองเพิ่มได้');
 
-      const types = [...new Set(items.map(i => i.item_type))];
-      const pageEmojis = types.map(t => getEmoji(t, channel.guild)).join('');
+      for (const page of pageSlice) {
+        totalItems += page.items.length;
+        const types = [...new Set(page.items.map(i => i.item_type))];
+        const pageEmojis = types.map(t => getEmoji(t, channel.guild)).join('');
 
-      const lines = items.map(i => {
-        if (i.reserved_by) {
-          reservedCount++;
-          const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
-          return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`;
-        }
-        return `${i.position}. ${d(i.item_type)} ❌ ไม่มีคนจอง`;
-      });
-      embed.addFields({ name: `${pageEmojis} หน้า ${page.name}`, value: lines.join('\n') || '-', inline: true });
-    }
+        const d = (type) => {
+          const tInfo = getItemData(type);
+          return `${resolveEmoji(tInfo?.emoji, channel.guild, ICONS.DEFAULT)} ${tInfo?.label ?? type}`;
+        };
 
-
-    // รวมสถิติหน้าที่ซ่อนอยู่
-    if (pages.length > 25) {
-      const hiddenPages = pages.slice(25);
-      for (const page of hiddenPages) {
-        const items = await db.getItemsForPage(page.id, round.id);
-        totalItems += items.length;
-        reservedCount += items.filter(i => i.reserved_by).length;
+        const lines = page.items.map(i => {
+          if (i.reserved_by) {
+            reservedCount++;
+            const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
+            return `~~${i.position}. ${d(i.item_type)}~~ 👤 ${nameDisplay}`;
+          }
+          return `${i.position}. ${d(i.item_type)} ❌ ไม่มีคนจอง`;
+        });
+        embed.addFields({ name: `${pageEmojis} หน้า ${page.name}`, value: lines.join('\n') || '-', inline: true });
       }
-      embed.setDescription(embed.data.description + `\n*(แสดงผล 25 หน้าจากทั้งหมด ${pages.length} หน้า)*`);
+      
+      const fieldCount = pageSlice.length;
+      if (fieldCount % 3 !== 0) {
+        const paddingNeeded = 3 - (fieldCount % 3);
+        for (let p = 0; p < paddingNeeded; p++) embed.addFields({ name: '\u200b', value: '\u200b', inline: true });
+      }
+      embeds.push(embed);
     }
 
-    embed.setFooter({ 
-      text: `Total: ${reservedCount}/${totalItems} Reserved` 
+    if (embeds.length > 0) {
+      embeds[embeds.length - 1].setFooter({ text: `Total: ${reservedCount}/${totalItems} Reserved` }).setTimestamp();
+    }
+
+    const editPromises = [];
+    const deletePromises = [];
+    
+    // อัปเดต Embeds (คงไว้)
+    for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
+      editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [embeds[i]] }).catch(() => null));
+    }
+
+    // ลบข้อความที่เป็นปุ่มทิ้งทั้งหมด
+    [...ids.alb, ...ids.ld, ...ids.ts].forEach(msgId => {
+      deletePromises.push(channel.messages.delete(msgId).catch(() => null));
     });
 
-    // ลบ buttons ออก
-    await msg.edit({ embeds: [embed], components: [] });
+    await Promise.all([...editPromises, ...deletePromises]);
   } catch (err) {
-    console.error('❌ Failed to close live board:', err.message);
+    console.error('❌ Failed to close live board:', err);
   }
 }
 

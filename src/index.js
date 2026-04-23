@@ -1,3 +1,14 @@
+// โหลด .env.local ก่อนสุดถ้ามี (local dev), ไม่งั้นใช้ .env (production)
+const fs = require('fs');
+const path = require('path');
+const localEnv = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(localEnv)) {
+  require('dotenv').config({ path: localEnv });
+  console.log('📁 Loaded .env.local');
+} else {
+  require('dotenv').config();
+}
+
 const config = require('./config');
 const client = require('./bot/client');
 const app = require('./web/app');

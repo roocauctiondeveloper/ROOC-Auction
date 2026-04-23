@@ -9,15 +9,15 @@ const {
 } = require('discord.js');
 const db = require('../../db/queries');
 const { updateLiveBoard } = require('../liveboard');
-const { ICONS, ITEM_TYPES, BRANDING } = require('../../utils/constants');
+const { ICONS, ITEM_TYPES, BRANDING, TYPE_ORDER } = require('../../utils/constants');
 
 // Button custom ID prefixes
 const BTN_FEATHER_PREFIX = 'avail_f:'; // avail_f:<pageId>
-const BTN_BOOK_PREFIX    = 'avail_b:'; // avail_b:<itemId>
+const BTN_BOOK_PREFIX = 'avail_b:'; // avail_b:<itemId>
 
 // Dropdown fallback IDs (ใช้เมื่อ buttons เกิน 25)
 const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
-const SELECT_BOOK_ITEM_ID    = 'avail_book_item';
+const SELECT_BOOK_ITEM_ID = 'avail_book_item';
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 const { resolveEmoji } = require('../utils/emoji');
@@ -73,48 +73,29 @@ function buildEmbed(featherPages, bookItems, roundName, guild = null) {
   // Album ขึ้นก่อน
   if (bookItems.length > 0) {
     const albumEmoji = resolveEmoji(ICONS.ALBUM, guild, '📒');
-    const lines = bookItems.map(i => `${albumEmoji} **${i.page_name}** ชิ้นที่ ${i.position}`);
     embed.addFields({
-      name: `${albumEmoji} Album — กดปุ่มชิ้นที่ต้องการ`,
-      value: lines.join('\n'),
-      inline: false,
+      name: `${albumEmoji} Album`,
+      value: `มีรายการว่าง ${bookItems.length} รายการ`,
     });
   }
 
-  // Light-Dark ก่อน Time-Space ทีหลัง
   if (featherPages.size > 0) {
-    const lines = [];
-    for (const [, { page_name, items }] of featherPages) {
-      const types = [...new Set(items.map(i => i.item_type))]
-        .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
-      const emojis = types.map(t => getEmoji(t, guild)).join('');
-      lines.push(`${emojis} **${page_name}** — ${types.map(t => disp(t, guild)).join(', ')} (${items.length} ชิ้น)`);
-    }
     embed.addFields({
-      name: `${ICONS.FEATHER || '🪶'} Feather — กดปุ่มหน้าเพื่อจองทั้งหน้า`,
-      value: lines.join('\n'),
-      inline: false,
+      name: `${ICONS.FEATHER || '🪶'} Feather`,
+      value: `มีหน้าว่าง ${featherPages.size} หน้า`,
     });
   }
-
   return embed;
 }
 
 /**
- * สร้าง ActionRows จาก buttons
- * Discord limit: 5 rows × 5 buttons = 25 buttons max
- * ถ้าเกิน 25 → fallback dropdown
+ * สร้าง ActionRows จาก buttons โดยแบ่งเป็น bundles (ข้อความละ 5 แถว)
  */
-function buildButtonRows(featherPages, bookItems, guild = null) {
-  const totalButtons = featherPages.size + bookItems.length;
-
-  if (totalButtons > 25) {
-    return buildDropdownFallback(featherPages, bookItems, guild);
-  }
-
+function buildButtonBundles(featherPages, bookItems, guild = null) {
+  const bundles = [];
   const allButtons = [];
 
-  // Album ขึ้นก่อน (สีน้ำเงิน)
+  // Album
   for (const item of bookItems) {
     allButtons.push(
       new ButtonBuilder()
@@ -125,7 +106,7 @@ function buildButtonRows(featherPages, bookItems, guild = null) {
     );
   }
 
-  // Light-Dark ก่อน Time-Space ทีหลัง (สีเขียว)
+  // Feather
   const sortedFeatherEntries = [...featherPages.entries()].sort((a, b) => {
     const aHasLight = a[1].items.some(i => i.item_type === 'light-dark');
     const bHasLight = b[1].items.some(i => i.item_type === 'light-dark');
@@ -137,62 +118,33 @@ function buildButtonRows(featherPages, bookItems, guild = null) {
   for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
     const types = [...new Set(items.map(i => i.item_type))]
       .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
-    
-    const emoji = getEmoji(types[0], guild);
+
+    const hasLD = types.some(t => t.toLowerCase() === 'light-dark');
+    const hasTS = types.some(t => t.toLowerCase() === 'time-space');
+    const combinedEmoji = (hasLD && hasTS) ? '🤍❤️' : (hasTS ? '❤️' : '🤍');
+    const btnStyle = hasLD ? ButtonStyle.Success : ButtonStyle.Secondary;
+
     allButtons.push(
       new ButtonBuilder()
         .setCustomId(`${BTN_FEATHER_PREFIX}${pageId}`)
-        .setLabel(`หน้า ${page_name}`)
-        .setStyle(ButtonStyle.Success)
-        .setEmoji(emoji)
+        .setLabel(`${combinedEmoji} หน้า ${page_name}`)
+        .setStyle(btnStyle)
     );
   }
 
-  const rows = [];
+  let currentRows = [];
   for (let i = 0; i < allButtons.length; i += 5) {
-    rows.push(new ActionRowBuilder().addComponents(allButtons.slice(i, i + 5)));
+    const chunk = allButtons.slice(i, i + 5);
+    currentRows.push(new ActionRowBuilder().addComponents(chunk));
+
+    if (currentRows.length === 5) {
+      bundles.push(currentRows);
+      currentRows = [];
+    }
   }
-  return rows;
-}
-
-/** Fallback: dropdown เมื่อ buttons เกิน 25 */
-function buildDropdownFallback(featherPages, bookItems) {
-  const rows = [];
-
-  if (featherPages.size > 0) {
-    const options = [...featherPages.entries()].slice(0, 25).map(([pageId, { page_name, items }]) => {
-      const types = [...new Set(items.map(i => i.item_type))].map(disp).join(', ');
-      return new StringSelectMenuOptionBuilder()
-        .setLabel(page_name)
-        .setDescription(`${types} — ${items.length} ชิ้นว่าง`)
-        .setValue(`${pageId}`)
-        .setEmoji('🪶');
-    });
-    rows.push(new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(SELECT_FEATHER_PAGE_ID)
-        .setPlaceholder('🪶 เลือกหน้า Feather...')
-        .addOptions(options)
-    ));
-  }
-
-  if (bookItems.length > 0) {
-    const options = bookItems.slice(0, 25).map(item =>
-      new StringSelectMenuOptionBuilder()
-        .setLabel(`${item.page_name} — ชิ้นที่ ${item.position}`)
-        .setDescription('Album')
-        .setValue(`${item.id}`)
-        .setEmoji('📒')
-    );
-    rows.push(new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(SELECT_BOOK_ITEM_ID)
-        .setPlaceholder('📒 เลือก Album...')
-        .addOptions(options)
-    ));
-  }
-
-  return rows;
+  if (currentRows.length > 0) bundles.push(currentRows);
+  
+  return bundles;
 }
 
 /** ตรวจสอบความพร้อมของรอบ */
@@ -207,49 +159,48 @@ async function checkEligibility(interaction) {
 // ── Reserve helpers ──────────────────────────────────────────────
 
 async function reserveFeatherPage(interaction, pageId) {
+  await interaction.deferReply({ ephemeral: true });
   const discordUserId = interaction.user.id;
   const discordUsername = interaction.member?.displayName ?? interaction.user.username;
 
   const check = await checkEligibility(interaction);
-  if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
+  if (!check.ok) return interaction.editReply({ content: check.msg });
   const { round } = check;
 
-  // 1 คน 1 ครั้ง เช็คว่าจองไปหรือยัง
   const myReservations = await db.getMyReservations(discordUserId, round.id);
   if (myReservations.length > 0) {
-    return interaction.reply({ 
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยคำสั่ง \`/unreserve\``, 
-      ephemeral: true 
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองเก่า').setStyle(ButtonStyle.Danger)
+    );
+    const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
+    return interaction.editReply({
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือพิมพ์ \`/unreserve\``,
+      components: [row]
     });
-
   }
 
   const allItems = await db.getItemsForPage(pageId);
   const available = allItems.filter(i => FEATHER_TYPES.includes(i.item_type) && !i.reserved_by);
 
   if (available.length === 0) {
-    return interaction.reply({ content: '❌ หน้านี้ถูกจองหมดแล้ว', ephemeral: true });
+    return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว' });
   }
 
-  const pages = await db.getAllPages();
-  const pageName = pages.find(p => p.id === pageId)?.name ?? `Page #${pageId}`;
-  const success = [], fail = [];
-
+  const success = [];
   for (const item of available) {
     try {
       await db.addReservation(round.id, item.id, discordUserId, discordUsername);
       success.push(`ชิ้นที่ ${item.position} (${disp(item.item_type)})`);
-    } catch { fail.push(`ชิ้นที่ ${item.position}`); }
+    } catch { }
   }
 
   if (success.length === 0) {
-    return interaction.reply({ content: '❌ ทุกชิ้นถูกจองไปแล้ว', ephemeral: true });
+    return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว' });
   }
 
-  // 📢 Update Live Board
   await updateLiveBoard(interaction.client, round.id);
 
-  // ส่งปุ่มยกเลิกให้เห็นคนเดียว
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
@@ -257,64 +208,53 @@ async function reserveFeatherPage(interaction, pageId) {
 
   const devRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setLabel(BRANDING.DEVELOPER)
-      .setEmoji('▶️')
+      .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
       .setURL(BRANDING.URL)
       .setStyle(ButtonStyle.Link)
   );
 
-  if (interaction.deferred || interaction.replied) {
-    return interaction.followUp({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
-  }
-  return interaction.reply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
+  return interaction.editReply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow] });
 }
 
 
 async function reserveBookItem(interaction, itemId) {
+  await interaction.deferReply({ ephemeral: true });
   const discordUserId = interaction.user.id;
   const discordUsername = interaction.member?.displayName ?? interaction.user.username;
 
   const check = await checkEligibility(interaction);
-  if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
+  if (!check.ok) return interaction.editReply({ content: check.msg });
   const { round } = check;
 
-  // 1 คน 1 ครั้ง เช็คว่าจองไปหรือยัง
   const myReservations = await db.getMyReservations(discordUserId, round.id);
   if (myReservations.length > 0) {
-    return interaction.reply({ 
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยคำสั่ง \`/unreserve\``, 
-      ephemeral: true 
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองเก่า').setStyle(ButtonStyle.Danger)
+    );
+    const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
+    return interaction.editReply({
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือพิมพ์ \`/unreserve\``,
+      components: [row]
     });
-
   }
 
-  // Album ต้องเช็ค Whitelist
   const ok = await db.isWhitelisted(discordUserId);
   if (!ok) {
-    return interaction.reply({ 
-      content: `❌ **${discordUsername}** ไม่สามารถจอง Album ได้ (ต้องอยู่ใน Whitelist)\n\nหน้า Feather (Light-Dark / Time-Space) สามารถจองได้ปกติครับ`, 
-      ephemeral: true 
+    return interaction.editReply({
+      content: `❌ **${discordUsername}** ไม่สามารถจอง Album ได้ (ต้องอยู่ใน Whitelist)\n\nหน้า Feather (Light-Dark / Time-Space) สามารถจองได้ปกติครับ`
     });
   }
 
   const isReserved = await db.isItemReserved(round.id, itemId);
   if (isReserved) {
-    return interaction.reply({ content: '❌ Album ชิ้นนี้ถูกจองไปแล้ว', ephemeral: true });
+    return interaction.editReply({ content: '❌ Album ชิ้นนี้ถูกจองแล้ว' });
   }
-
-  const item = await db.getItemById(itemId);
-  if (!item) return interaction.reply({ content: '❌ ไม่พบ Item ที่เลือก', ephemeral: true });
-
-  const pages = await db.getAllPages();
-  const pageName = pages.find(p => p.id === item.page_id)?.name ?? `Page #${item.page_id}`;
 
   try {
     await db.addReservation(round.id, itemId, discordUserId, discordUsername);
-
-    // 📢 Update Live Board
     await updateLiveBoard(interaction.client, round.id);
 
-    // ส่งปุ่มยกเลิกให้เห็นคนเดียว
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
@@ -322,57 +262,24 @@ async function reserveBookItem(interaction, itemId) {
 
     const devRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel(BRANDING.DEVELOPER)
-        .setEmoji('▶️')
+        .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
         .setURL(BRANDING.URL)
         .setStyle(ButtonStyle.Link)
     );
 
-    if (interaction.deferred || interaction.replied) {
-      return interaction.followUp({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
-    }
-    return interaction.reply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow], ephemeral: true });
+    return interaction.editReply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow] });
   } catch (err) {
-
-
     if (err.message?.includes('UNIQUE') || err.code === '23505') {
-      return interaction.reply({ content: '❌ Album ชิ้นนี้ถูกจองไปแล้ว', ephemeral: true });
+      return interaction.editReply({ content: '❌ Album ชิ้นนี้ถูกจองแล้ว' });
     }
     console.error('[available] reserveBookItem error:', err);
-    return interaction.reply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true });
+    return interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' });
   }
 }
 
 // ── Module exports ───────────────────────────────────────────────
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('available')
-    .setDescription('ดูรายการที่ว่างอยู่ และจองได้เลย'),
-
-  async execute(interaction) {
-    const currentRound = await db.getOrCreateCurrentRound();
-    if (currentRound.status !== 'open') {
-      return interaction.reply({
-        content: '❌ ขณะนี้ยังไม่ได้เปิดรับจอง หรือปิดรับจองไปแล้วครับ',
-        ephemeral: true,
-      });
-    }
-
-    const availableItems = await db.getAvailableItems(currentRound.id);
-    const { featherPages, bookItems } = splitByType(availableItems);
-    const embed = buildEmbed(featherPages, bookItems, currentRound.name, interaction.guild);
-
-    if (featherPages.size === 0 && bookItems.length === 0) {
-      // ไม่มีของว่าง — ephemeral เพราะไม่ต้องให้คนอื่นเห็น
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    const components = buildButtonRows(featherPages, bookItems, interaction.guild);
-    // ephemeral: true — เฉพาะคนใช้คำสั่งเห็น embed + ปุ่ม
-    return interaction.reply({ embeds: [embed], components, ephemeral: true });
-  },
-
   /** Router สำหรับ button interactions — เรียกจาก client.js */
   async handleButton(interaction) {
     const id = interaction.customId;
@@ -403,6 +310,13 @@ module.exports = {
       const [type, id] = interaction.values[0].split(':');
       if (type === 'feather') return await reserveFeatherPage(interaction, parseInt(id));
       if (type === 'book') return await reserveBookItem(interaction, parseInt(id));
+    }
+    // Dropdown สมุดแบบกะทัดรัด (> 5 ชิ้น)
+    if (interaction.customId.startsWith('lb_album_menu_')) {
+      return await reserveBookItem(interaction, parseInt(interaction.values[0]));
+    }
+    if (interaction.customId.startsWith('lb_ld_menu_') || interaction.customId.startsWith('lb_ts_menu_')) {
+      return await reserveFeatherPage(interaction, parseInt(interaction.values[0]));
     }
   },
 

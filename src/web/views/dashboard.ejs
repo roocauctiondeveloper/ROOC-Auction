@@ -12,8 +12,8 @@
       <% if (round && round.status === 'preparing') { %>
         <div style="display: flex; gap: 1rem; align-items: center;">
           <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 0.5rem 1rem;">เตรียมพร้อม (Preparing)</span>
-          <form action="/round/open" method="POST">
-            <button type="submit" class="btn btn-primary" style="background: var(--success);" onclick="return confirm('ยืนยันเปิดรับจอง? บอทจะประกาศลง Discord ทันที');">
+          <form action="/round/open" method="POST" onsubmit="return handleFormLoading(this, 'ยืนยันเปิดรับจอง? บอทจะประกาศลง Discord ทันที', 'กำลังเตรียมบอร์ด...');">
+            <button type="submit" class="btn btn-primary" style="background: var(--success);">
               เปิดรับจอง (Start)
             </button>
           </form>
@@ -21,8 +21,8 @@
       <% } else if (round && round.status === 'open') { %>
         <div style="display: flex; gap: 1rem; align-items: center;">
           <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 0.9rem; padding: 0.5rem 1rem;">กำลังเปิดรับจอง (OPEN)</span>
-          <form action="/round/close" method="POST">
-            <button type="submit" class="btn btn-danger" onclick="return confirm('ยืนยันปิดการจองรอบนี้?');">
+          <form action="/round/close" method="POST" onsubmit="return handleFormLoading(this, 'ยืนยันปิดการจองรอบนี้?', 'กำลังปิดรับจอง...');">
+            <button type="submit" class="btn btn-danger">
               ปิดการจอง (End Round)
             </button>
           </form>
@@ -31,6 +31,22 @@
     </div>
   </div>
 </div>
+
+<script>
+  function handleFormLoading(form, confirmMsg, loadingText) {
+    if (confirm(confirmMsg)) {
+      const btn = form.querySelector('button[type="submit"]');
+      if (btn) {
+        btn.innerText = loadingText;
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
+        btn.style.cursor = 'wait';
+      }
+      return true;
+    }
+    return false;
+  }
+</script>
 
 <!-- Stats Overview -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
@@ -89,6 +105,42 @@
     if (!id) return alert('กรุณาเลือก Preset ก่อนครับ');
     
     if (confirm('ยืนยันการใช้ Preset นี้? ระบบจะสร้าง Page และ Item ให้โดยอัตโนมัติ (รายการเก่าในรอบนี้จะยังอยู่)')) {
+      // สร้าง Overlay บังทั้งหน้าจอ
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100vw';
+      overlay.style.height = '100vh';
+      overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+      overlay.style.zIndex = '9999';
+      overlay.style.display = 'flex';
+      overlay.style.flexDirection = 'column';
+      overlay.style.justifyContent = 'center';
+      overlay.style.alignItems = 'center';
+      
+      const spinner = document.createElement('div');
+      spinner.innerHTML = '⏳';
+      spinner.style.fontSize = '4rem';
+      spinner.style.animation = 'spin 2s linear infinite';
+      
+      const text = document.createElement('h2');
+      text.innerText = 'กำลังสร้างรายการจาก Preset...';
+      text.style.color = 'var(--primary)';
+      text.style.marginTop = '1rem';
+      
+      overlay.appendChild(spinner);
+      overlay.appendChild(text);
+      document.body.appendChild(overlay);
+
+      // ใส่ style animation spin ถ้ายังไม่มี
+      if (!document.getElementById('spinner-style')) {
+        const style = document.createElement('style');
+        style.id = 'spinner-style';
+        style.innerHTML = '@keyframes spin { 100% { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
+      }
+
       const form = document.getElementById('apply-preset-form');
       form.action = '/presets/apply/' + id;
       form.submit();

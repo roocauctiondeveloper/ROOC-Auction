@@ -10,6 +10,27 @@ async function getAllPages() {
   `);
 }
 
+/**
+ * ดึงข้อมูลทั้งหมดสำหรับ Live Board ใน Query เดียว (Optimized)
+ * ป้องกัน N+1 Query (เรียก DB ทีเดียวจบ)
+ */
+async function getAllBoardData(roundId) {
+  return db.all(`
+    SELECT 
+      p.id AS page_id,
+      p.name AS page_name,
+      i.id AS item_id,
+      i.item_type,
+      i.position,
+      r.discord_username AS reserved_by,
+      r.discord_user_id
+    FROM pages p
+    JOIN items i ON i.page_id = p.id
+    LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = ?
+    ORDER BY LENGTH(p.name) ASC, p.name ASC, i.position ASC
+  `, [roundId]);
+}
+
 async function addPage(name) {
   const r = await db.run('INSERT INTO pages (name) VALUES (?) RETURNING id', [name]);
   return r.lastInsertRowid;
@@ -164,19 +185,6 @@ async function deleteAllUserReservationsInRound(roundId, discordUserId) {
     WHERE round_id = ? AND discord_user_id = ?
   `, [roundId, discordUserId]);
 }
-
-
-
-async function deleteAllUserReservationsInRound(roundId, discordUserId) {
-  // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน
-  return db.run(`
-    DELETE FROM reservations 
-    WHERE round_id = ? AND discord_user_id = ?
-  `, [roundId, discordUserId]);
-}
-
-
-
 
 
 
@@ -425,5 +433,5 @@ module.exports = {
 
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
-
+  getAllBoardData,
 };

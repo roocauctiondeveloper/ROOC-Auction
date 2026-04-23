@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+// env โหลดที่ src/index.js แล้ว (entry point)
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.SUPABASE_DB_URL,

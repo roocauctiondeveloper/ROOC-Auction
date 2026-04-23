@@ -46,20 +46,27 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', ephemeral: true });
       }
 
+      // Defer ทันทีเพื่อให้ขึ้น "Bot is thinking..." เหมือนตอนจอง
+      await interaction.deferReply({ ephemeral: true });
+
       await db.deleteAllUserReservationsInRound(currentRound.id, interaction.user.id);
+      
+      // อัปเดตบอร์ด (งานหนัก)
       await updateLiveBoard(interaction.client, currentRound.id);
 
-      return interaction.update({
-        content: '✅ ยกเลิกการจองของคุณเรียบร้อยแล้วครับ',
-        components: [] // ลบปุ่มออกหลังกด
+      // ลบปุ่มจากข้อความเดิมออก
+      await interaction.message.edit({ components: [] }).catch(() => null);
+
+      return interaction.editReply({
+        content: '✅ ยกเลิกการจองของคุณเรียบร้อยแล้วครับ'
       });
     } catch (err) {
       console.error('[client] unreserve button error:', err);
-      // โชว์ Error สั้นๆ เพื่อให้เรา Debug ได้ครับ
-      const errorMsg = err.message || 'Unknown error';
-      return interaction.reply({ content: `❌ เกิดข้อผิดพลาดในการยกเลิก: ${errorMsg}`, ephemeral: true });
+      if (interaction.deferred || interaction.replied) {
+        return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', ephemeral: true });
+      }
+      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', ephemeral: true });
     }
-
   }
 
   // Handle Buttons จาก /available

@@ -28,9 +28,20 @@ module.exports = {
     'time-space': { label: 'Time-Space', emoji: '❤️' },
   },
 
+  // ลำดับการเรียงประเภทสินค้า
+  TYPE_ORDER: {
+    'light-dark': 1,
+    'Light-Dark': 1,
+    'time-space': 2,
+    'Time-Space': 2,
+    'album': 3,
+    'Album': 3,
+  },
+
   BRANDING: {
     DEVELOPER: 'GadzillaChannel',
     TEXT: 'Developed by GadzillaChannel',
-    URL: 'https://www.youtube.com/@GadzillaChannel', // Assuming they have a YT channel based on the name
+    URL: 'https://www.youtube.com/@GadzillaChannel',
+    EMOJI: '▶️',
   }
 };

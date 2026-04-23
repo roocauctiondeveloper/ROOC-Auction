@@ -1,10 +1,11 @@
 {
   "name": "discord-reservation-bot",
-  "version": "1.0.40",
+  "version": "1.0.41",
   "description": "Discord Reservation Bot with Web Dashboard",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "dev": "node src/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "deploy-commands": "node src/bot/deploy-commands.js",
