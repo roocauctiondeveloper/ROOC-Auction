@@ -11,6 +11,9 @@ const db = require('../../db/queries');
 const { updateLiveBoard } = require('../liveboard');
 const { ICONS, ITEM_TYPES, BRANDING, TYPE_ORDER } = require('../../utils/constants');
 
+// In-Memory Lock for handling high concurrency
+const activeLocks = new Set();
+
 // Button custom ID prefixes
 const BTN_FEATHER_PREFIX = 'avail_f:'; // avail_f:<pageId>
 const BTN_BOOK_PREFIX = 'avail_b:'; // avail_b:<itemId>
@@ -159,9 +162,16 @@ async function checkEligibility(interaction) {
 // ── Reserve helpers ──────────────────────────────────────────────
 
 async function reserveFeatherPage(interaction, pageId) {
-  await interaction.deferReply({ ephemeral: true });
-  const discordUserId = interaction.user.id;
-  const discordUsername = interaction.member?.displayName ?? interaction.user.username;
+  const lockKey = `page_${pageId}`;
+  if (activeLocks.has(lockKey)) {
+    return interaction.reply({ content: '❌ มีคนกำลังทำการจองหน้านี้อยู่ครับ', ephemeral: true });
+  }
+  activeLocks.add(lockKey);
+
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    const discordUserId = interaction.user.id;
+    const discordUsername = interaction.member?.displayName ?? interaction.user.username;
 
   const check = await checkEligibility(interaction);
   if (!check.ok) return interaction.editReply({ content: check.msg });
@@ -175,7 +185,7 @@ async function reserveFeatherPage(interaction, pageId) {
     );
     const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
     return interaction.editReply({
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือพิมพ์ \`/unreserve\``,
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
       components: [row]
     });
   }
@@ -187,16 +197,15 @@ async function reserveFeatherPage(interaction, pageId) {
     return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว' });
   }
 
-  const success = [];
-  for (const item of available) {
-    try {
-      await db.addReservation(round.id, item.id, discordUserId, discordUsername);
-      success.push(`ชิ้นที่ ${item.position} (${disp(item.item_type)})`);
-    } catch { }
-  }
-
-  if (success.length === 0) {
-    return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว' });
+  try {
+    const itemIds = available.map(i => i.id);
+    await db.addMultipleReservations(round.id, itemIds, discordUserId, discordUsername);
+  } catch (err) {
+    if (err.message?.includes('UNIQUE') || err.code === '23505') {
+      return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว (มีบางชิ้นโดนแย่งจองไปก่อน)' });
+    }
+    console.error('[available] reserveFeatherPage error:', err);
+    return interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' });
   }
 
   await updateLiveBoard(interaction.client, round.id);
@@ -214,13 +223,30 @@ async function reserveFeatherPage(interaction, pageId) {
   );
 
   return interaction.editReply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow] });
+  } catch (err) {
+    console.error('[available] Outer error in reserveFeatherPage:', err);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' }).catch(() => {});
+    } else {
+      await interaction.reply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true }).catch(() => {});
+    }
+  } finally {
+    activeLocks.delete(lockKey);
+  }
 }
 
 
 async function reserveBookItem(interaction, itemId) {
-  await interaction.deferReply({ ephemeral: true });
-  const discordUserId = interaction.user.id;
-  const discordUsername = interaction.member?.displayName ?? interaction.user.username;
+  const lockKey = `item_${itemId}`;
+  if (activeLocks.has(lockKey)) {
+    return interaction.reply({ content: '❌ มีคนกำลังทำการจองชิ้นนี้อยู่ครับ', ephemeral: true });
+  }
+  activeLocks.add(lockKey);
+
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    const discordUserId = interaction.user.id;
+    const discordUsername = interaction.member?.displayName ?? interaction.user.username;
 
   const check = await checkEligibility(interaction);
   if (!check.ok) return interaction.editReply({ content: check.msg });
@@ -234,7 +260,7 @@ async function reserveBookItem(interaction, itemId) {
     );
     const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
     return interaction.editReply({
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือพิมพ์ \`/unreserve\``,
+      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
       components: [row]
     });
   }
@@ -274,6 +300,17 @@ async function reserveBookItem(interaction, itemId) {
     }
     console.error('[available] reserveBookItem error:', err);
     return interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' });
+  }
+  
+  } catch (err) {
+    console.error('[available] Outer error in reserveBookItem:', err);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' }).catch(() => {});
+    } else {
+      await interaction.reply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true }).catch(() => {});
+    }
+  } finally {
+    activeLocks.delete(lockKey);
   }
 }
 

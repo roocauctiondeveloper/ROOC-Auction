@@ -146,6 +146,26 @@ async function addReservation(roundId, itemId, discordUserId, discordUsername) {
   return r.lastInsertRowid;
 }
 
+async function addMultipleReservations(roundId, itemIds, discordUserId, discordUsername) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const itemId of itemIds) {
+      await client.query(
+        'INSERT INTO reservations (round_id, item_id, discord_user_id, discord_username) VALUES ($1, $2, $3, $4)',
+        [roundId, itemId, discordUserId, discordUsername]
+      );
+    }
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function deleteReservation(id) {
   return db.run('DELETE FROM reservations WHERE id = ?', [id]);
 }
@@ -420,7 +440,7 @@ async function deletePreset(id) {
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
-  getCurrentReservations, getReservationsByRound, addReservation, deleteReservation, isItemReserved,
+  getCurrentReservations, getReservationsByRound, addReservation, addMultipleReservations, deleteReservation, isItemReserved,
   getReservationById, deletePageReservationsForUser, deleteAllUserReservationsInRound,
   getCurrentRound, getOrCreateCurrentRound, updateRoundStatus,
   saveRoundBoardMessage, getRoundBoardMessage,
