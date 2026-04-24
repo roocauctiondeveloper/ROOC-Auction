@@ -81,8 +81,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 let sessionStore;
 if (config.databaseType === 'postgres') {
   const pgSession = require('connect-pg-simple')(session);
+  const db = require('../db/database'); // Import shared pool
   sessionStore = new pgSession({
-    conString: config.databaseUrl,
+    pool: db.pool, // Use the shared pool
     createTableIfMissing: true
   });
 } else {
@@ -108,22 +109,27 @@ app.use(async (req, res, next) => {
   
   // ถ้าล็อคอินอยู่ พยายามหาชื่อเล่นใน Server มาแสดง
   if (req.user && req.user.discord_user_id) {
-    try {
-      const botClient = require('../bot/client');
-      const guildId = config.discordGuildId;
-      
-      if (botClient.isReady() && guildId) {
-        const guild = await botClient.guilds.fetch(guildId);
-        const member = await guild.members.fetch(req.user.discord_user_id);
+    // ใช้ค่าจาก Session ถ้ามี เพื่อลดการเรียก Discord API ทุก Request
+    if (req.session.server_name) {
+      res.locals.user.server_name = req.session.server_name;
+    } else {
+      try {
+        const botClient = require('../bot/client');
+        const guildId = config.discordGuildId;
         
-        if (member) {
-          // ใช้ชื่อเล่นในเซิร์ฟ ถ้าไม่มีใช้ displayName ถ้าไม่มีใช้ username เดิม
-          res.locals.user.server_name = member.nickname || member.displayName;
+        if (botClient.isReady() && guildId) {
+          const guild = await botClient.guilds.fetch(guildId);
+          const member = await guild.members.fetch(req.user.discord_user_id);
+          
+          if (member) {
+            const displayName = member.nickname || member.displayName;
+            res.locals.user.server_name = displayName;
+            req.session.server_name = displayName; // เก็บใส่ session
+          }
         }
+      } catch (err) {
+        console.warn('Could not fetch server nickname for user:', req.user.discord_user_id);
       }
-    } catch (err) {
-      // ถ้าหาไม่เจอหรือไม่พร้อม ไม่เป็นไร ใช้ค่าปกติไปก่อน
-      console.warn('Could not fetch server nickname for user:', req.user.discord_user_id);
     }
   }
 
