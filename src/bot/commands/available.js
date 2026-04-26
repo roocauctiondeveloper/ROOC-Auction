@@ -177,15 +177,22 @@ async function reserveFeatherPage(interaction, pageId) {
   if (!check.ok) return interaction.editReply({ content: check.msg });
   const { round } = check;
 
-  const myReservations = await db.getMyReservations(discordUserId, round.id);
-  if (myReservations.length > 0) {
+    const myReservations = await db.getMyReservations(discordUserId, round.id);
+  const quota = round.quota || 1;
+  
+  // นับสิทธิ์: ขนนกนับเป็นจำนวนหน้า (Unique Page Names), Album นับเป็นชิ้น
+  const featherPagesCount = new Set(myReservations.filter(r => FEATHER_TYPES.includes(r.item_type)).map(r => r.page_name)).size;
+  const albumItemsCount = myReservations.filter(r => !FEATHER_TYPES.includes(r.item_type)).length;
+  const currentUsage = featherPagesCount + albumItemsCount;
+
+  if (currentUsage >= quota) {
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองเก่า').setStyle(ButtonStyle.Danger)
     );
     const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
     return interaction.editReply({
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
+      content: `❌ **${discordUsername}** คุณได้จองครบโควต้าแล้วในรอบนี้ (${quota >= 999 ? "ไม่จำกัดสิทธิ์" : "คนละ " + quota + " สิทธิ์"})\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
       components: [row]
     });
   }

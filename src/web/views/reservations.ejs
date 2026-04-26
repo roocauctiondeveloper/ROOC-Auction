@@ -1,5 +1,40 @@
 <div class="flex space-between items-center" style="margin-bottom: 2rem;">
   <h1>Reservations</h1>
+  <div class="quota-status badge <%= currentRound.quota >= 999 ? 'badge-blue' : 'badge-green' %>" style="font-size: 1rem; padding: 0.6rem 1.2rem;">
+    Current Quota: <strong><%= currentRound.quota >= 999 ? 'Unlimited' : currentRound.quota + ' items/person' %></strong>
+  </div>
+</div>
+
+<div class="card" style="border-left: 4px solid var(--secondary); margin-bottom: 2rem;">
+  <h3 style="margin-bottom: 1rem;">Quota Management</h3>
+  <p style="color: var(--text-light); margin-bottom: 1.5rem; font-size: 0.9rem;">
+    Control how many items each person can reserve in this round. 
+    <br><small>*Note: Album logic is handled separately and always limited to 1 per person.*</small>
+  </p>
+  <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+    <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
+      <input type="hidden" name="quota" value="<%= (currentRound.quota || 1) + 1 %>">
+      <button type="submit" class="btn btn-secondary">
+        <%= ICONS.PLUS || '➕' %> Increase Quota (+1)
+      </button>
+    </form>
+    
+    <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
+      <input type="hidden" name="quota" value="999">
+      <button type="submit" class="btn btn-blue" style="<%= currentRound.quota >= 999 ? 'opacity: 0.5; pointer-events: none;' : '' %>">
+        <%= ICONS.UNLOCKED || '🔓' %> Set Unlimited
+      </button>
+    </form>
+
+    <% if (currentRound.quota > 1) { %>
+      <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
+        <input type="hidden" name="quota" value="1">
+        <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: var(--danger);">
+          Reset to 1
+        </button>
+      </form>
+    <% } %>
+  </div>
 </div>
 
 <div class="card" style="border-left: 4px solid var(--primary);">

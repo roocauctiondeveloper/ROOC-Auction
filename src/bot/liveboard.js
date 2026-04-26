@@ -333,7 +333,7 @@ async function sendLiveBoard(client, channelId, round) {
   }
 }
 
-const updateTimeouts = new Map();
+
 const activeUpdates = new Map();
 
 /**
@@ -341,17 +341,9 @@ const activeUpdates = new Map();
  * เพื่อป้องกันการชนกัน (Concurrency) และการโดน Discord Rate Limit
  */
 async function updateLiveBoard(client, roundId) {
-  // ถ้ามีการสั่งอัปเดตเข้ามาใหม่ในขณะที่รอ (Debounce) ให้ยกเลิกอันเก่าแล้วเริ่มนับใหม่
-  if (updateTimeouts.has(roundId)) {
-    clearTimeout(updateTimeouts.get(roundId));
-  }
-
-  const timeout = setTimeout(async () => {
-    updateTimeouts.delete(roundId);
-    await _performUpdate(client, roundId);
-  }, 1200); // รอ 1.2 วินาที เผื่อมีคนกดจองพร้อมๆ กันหลายคน จะได้อัปเดตทีเดียว
-
-  updateTimeouts.set(roundId, timeout);
+  // เรียก performUpdate ทันที โดยที่ภายใน _performUpdate มีระบบ Lock/Queue อยู่แล้ว
+  // ซึ่งจะช่วยให้การกดครั้งแรกตอบสนองทันที และการกดรัวๆ จะถูกรวบไปอัปเดตในรอบถัดไป
+  _performUpdate(client, roundId);
 }
 
 async function _performUpdate(client, roundId) {

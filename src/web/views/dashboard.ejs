@@ -75,6 +75,48 @@
   </div>
 </div>
 
+<!-- Quota Management (Visible only if round is open or preparing) -->
+<% if (round) { %>
+<div class="card" style="border-left: 4px solid var(--secondary); margin-bottom: 2.5rem; background: #fffcf8;">
+  <div class="flex space-between items-center flex-desktop">
+    <div>
+      <h3 style="margin: 0;">🎯 Quota Control</h3>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">
+        Current limit for Feathers: 
+        <strong style="color: var(--secondary); font-size: 1.1rem;">
+          <%= round.quota >= 999 ? 'Unlimited' : round.quota + ' items/person' %>
+        </strong>
+        <br><small style="color: #94a3b8;">*Album remains strictly 1 per person*</small>
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap;">
+      <form action="/reservations/quota" method="POST">
+        <input type="hidden" name="quota" value="<%= (round.quota || 1) + 1 %>">
+        <button type="submit" class="btn btn-secondary" style="padding: 0.6rem 1.2rem; font-size: 0.85rem;">
+          <%= ICONS.PLUS || '➕' %> Increase Quota (+1)
+        </button>
+      </form>
+      
+      <form action="/reservations/quota" method="POST">
+        <input type="hidden" name="quota" value="999">
+        <button type="submit" class="btn btn-blue" style="padding: 0.6rem 1.2rem; font-size: 0.85rem; <%= round.quota >= 999 ? 'opacity: 0.5; pointer-events: none;' : '' %>">
+          <%= ICONS.UNLOCKED || '🔓' %> Unlimited
+        </button>
+      </form>
+
+      <% if (round.quota > 1) { %>
+        <form action="/reservations/quota" method="POST">
+          <input type="hidden" name="quota" value="1">
+          <button type="submit" class="btn btn-outline" style="padding: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--danger); border-color: var(--danger);">
+            Reset to 1
+          </button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</div>
+<% } %>
+
 <!-- Preset Selection (Show only if preparing) -->
 <% if (round && round.status === 'preparing') { %>
 <div class="card" style="background: #fcfaff; border: 1px dashed var(--primary); margin-bottom: 2.5rem;">

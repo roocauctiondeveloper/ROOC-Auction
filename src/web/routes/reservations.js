@@ -29,7 +29,14 @@ router.get('/', async (req, res) => {
         }
     }
 
-    res.render('reservations', { reservations, pages, whitelist, availableItems: allItems });
+    const currentRound = await db.getOrCreateCurrentRound();
+    res.render('reservations', { 
+      reservations, 
+      pages, 
+      whitelist, 
+      availableItems: allItems,
+      currentRound
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send('Error loading reservations');
@@ -107,5 +114,26 @@ router.post('/:id/delete', async (req, res) => {
   res.redirect('/reservations');
 });
 
+
+// POST /reservations/quota
+router.post('/quota', async (req, res) => {
+  const { quota } = req.body;
+  try {
+    const currentRound = await db.getOrCreateCurrentRound();
+    // Allow 0 or null for "Unlimited" (we'll represent Unlimited as 999 or just 0 in UI)
+    let newQuota = parseInt(quota);
+    if (isNaN(newQuota)) {
+      req.session.error_msg = 'จำนวนโควต้าไม่ถูกต้อง';
+      return res.redirect('back');
+    }
+    
+    await db.updateRoundQuota(currentRound.id, newQuota);
+    req.session.success_msg = `อัปเดตโควต้าการจองเป็น ${newQuota >= 999 ? 'ไม่จำกัด' : newQuota + ' ชิ้น'} เรียบร้อยแล้ว`;
+  } catch (err) {
+    console.error('[web] update quota error:', err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการอัปเดตโควต้า: ' + err.message;
+  }
+  res.redirect('back');
+});
 
 module.exports = router;

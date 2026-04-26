@@ -219,12 +219,16 @@ async function getOrCreateCurrentRound() {
   if (!round || round.status === 'closed') {
     const name = `รอบประมูล ${new Date().toLocaleString('th-TH')}`;
     const r = await db.run(
-      'INSERT INTO rounds (name, status) VALUES (?, ?) RETURNING id',
+      'INSERT INTO rounds (name, status, quota) VALUES (?, ?, 1) RETURNING id',
       [name, 'preparing']
     );
-    round = { id: r.lastInsertRowid, name, status: 'preparing' };
+    round = { id: r.lastInsertRowid, name, status: 'preparing', quota: 1 };
   }
   return round;
+}
+
+async function updateRoundQuota(roundId, quota) {
+  return db.run('UPDATE rounds SET quota = ? WHERE id = ?', [quota, roundId]);
 }
 
 async function updateRoundStatus(roundId, status) {
@@ -454,4 +458,5 @@ module.exports = {
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
   getAllBoardData,
+  updateRoundQuota,
 };
