@@ -190,7 +190,20 @@ async function reserveFeatherPage(interaction, pageId) {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองเก่า').setStyle(ButtonStyle.Danger)
     );
-    const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
+        // รวบข้อความตามหน้า
+    const grouped = {};
+    myReservations.forEach(r => {
+      if (!grouped[r.page_name]) grouped[r.page_name] = [];
+      grouped[r.page_name].push(r);
+    });
+    
+    const current = Object.keys(grouped).map(pageName => {
+      const items = grouped[pageName];
+      if (items.length >= 4) {
+        return `• **หน้า ${pageName}** (จองครบยกหน้า)`;
+      }
+      return `• **หน้า ${pageName}** (จองไว้ ${items.length} ชิ้น)`;
+    }).join('\n');
     return interaction.editReply({
       content: `❌ **${discordUsername}** คุณได้จองครบโควต้าแล้วในรอบนี้ (${quota >= 999 ? "ไม่จำกัดสิทธิ์" : "คนละ " + quota + " สิทธิ์"})\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
       components: [row]
