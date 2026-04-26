@@ -96,6 +96,9 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
     if (round && round.status === 'preparing') {
       await db.updateRoundStatus(round.id, 'open');
 
+      // Auto-assign Whitelist to available Album slots
+      const assignedNames = await db.autoAssignWhitelist(round.id);
+
       // 📢 Live Board
       const channelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
       console.log('📢 Round Open: Attempting to send Live Board. Channel:', channelId);
@@ -106,7 +109,7 @@ router.post('/round/open', ensureAuthenticated, async (req, res) => {
         console.warn('⚠️ No DISCORD_ANNOUNCE_CHANNEL_ID found in env');
       }
 
-      req.session.success_msg = 'เปิดรับจองรอบแล้ว! ส่ง Live Board ใน Discord แล้ว';
+      req.session.success_msg = `เปิดรับจองรอบแล้ว! ${assignedNames.length > 0 ? '(จองให้ Whitelist อัตโนมัติ ' + assignedNames.length + ' คน) ' : ''}ส่ง Live Board ใน Discord แล้ว`;
     }
   } catch (err) {
     console.error(err);

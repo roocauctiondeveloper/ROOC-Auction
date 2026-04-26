@@ -350,6 +350,38 @@ async function bulkUpdateWhitelistStatus(ids, isActive) {
   return db.run(`UPDATE whitelist SET is_active = ? WHERE id IN (${placeholders})`, [isActive, ...ids]);
 }
 
+async function autoAssignWhitelist(roundId) {
+  // 1. Get active whitelist members
+  const activeWhitelist = await getAllWhitelist(true);
+  
+  // 2. Get available Album slots
+  const availableAlbums = await db.all(`
+    SELECT i.id
+    FROM items i
+    LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = ?
+    WHERE i.item_type = 'Album' AND r.id IS NULL
+    ORDER BY i.id ASC
+  `, [roundId]);
+
+  const assigned = [];
+  
+  // 3. Assign one by one
+  const count = Math.min(activeWhitelist.length, availableAlbums.length);
+  for (let i = 0; i < count; i++) {
+    const member = activeWhitelist[i];
+    const album = availableAlbums[i];
+    
+    // Check if user already has a reservation in this round (to be safe)
+    const existing = await db.all('SELECT 1 FROM reservations WHERE round_id = ? AND discord_user_id = ?', [roundId, member.discord_user_id]);
+    if (existing.length === 0) {
+      await addReservation(roundId, album.id, member.discord_user_id, member.discord_username);
+      assigned.push(member.discord_username);
+    }
+  }
+  
+  return assigned;
+}
+
 
 
 async function addToWhitelist(username, discordUserId) {
@@ -459,4 +491,5 @@ module.exports = {
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
   getAllBoardData,
   updateRoundQuota,
+  autoAssignWhitelist,
 };
