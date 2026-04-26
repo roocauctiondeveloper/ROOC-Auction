@@ -54,26 +54,45 @@ client.on('interactionCreate', async interaction => {
       // อัปเดตบอร์ด (งานหนัก)
       await updateLiveBoard(interaction.client, currentRound.id);
 
-      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-      const { BRANDING } = require('../utils/constants');
-      
-      const devRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
-          .setURL(BRANDING.URL)
-          .setStyle(ButtonStyle.Link)
-      );
-
-      return interaction.editReply({
-        content: '✅ ยกเลิกการจองของคุณเรียบร้อยแล้วครับ',
-        components: [devRow] 
-      });
+      // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
+      return interaction.editReply({ content: '✅ ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ', components: [] });
     } catch (err) {
       console.error('[client] unreserve button error:', err);
       if (interaction.deferred || interaction.replied) {
         return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', ephemeral: true });
       }
       return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', ephemeral: true });
+    }
+  }
+
+  // Handle Individual Cancel Buttons (from /mystuff)
+  if (interaction.isButton() && (interaction.customId.startsWith('c_p_') || interaction.customId.startsWith('c_i_'))) {
+    try {
+      const db = require('../db/queries');
+      const { updateLiveBoard } = require('./liveboard');
+      const currentRound = await db.getCurrentRound();
+
+      if (!currentRound || currentRound.status !== 'open') {
+        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', ephemeral: true });
+      }
+
+      await interaction.deferUpdate();
+
+      if (interaction.customId.startsWith('c_p_')) {
+        const pageId = interaction.customId.replace('c_p_', '');
+        await db.deletePageReservationsForUser(currentRound.id, pageId, interaction.user.id);
+      } else {
+        const itemId = interaction.customId.replace('c_i_', '');
+        await db.deleteSingleReservation(currentRound.id, itemId, interaction.user.id);
+      }
+
+      await updateLiveBoard(interaction.client, currentRound.id);
+
+      // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
+      return interaction.editReply({ content: '✅ ยกเลิกรายการเรียบร้อยแล้วครับ', components: [] });
+    } catch (err) {
+      console.error('[client] individual cancel error:', err);
+      return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', ephemeral: true });
     }
   }
 

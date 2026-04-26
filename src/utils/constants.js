@@ -28,6 +28,8 @@ module.exports = {
     'time-space': { label: 'Time-Space', emoji: '❤️' },
   },
 
+  FEATHER_TYPES: ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'],
+
   // ลำดับการเรียงประเภทสินค้า
   TYPE_ORDER: {
     'light-dark': 1,

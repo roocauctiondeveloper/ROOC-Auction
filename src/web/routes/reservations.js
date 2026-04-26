@@ -124,7 +124,7 @@ router.post('/quota', async (req, res) => {
     let newQuota = parseInt(quota);
     if (isNaN(newQuota)) {
       req.session.error_msg = 'จำนวนโควต้าไม่ถูกต้อง';
-      return res.redirect('back');
+      return res.redirect(req.get('Referrer') || '/reservations');
     }
     
     await db.updateRoundQuota(currentRound.id, newQuota);
@@ -133,7 +133,7 @@ router.post('/quota', async (req, res) => {
     console.error('[web] update quota error:', err);
     req.session.error_msg = 'เกิดข้อผิดพลาดในการอัปเดตโควต้า: ' + err.message;
   }
-  res.redirect('back');
+  res.redirect(req.get('Referrer') || '/reservations');
 });
 
 module.exports = router;

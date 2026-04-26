@@ -53,18 +53,51 @@ module.exports = {
       grouped.get(r.page_name).push(r);
     }
 
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const { FEATHER_TYPES } = require('../../utils/constants');
+    const rows = [];
+    let currentRow = new ActionRowBuilder();
+
     for (const [pageName, items] of grouped) {
       const lines = items.map(i => `ชิ้นที่ ${i.position} — ${getDisplay(i.item_type, interaction.guild)}`);
       embed.addFields({ name: `📄 หน้า ${pageName}`, value: lines.join('\n'), inline: false });
+
+      // สร้างปุ่มยกเลิกสำหรับหน้านี้
+      const isFeather = items.some(it => FEATHER_TYPES.includes(it.item_type));
+      const pageId = items[0].page_id;
+      const itemId = items[0].item_id;
+
+      const btn = new ButtonBuilder()
+        .setStyle(ButtonStyle.Danger);
+
+      if (isFeather) {
+        btn.setCustomId(`c_p_${pageId}`).setLabel(`❌ ยกเลิกหน้า ${pageName}`);
+      } else {
+        btn.setCustomId(`c_i_${itemId}`).setLabel(`❌ ยกเลิก Album #${items[0].position}`);
+      }
+
+      if (currentRow.components.length === 5) {
+        rows.push(currentRow);
+        currentRow = new ActionRowBuilder();
+      }
+      currentRow.addComponents(btn);
     }
+
+    // เพิ่มปุ่มยกเลิกทั้งหมดไว้ท้ายสุด (ถ้ามีปุ่มเดียวไม่ต้องขึ้นแถวใหม่)
+    const cancelAllBtn = new ButtonBuilder()
+      .setCustomId('unreserve_me')
+      .setLabel('❌ ยกเลิกทั้งหมด')
+      .setStyle(ButtonStyle.Danger);
+
+    if (currentRow.components.length === 5) {
+      rows.push(currentRow);
+      currentRow = new ActionRowBuilder();
+    }
+    currentRow.addComponents(cancelAllBtn);
+    rows.push(currentRow);
 
     embed.setDescription(`คุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ`);
 
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกรายการของฉันทั้งหมด').setStyle(ButtonStyle.Danger)
-    );
-
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    return interaction.reply({ embeds: [embed], components: rows.slice(0, 5), ephemeral: true });
   },
 };

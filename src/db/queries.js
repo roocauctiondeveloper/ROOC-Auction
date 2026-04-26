@@ -1,5 +1,29 @@
 const db = require('./database');
 
+// ─── Initialization ──────────────────────────────────────────────────────────
+(async () => {
+  try {
+    await db.run('CREATE TABLE IF NOT EXISTS user_dashboards (user_id TEXT PRIMARY KEY, thread_id TEXT, message_id TEXT)');
+  } catch (err) {
+    console.error('❌ Failed to initialize user_dashboards table:', err);
+  }
+})();
+
+// ─── User Dashboards (For Private Thread UI) ──────────────────────────────────
+async function getUserDashboard(userId) {
+  return db.get('SELECT * FROM user_dashboards WHERE user_id = ?', [userId]);
+}
+
+async function saveUserDashboard(userId, threadId, messageId) {
+  return db.run(`
+    INSERT INTO user_dashboards (user_id, thread_id, message_id)
+    VALUES (?, ?, ?)
+    ON CONFLICT (user_id) DO UPDATE SET
+      thread_id = EXCLUDED.thread_id,
+      message_id = EXCLUDED.message_id
+  `, [userId, threadId, messageId]);
+}
+
 // ─── Pages ────────────────────────────────────────────────────────────────────
 
 async function getAllPages() {
@@ -26,7 +50,7 @@ async function getAllBoardData(roundId) {
       r.discord_user_id
     FROM pages p
     JOIN items i ON i.page_id = p.id
-    LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = ?
+    LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = $1
     ORDER BY LENGTH(p.name) ASC, p.name ASC, i.position ASC
   `, [roundId]);
 }
@@ -54,12 +78,13 @@ async function getItemsForPage(pageId, roundId = null) {
   }
 
   return db.all(`
-    SELECT i.*,
+    SELECT i.*, p.name AS page_name,
            (SELECT discord_username FROM reservations r
             WHERE r.item_id = i.id AND r.round_id = ?) AS reserved_by,
            (SELECT discord_user_id FROM reservations r
             WHERE r.item_id = i.id AND r.round_id = ?) AS discord_user_id
     FROM items i
+    JOIN pages p ON i.page_id = p.id
     WHERE i.page_id = ?
     ORDER BY i.position ASC
   `, [targetRoundId, targetRoundId, pageId]);
@@ -84,7 +109,12 @@ async function deleteItemsByPage(pageId) {
 }
 
 async function getItemById(id) {
-  return db.get('SELECT * FROM items WHERE id = ?', [id]);
+  return db.get(`
+    SELECT i.*, p.name AS page_name 
+    FROM items i 
+    JOIN pages p ON i.page_id = p.id 
+    WHERE i.id = ?
+  `, [id]);
 }
 
 // ─── Reservations ─────────────────────────────────────────────────────────────
@@ -204,6 +234,13 @@ async function deleteAllUserReservationsInRound(roundId, discordUserId) {
     DELETE FROM reservations 
     WHERE round_id = ? AND discord_user_id = ?
   `, [roundId, discordUserId]);
+}
+
+async function deleteSingleReservation(roundId, itemId, discordUserId) {
+  return db.run(
+    'DELETE FROM reservations WHERE round_id = ? AND item_id = ? AND discord_user_id = ?',
+    [roundId, itemId, discordUserId]
+  );
 }
 
 
@@ -413,7 +450,7 @@ async function getAvailableItems(roundId) {
 
 async function getMyReservations(discordUserId, roundId) {
   return db.all(`
-    SELECT r.id, r.item_id, p.name AS page_name, i.item_type, i.position, r.reserved_at
+    SELECT r.id, r.item_id, i.page_id, p.name AS page_name, i.item_type, i.position, r.reserved_at
     FROM reservations r
     JOIN items i ON r.item_id = i.id
     JOIN pages p ON i.page_id = p.id
@@ -477,7 +514,7 @@ module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
   getCurrentReservations, getReservationsByRound, addReservation, addMultipleReservations, deleteReservation, isItemReserved,
-  getReservationById, deletePageReservationsForUser, deleteAllUserReservationsInRound,
+  getReservationById, deletePageReservationsForUser, deleteAllUserReservationsInRound, deleteSingleReservation,
   getCurrentRound, getOrCreateCurrentRound, updateRoundStatus,
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
@@ -492,4 +529,6 @@ module.exports = {
   getAllBoardData,
   updateRoundQuota,
   autoAssignWhitelist,
+  getUserDashboard,
+  saveUserDashboard,
 };

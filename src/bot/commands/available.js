@@ -1,385 +1,195 @@
-const {
-  SlashCommandBuilder,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-} = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const db = require('../../db/queries');
+const { BRANDING, FEATHER_TYPES } = require('../../utils/constants');
 const { updateLiveBoard } = require('../liveboard');
-const { ICONS, ITEM_TYPES, BRANDING, TYPE_ORDER } = require('../../utils/constants');
 
-// In-Memory Lock for handling high concurrency
 const activeLocks = new Set();
-
-// Button custom ID prefixes
-const BTN_FEATHER_PREFIX = 'avail_f:'; // avail_f:<pageId>
-const BTN_BOOK_PREFIX = 'avail_b:'; // avail_b:<itemId>
-
-// Dropdown fallback IDs (ใช้เมื่อ buttons เกิน 25)
-const SELECT_FEATHER_PAGE_ID = 'avail_feather_page';
-const SELECT_BOOK_ITEM_ID = 'avail_book_item';
-
-const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
-const { resolveEmoji } = require('../utils/emoji');
-
-const getEmoji = (t, guild = null) => {
-  const entry = ITEM_TYPES[t];
-  return resolveEmoji(entry?.emoji, guild, ICONS.DEFAULT || '❓');
-};
-const disp = (t, guild = null) => {
-  const entry = ITEM_TYPES[t];
-  if (!entry) return t;
-  // สำหรับชื่อข้อความ เราอาจจะไม่ต้องใส่รูปใหญ่โตเอาแค่ชื่อ หรือใส่นำหน้าก็ได้
-  return entry.label || t;
-};
-
-
-/** แยก available items ตาม type และเรียงลำดับ */
-function splitByType(availableItems) {
-  // เรียงตาม TYPE_ORDER ก่อนแยก
-  const sorted = [...availableItems].sort(
-    (a, b) => (TYPE_ORDER[a.item_type] ?? 9) - (TYPE_ORDER[b.item_type] ?? 9)
-  );
-
-  const featherPages = new Map(); // pageId → { page_name, items[] }
-  const bookItems = [];
-
-  for (const item of sorted) {
-    if (FEATHER_TYPES.includes(item.item_type)) {
-      if (!featherPages.has(item.page_id)) {
-        featherPages.set(item.page_id, { page_name: item.page_name, items: [] });
-      }
-      featherPages.get(item.page_id).items.push(item);
-    } else {
-      bookItems.push(item);
-    }
-  }
-  return { featherPages, bookItems };
-}
-
-/** สร้าง Embed — Album ขึ้นก่อน ตามด้วย Light-Dark, Time-Space */
-function buildEmbed(featherPages, bookItems, roundName, guild = null) {
-  const embed = new EmbedBuilder()
-    .setTitle('📋 รายการที่ว่างอยู่')
-    .setColor(0x57F287)
-    .setFooter({ text: `Round: ${roundName} • /mystuff to view yours` })
-    .setTimestamp();
-
-  if (featherPages.size === 0 && bookItems.length === 0) {
-    embed.setDescription('ไม่มีรายการที่ว่างในขณะนี้ 🎉');
-    return embed;
-  }
-
-  // Album ขึ้นก่อน
-  if (bookItems.length > 0) {
-    const albumEmoji = resolveEmoji(ICONS.ALBUM, guild, '📒');
-    embed.addFields({
-      name: `${albumEmoji} Album`,
-      value: `มีรายการว่าง ${bookItems.length} รายการ`,
-    });
-  }
-
-  if (featherPages.size > 0) {
-    embed.addFields({
-      name: `${ICONS.FEATHER || '🪶'} Feather`,
-      value: `มีหน้าว่าง ${featherPages.size} หน้า`,
-    });
-  }
-  return embed;
-}
-
-/**
- * สร้าง ActionRows จาก buttons โดยแบ่งเป็น bundles (ข้อความละ 5 แถว)
- */
-function buildButtonBundles(featherPages, bookItems, guild = null) {
-  const bundles = [];
-  const allButtons = [];
-
-  // Album
-  for (const item of bookItems) {
-    allButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`${BTN_BOOK_PREFIX}${item.id}`)
-        .setLabel(`${item.page_name} #${item.position}`)
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji(resolveEmoji(ICONS.ALBUM, guild, '📒'))
-    );
-  }
-
-  // Feather
-  const sortedFeatherEntries = [...featherPages.entries()].sort((a, b) => {
-    const aHasLight = a[1].items.some(i => i.item_type === 'light-dark');
-    const bHasLight = b[1].items.some(i => i.item_type === 'light-dark');
-    if (aHasLight && !bHasLight) return -1;
-    if (!aHasLight && bHasLight) return 1;
-    return 0;
-  });
-
-  for (const [pageId, { page_name, items }] of sortedFeatherEntries) {
-    const types = [...new Set(items.map(i => i.item_type))]
-      .sort((a, b) => (TYPE_ORDER[a] ?? 9) - (TYPE_ORDER[b] ?? 9));
-
-    const hasLD = types.some(t => t.toLowerCase() === 'light-dark');
-    const hasTS = types.some(t => t.toLowerCase() === 'time-space');
-    const combinedEmoji = (hasLD && hasTS) ? '🤍❤️' : (hasTS ? '❤️' : '🤍');
-    const btnStyle = hasLD ? ButtonStyle.Success : ButtonStyle.Secondary;
-
-    allButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`${BTN_FEATHER_PREFIX}${pageId}`)
-        .setLabel(`${combinedEmoji} หน้า ${page_name}`)
-        .setStyle(btnStyle)
-    );
-  }
-
-  let currentRows = [];
-  for (let i = 0; i < allButtons.length; i += 5) {
-    const chunk = allButtons.slice(i, i + 5);
-    currentRows.push(new ActionRowBuilder().addComponents(chunk));
-
-    if (currentRows.length === 5) {
-      bundles.push(currentRows);
-      currentRows = [];
-    }
-  }
-  if (currentRows.length > 0) bundles.push(currentRows);
-  
-  return bundles;
-}
 
 /** ตรวจสอบความพร้อมของรอบ */
 async function checkEligibility(interaction) {
   const round = await db.getOrCreateCurrentRound();
-  if (round.status !== 'open') {
-    return { ok: false, msg: '❌ ขณะนี้ยังไม่ได้เปิดรับจอง หรือปิดรับจองไปแล้วครับ' };
-  }
+  if (!round || round.status !== 'open') return { ok: false, msg: '❌ รอบการจองปิดอยู่ครับ' };
   return { ok: true, round };
 }
 
-// ── Reserve helpers ──────────────────────────────────────────────
-
-async function reserveFeatherPage(interaction, pageId) {
-  const lockKey = `page_${pageId}`;
-  if (activeLocks.has(lockKey)) {
-    return interaction.reply({ content: '❌ มีคนกำลังทำการจองหน้านี้อยู่ครับ', ephemeral: true });
-  }
-  activeLocks.add(lockKey);
-
-  try {
-    await interaction.deferReply({ ephemeral: true });
-    const discordUserId = interaction.user.id;
-    const discordUsername = interaction.member?.displayName ?? interaction.user.username;
-
-  const check = await checkEligibility(interaction);
-  if (!check.ok) return interaction.editReply({ content: check.msg });
-  const { round } = check;
-
-    const myReservations = await db.getMyReservations(discordUserId, round.id);
+/** แสดงผลสถานะการจองทั้งหมด (Dashboard สรุปยอด - สำหรับ /mystuff) */
+async function renderUserStatus(interaction, discordUserId, round, successMsg = null) {
+  const myReservations = await db.getMyReservations(discordUserId, round.id);
   const quota = round.quota || 1;
   
-  // นับสิทธิ์: ขนนกนับเป็นจำนวนหน้า (Unique Page Names), Album นับเป็นชิ้น
   const featherPagesCount = new Set(myReservations.filter(r => FEATHER_TYPES.includes(r.item_type)).map(r => r.page_name)).size;
   const albumItemsCount = myReservations.filter(r => !FEATHER_TYPES.includes(r.item_type)).length;
   const currentUsage = featherPagesCount + albumItemsCount;
 
-  if (currentUsage >= quota) {
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองเก่า').setStyle(ButtonStyle.Danger)
-    );
-        // รวบข้อความตามหน้า
-    const grouped = {};
-    myReservations.forEach(r => {
-      if (!grouped[r.page_name]) grouped[r.page_name] = [];
-      grouped[r.page_name].push(r);
-    });
-    
-    const current = Object.keys(grouped).map(pageName => {
-      const items = grouped[pageName];
-      if (items.length >= 4) {
-        return `• **หน้า ${pageName}** (จองครบยกหน้า)`;
-      }
-      return `• **หน้า ${pageName}** (จองไว้ ${items.length} ชิ้น)`;
-    }).join('\n');
-    return interaction.editReply({
-      content: `❌ **${discordUsername}** คุณได้จองครบโควต้าแล้วในรอบนี้ (${quota >= 999 ? "ไม่จำกัดสิทธิ์" : "คนละ " + quota + " สิทธิ์"})\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
-      components: [row]
-    });
+  if (myReservations.length === 0) {
+    const content = (successMsg ? `${successMsg}\n\n` : '') + '✅ คุณไม่มีรายการจองค้างอยู่ครับ';
+    if (!interaction.deferred && !interaction.replied) return interaction.reply({ content, ephemeral: true });
+    return interaction.editReply({ content, components: [] });
   }
 
-  const allItems = await db.getItemsForPage(pageId);
-  const available = allItems.filter(i => FEATHER_TYPES.includes(i.item_type) && !i.reserved_by);
+  const grouped = {};
+  myReservations.forEach(r => { if (!grouped[r.page_name]) grouped[r.page_name] = []; grouped[r.page_name].push(r); });
+  
+  const currentList = Object.keys(grouped).map(pageName => {
+    const items = grouped[pageName];
+    if (items.length >= 4) return `• **หน้า ${pageName}** (ยกหน้า)`;
+    return `• **หน้า ${pageName}** (${items.length} ชิ้น)`;
+  }).join('\n');
 
-  if (available.length === 0) {
-    return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว' });
-  }
+  let rows = [];
+  let currentRow = new ActionRowBuilder();
+  Object.entries(grouped).forEach(([pageName, items]) => {
+    const isFeather = items.some(it => FEATHER_TYPES.includes(it.item_type));
+    const btn = new ButtonBuilder()
+      .setCustomId(isFeather ? `c_p_${items[0].page_id}` : `c_i_${items[0].item_id}`)
+      .setLabel(`❌ หน้า ${pageName}`)
+      .setStyle(ButtonStyle.Danger);
+    if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
+    currentRow.addComponents(btn);
+  });
+  
+  const cancelAllBtn = new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกทั้งหมด').setStyle(ButtonStyle.Danger);
+  if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
+  currentRow.addComponents(cancelAllBtn);
+  rows.push(currentRow);
 
-  try {
-    const itemIds = available.map(i => i.id);
-    await db.addMultipleReservations(round.id, itemIds, discordUserId, discordUsername);
-  } catch (err) {
-    if (err.message?.includes('UNIQUE') || err.code === '23505') {
-      return interaction.editReply({ content: '❌ หน้านี้ถูกจองแล้ว (มีบางชิ้นโดนแย่งจองไปก่อน)' });
-    }
-    console.error('[available] reserveFeatherPage error:', err);
-    return interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' });
-  }
+  const finalContent = (successMsg ? `${successMsg}\n\n` : '') + 
+                       `🎒 รายการทั้งหมดของคุณ (${currentUsage}/${quota}):\n${currentList}`;
 
-  await updateLiveBoard(interaction.client, round.id);
-
-  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
-  );
-
-  const devRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
-      .setURL(BRANDING.URL)
-      .setStyle(ButtonStyle.Link)
-  );
-
-  return interaction.editReply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow] });
-  } catch (err) {
-    console.error('[available] Outer error in reserveFeatherPage:', err);
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' }).catch(() => {});
-    } else {
-      await interaction.reply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true }).catch(() => {});
-    }
-  } finally {
-    activeLocks.delete(lockKey);
-  }
+  if (!interaction.deferred && !interaction.replied) return interaction.reply({ content: finalContent, components: rows.slice(0, 5), ephemeral: true });
+  return interaction.editReply({ content: finalContent, components: rows.slice(0, 5) });
 }
 
-
-async function reserveBookItem(interaction, itemId) {
-  const lockKey = `item_${itemId}`;
-  if (activeLocks.has(lockKey)) {
-    return interaction.reply({ content: '❌ มีคนกำลังทำการจองชิ้นนี้อยู่ครับ', ephemeral: true });
-  }
+async function reserveFeatherPage(interaction, pageId) {
+  const lockKey = `page_${pageId}`;
+  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', ephemeral: true }).catch(() => {});
   activeLocks.add(lockKey);
 
   try {
-    await interaction.deferReply({ ephemeral: true });
     const discordUserId = interaction.user.id;
     const discordUsername = interaction.member?.displayName ?? interaction.user.username;
+    const check = await checkEligibility(interaction);
+    if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
+    const { round } = check;
 
-  const check = await checkEligibility(interaction);
-  if (!check.ok) return interaction.editReply({ content: check.msg });
-  const { round } = check;
+    const myRes = await db.getMyReservations(discordUserId, round.id);
+    const quota = round.quota || 1;
+    const currentUsage = new Set(myRes.filter(r => FEATHER_TYPES.includes(r.item_type)).map(r => r.page_name)).size + myRes.filter(r => !FEATHER_TYPES.includes(r.item_type)).length;
 
-  const myReservations = await db.getMyReservations(discordUserId, round.id);
-  if (myReservations.length > 0) {
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองเก่า').setStyle(ButtonStyle.Danger)
-    );
-    const current = myReservations.map(r => `• **หน้า ${r.page_name}** ชิ้นที่ ${r.position} (${r.item_type})`).join('\n');
-    return interaction.editReply({
-      content: `❌ **${discordUsername}** คุณได้จองไปแล้วในรอบนี้ (คนละ 1 สิทธิ์)\n\n**รายการที่คุณจองไว้:**\n${current}\n\n💡 หากต้องการเปลี่ยนรายการ กรุณายกเลิกของเก่าด้วยปุ่มด้านล่าง หรือใช้คำสั่ง \`/mystuff\``,
-      components: [row]
-    });
-  }
+    if (currentUsage >= quota) return interaction.reply({ content: `❌ โควต้าเต็มแล้วครับ (${currentUsage}/${quota})`, ephemeral: true });
 
-  const ok = await db.isWhitelisted(discordUserId);
-  if (!ok) {
-    return interaction.editReply({
-      content: `❌ **${discordUsername}** ไม่สามารถจอง Album ได้ (ต้องอยู่ใน Whitelist)\n\nหน้า Feather (Light-Dark / Time-Space) สามารถจองได้ปกติครับ`
-    });
-  }
+    const allItems = await db.getItemsForPage(pageId, round.id);
+    const available = allItems.filter(i => FEATHER_TYPES.includes(i.item_type) && !i.reserved_by);
+    
+    if (available.length === 0) {
+      await updateLiveBoard(interaction.client, round.id);
+      return interaction.reply({ content: '❌ หน้านี้ถูกจองแล้วครับ', ephemeral: true });
+    }
 
-  const isReserved = await db.isItemReserved(round.id, itemId);
-  if (isReserved) {
-    return interaction.editReply({ content: '❌ Album ชิ้นนี้ถูกจองแล้ว' });
-  }
-
-  try {
-    await db.addReservation(round.id, itemId, discordUserId, discordUsername);
+    await db.addMultipleReservations(round.id, available.map(i => i.id), discordUserId, discordUsername);
     await updateLiveBoard(interaction.client, round.id);
-
-    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    
+    // Success - Minimal Response
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกการจองนี้').setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`c_p_${pageId}`).setLabel(`❌ ยกเลิกหน้า ${allItems[0].page_name}`).setStyle(ButtonStyle.Danger)
     );
+    return interaction.reply({ content: `✅ จองสำเร็จ! **หน้า ${allItems[0].page_name}**`, components: [row], ephemeral: true });
 
-    const devRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
-        .setURL(BRANDING.URL)
-        .setStyle(ButtonStyle.Link)
-    );
-
-    return interaction.editReply({ content: `✅ จองสำเร็จ! คุณสามารถยกเลิกได้หากเปลี่ยนใจ:`, components: [row, devRow] });
   } catch (err) {
-    if (err.message?.includes('UNIQUE') || err.code === '23505') {
-      return interaction.editReply({ content: '❌ Album ชิ้นนี้ถูกจองแล้ว' });
-    }
-    console.error('[available] reserveBookItem error:', err);
-    return interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' });
-  }
-  
-  } catch (err) {
-    console.error('[available] Outer error in reserveBookItem:', err);
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' }).catch(() => {});
-    } else {
-      await interaction.reply({ content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true }).catch(() => {});
-    }
+    await updateLiveBoard(interaction.client, 0); // Refresh if error
+    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', ephemeral: true }).catch(() => {});
   } finally {
     activeLocks.delete(lockKey);
   }
 }
 
-// ── Module exports ───────────────────────────────────────────────
+async function reserveBookItem(interaction, itemId) {
+  const lockKey = `item_${itemId}`;
+  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', ephemeral: true }).catch(() => {});
+  activeLocks.add(lockKey);
+
+  try {
+    const discordUserId = interaction.user.id;
+    const discordUsername = interaction.member?.displayName ?? interaction.user.username;
+    const check = await checkEligibility(interaction);
+    if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
+    const { round } = check;
+
+    const myRes = await db.getMyReservations(discordUserId, round.id);
+    if (myRes.length > 0) return interaction.reply({ content: '❌ โควต้าเต็มแล้วครับ', ephemeral: true });
+
+    const ok = await db.isWhitelisted(discordUserId);
+    if (!ok) return interaction.reply({ content: '❌ เฉพาะ Whitelist เท่านั้นครับ', ephemeral: true });
+
+    const item = await db.getItemById(itemId);
+    if (!item) return interaction.reply({ content: '❌ ไม่พบสินค้า', ephemeral: true });
+
+    if (await db.isItemReserved(round.id, itemId)) {
+       await updateLiveBoard(interaction.client, round.id);
+       return interaction.reply({ content: '❌ ถูกจองไปแล้วครับ', ephemeral: true });
+    }
+
+    await db.addReservation(round.id, itemId, discordUserId, discordUsername);
+    await updateLiveBoard(interaction.client, round.id);
+    
+    // Success - Minimal Response
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`c_i_${itemId}`).setLabel(`❌ ยกเลิก Album #${item.position}`).setStyle(ButtonStyle.Danger)
+    );
+    return interaction.reply({ content: `✅ จองสำเร็จ! **Album #${item.position}** (หน้า ${item.page_name})`, components: [row], ephemeral: true });
+
+  } catch (err) {
+    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', ephemeral: true }).catch(() => {});
+  } finally {
+    activeLocks.delete(lockKey);
+  }
+}
 
 module.exports = {
-  /** Router สำหรับ button interactions — เรียกจาก client.js */
+  data: new SlashCommandBuilder().setName('available').setDescription('ตรวจสอบสินค้าที่ว่างและทำการจอง'),
+  async execute(interaction) {
+    const check = await checkEligibility(interaction);
+    if (!check.ok) return interaction.reply({ content: check.msg, ephemeral: true });
+    const { round } = check;
+    const allItems = await db.getAvailableItems(round.id);
+    if (allItems.length === 0) return interaction.reply({ content: '📭 ไม่มีสินค้าว่างครับ', ephemeral: true });
+    const embed = new EmbedBuilder().setTitle('📦 รายการที่ว่าง').setColor(0x00FF00).setFooter({ text: `Round: ${round.name}` });
+    const grouped = {};
+    allItems.forEach(i => { if (!grouped[i.page_name]) grouped[i.page_name] = []; grouped[i.page_name].push(i); });
+    Object.entries(grouped).forEach(([pageName, items]) => {
+      embed.addFields({ name: `📄 หน้า ${pageName}`, value: items.map(i => `• #${i.position}`).join('\n'), inline: true });
+    });
+    const rows = [];
+    let currentRow = new ActionRowBuilder();
+    Object.entries(grouped).forEach(([pageName, items]) => {
+      const isFeather = items.some(i => FEATHER_TYPES.includes(i.item_type));
+      const btn = new ButtonBuilder().setCustomId(isFeather ? `reserve_p_${items[0].page_id}` : `reserve_i_${items[0].id}`).setLabel(`จองหน้า ${pageName}${isFeather ? '' : ' (Album)'}`).setStyle(isFeather ? ButtonStyle.Primary : ButtonStyle.Success);
+      if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
+      currentRow.addComponents(btn);
+    });
+    rows.push(currentRow);
+    await interaction.reply({ embeds: [embed], components: rows.slice(0, 5), ephemeral: true });
+  },
   async handleButton(interaction) {
     const id = interaction.customId;
     const { LB_FEATHER_PREFIX, LB_BOOK_PREFIX } = require('../liveboard');
-
-    if (id.startsWith(BTN_FEATHER_PREFIX) || id.startsWith(LB_FEATHER_PREFIX)) {
-      const prefix = id.startsWith(BTN_FEATHER_PREFIX) ? BTN_FEATHER_PREFIX : LB_FEATHER_PREFIX;
-      const pageId = parseInt(id.slice(prefix.length));
-      return await reserveFeatherPage(interaction, pageId);
+    if (id.startsWith('reserve_p_') || id.startsWith(LB_FEATHER_PREFIX)) {
+      const prefix = id.startsWith('reserve_p_') ? 'reserve_p_' : LB_FEATHER_PREFIX;
+      return await reserveFeatherPage(interaction, parseInt(id.slice(prefix.length)));
     }
-    if (id.startsWith(BTN_BOOK_PREFIX) || id.startsWith(LB_BOOK_PREFIX)) {
-      const prefix = id.startsWith(BTN_BOOK_PREFIX) ? BTN_BOOK_PREFIX : LB_BOOK_PREFIX;
-      const itemId = parseInt(id.slice(prefix.length));
-      return await reserveBookItem(interaction, itemId);
+    if (id.startsWith('reserve_i_') || id.startsWith(LB_BOOK_PREFIX)) {
+      const prefix = id.startsWith('reserve_i_') ? 'reserve_i_' : LB_BOOK_PREFIX;
+      return await reserveBookItem(interaction, parseInt(id.slice(prefix.length)));
     }
   },
-
-  /** Router สำหรับ dropdown fallback — เรียกจาก client.js */
   async handleSelect(interaction) {
-    if (interaction.customId === SELECT_FEATHER_PAGE_ID) {
-      return await reserveFeatherPage(interaction, parseInt(interaction.values[0]));
-    }
-    if (interaction.customId === SELECT_BOOK_ITEM_ID) {
-      return await reserveBookItem(interaction, parseInt(interaction.values[0]));
-    }
-    // สำหรับ Dropdown เพิ่มเติมจาก Live Board
     if (interaction.customId === 'lb_more_items') {
       const [type, id] = interaction.values[0].split(':');
       if (type === 'feather') return await reserveFeatherPage(interaction, parseInt(id));
       if (type === 'book') return await reserveBookItem(interaction, parseInt(id));
     }
-    // Dropdown สมุดแบบกะทัดรัด (> 5 ชิ้น)
-    if (interaction.customId.startsWith('lb_album_menu_')) {
-      return await reserveBookItem(interaction, parseInt(interaction.values[0]));
-    }
-    if (interaction.customId.startsWith('lb_ld_menu_') || interaction.customId.startsWith('lb_ts_menu_')) {
-      return await reserveFeatherPage(interaction, parseInt(interaction.values[0]));
-    }
+    if (interaction.customId.startsWith('lb_album_menu_')) return await reserveBookItem(interaction, parseInt(interaction.values[0]));
+    if (interaction.customId.startsWith('lb_ld_menu_') || interaction.customId.startsWith('lb_ts_menu_')) return await reserveFeatherPage(interaction, parseInt(interaction.values[0]));
   },
-
-
-  BTN_FEATHER_PREFIX,
-  BTN_BOOK_PREFIX,
-  SELECT_FEATHER_PAGE_ID,
-  SELECT_BOOK_ITEM_ID,
+  renderUserStatus,
 };
