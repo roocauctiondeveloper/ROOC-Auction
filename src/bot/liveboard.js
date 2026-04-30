@@ -11,7 +11,7 @@ const {
   ButtonStyle,
 } = require('discord.js');
 const db = require('../db/queries');
-const { ICONS, ITEM_TYPES } = require('../utils/constants');
+const { ICONS, ITEM_TYPES, BRANDING } = require('../utils/constants');
 const { resolveEmoji } = require('./utils/emoji');
 
 // Helper สำหรับหาข้อมูลแบบ Case-insensitive
@@ -37,7 +37,7 @@ const LB_BOOK_PREFIX = 'lb_b_';
  * แยก Message IDs แบบมีโครงสร้าง
  */
 function parseBoardIds(idStr) {
-  if (!idStr) return { emb: [], alb: [], ld: [], ts: [] };
+  if (!idStr) return { emb: [], alb: [], ld: [], ts: [], brd: [] };
   if (!idStr.includes('|')) {
     const ids = idStr.split(',');
     if (ids.length < 4) return { emb: ids, alb: [], ld: [], ts: [] };
@@ -56,6 +56,7 @@ function parseBoardIds(idStr) {
     if (key === 'ALB') result.alb = ids;
     if (key === 'LD') result.ld = ids;
     if (key === 'TS') result.ts = ids;
+    if (key === 'BRD') result.brd = ids;
   });
   return result;
 }
@@ -132,7 +133,7 @@ async function buildBoardEmbed(round, guild = null) {
   
   const finalEmbeds = embeds.slice(0, 10);
   finalEmbeds[0].setDescription(description);
-  finalEmbeds[finalEmbeds.length - 1].setFooter({ text: `Auto-updates on reserve • /mystuff to view yours` }).setTimestamp();
+  finalEmbeds[finalEmbeds.length - 1].setFooter({ text: 'Auto-updates on reserve' }).setTimestamp();
 
   return { embeds: finalEmbeds, totalItems, reservedCount };
 }
@@ -228,7 +229,22 @@ async function sendLiveBoard(client, channelId, round) {
     await sendGroup(ldBundles, ldIds, '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ');
     await sendGroup(tsBundles, tsIds, '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ');
 
-    const structuredIds = [`EMB:${embIds.join(',')}`, `ALB:${albIds.join(',')}`, `LD:${ldIds.join(',')}`, `TS:${tsIds.join(',')}`].join('|');
+    // 4. Send Branding Button
+    const brandingBtn = new ButtonBuilder()
+      .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
+      .setURL(BRANDING.URL)
+      .setStyle(ButtonStyle.Link);
+    const brandingRow = new ActionRowBuilder().addComponents(brandingBtn);
+    const brandingMsg = await channel.send({ components: [brandingRow] });
+
+    const structuredIds = [
+      `EMB:${embIds.join(',')}`, 
+      `ALB:${albIds.join(',')}`, 
+      `LD:${ldIds.join(',')}`, 
+      `TS:${tsIds.join(',')}`,
+      `BRD:${brandingMsg.id}`
+    ].join('|');
+
     await db.saveRoundBoardMessage(round.id, channelId, structuredIds);
     return { id: embIds[0] };
   } catch (err) {
@@ -282,8 +298,18 @@ async function _performUpdate(client, roundId) {
     updateBundleGroup(ldBundles, ids.ld, '🤍 ขนนก (LD)');
     updateBundleGroup(tsBundles, ids.ts, '❤️ ขนนก (TS)');
 
+    // Update Branding (Ensure it still exists and has the button)
+    if (ids.brd && ids.brd.length > 0) {
+      const brandingBtn = new ButtonBuilder()
+        .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
+        .setURL(BRANDING.URL)
+        .setStyle(ButtonStyle.Link);
+      const brandingRow = new ActionRowBuilder().addComponents(brandingBtn);
+      editPromises.push(channel.messages.edit(ids.brd[0], { components: [brandingRow] }).catch(() => null));
+    }
+
     await Promise.all(editPromises);
-    console.log(`✅ Live board updated for Round \${roundId}`);
+    console.log(`✅ Live board updated for Round ${roundId}`);
   } catch (err) {
     console.error('❌ Failed to update live board:', err);
   } finally {
@@ -308,11 +334,11 @@ async function closeLiveBoard(client, round) {
     
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
-      const closedEmbed = EmbedBuilder.from(embeds[i]).setTitle(`🛑 ปิดรับจองแล้ว — \${round.name}`).setColor(0xEF4444);
+      const closedEmbed = EmbedBuilder.from(embeds[i]).setTitle(`🛑 ปิดรับจองแล้ว — ${round.name}`).setColor(0xEF4444);
       editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [closedEmbed] }).catch(() => null));
     }
 
-    [...ids.alb, ...ids.ld, ...ids.ts].forEach(msgId => {
+    [...ids.alb, ...ids.ld, ...ids.ts, ...ids.brd].forEach(msgId => {
       editPromises.push(channel.messages.delete(msgId).catch(() => null));
     });
 
