@@ -298,15 +298,7 @@ async function _performUpdate(client, roundId) {
     updateBundleGroup(ldBundles, ids.ld, '🤍 ขนนก (LD)');
     updateBundleGroup(tsBundles, ids.ts, '❤️ ขนนก (TS)');
 
-    // Update Branding (Ensure it still exists and has the button)
-    if (ids.brd && ids.brd.length > 0) {
-      const brandingBtn = new ButtonBuilder()
-        .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
-        .setURL(BRANDING.URL)
-        .setStyle(ButtonStyle.Link);
-      const brandingRow = new ActionRowBuilder().addComponents(brandingBtn);
-      editPromises.push(channel.messages.edit(ids.brd[0], { components: [brandingRow] }).catch(() => null));
-    }
+
 
     await Promise.all(editPromises);
     console.log(`✅ Live board updated for Round ${roundId}`);
@@ -338,7 +330,7 @@ async function closeLiveBoard(client, round) {
       editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [closedEmbed] }).catch(() => null));
     }
 
-    [...ids.alb, ...ids.ld, ...ids.ts, ...ids.brd].forEach(msgId => {
+    [...ids.alb, ...ids.ld, ...ids.ts].forEach(msgId => {
       editPromises.push(channel.messages.delete(msgId).catch(() => null));
     });
 
