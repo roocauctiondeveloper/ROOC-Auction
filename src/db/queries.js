@@ -1,4 +1,6 @@
 const db = require('./database');
+const { formatThaiDate } = require('../utils/date');
+
 
 // ─── Initialization ──────────────────────────────────────────────────────────
 (async () => {
@@ -254,7 +256,13 @@ async function getCurrentRound() {
 async function getOrCreateCurrentRound() {
   let round = await db.get('SELECT * FROM rounds ORDER BY id DESC LIMIT 1');
   if (!round || round.status === 'closed') {
-    const name = `รอบประมูล ${new Date().toLocaleString('th-TH')}`;
+    const name = `รอบประมูล ${formatThaiDate(new Date(), { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })}`;
     const r = await db.run(
       'INSERT INTO rounds (name, status, quota) VALUES (?, ?, 1) RETURNING id',
       [name, 'preparing']

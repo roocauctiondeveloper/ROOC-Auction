@@ -35,7 +35,7 @@
               <td>
                 <span class="badge badge-blue"><%= r.reservation_count %> รายการ</span>
               </td>
-              <td><%= new Date(r.created_at).toLocaleString('th-TH') %></td>
+              <td><%= formatDate(r.created_at) %></td>
               <td style="text-align: right;">
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                   <a href="/history/<%= r.id %>" class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">View Details</a>

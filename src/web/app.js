@@ -153,6 +153,9 @@ app.use(async (req, res, next) => {
   res.locals.ICONS = ICONS;
   res.locals.ITEM_TYPES = ITEM_TYPES;
   res.locals.BRANDING = BRANDING;
+  const { formatThaiDate, formatThaiTime } = require('../utils/date');
+  res.locals.formatDate = formatThaiDate;
+  res.locals.formatTime = formatThaiTime;
   res.locals.displayItemType = (type) => {
     const entry = ITEM_TYPES[type];
     return entry ? `${entry.emoji} ${entry.label}` : type;

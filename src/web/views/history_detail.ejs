@@ -37,7 +37,7 @@
                 <%= i.item_pos %>. <%= displayItemType(i.item_type) %>
               </span>
               <% if (i.discord_user_id) { %>
-                <span title="เวลาจอง" style="font-size: 0.65rem; color: #94a3b8;"><%= i.reserved_at ? new Date(i.reserved_at).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) : '' %></span>
+                <span title="เวลาจอง" style="font-size: 0.65rem; color: #94a3b8;"><%= i.reserved_at ? formatTime(i.reserved_at) : '' %></span>
               <% } %>
             </div>
             
