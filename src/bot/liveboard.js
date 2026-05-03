@@ -66,7 +66,7 @@ function parseBoardIds(idStr) {
  */
 async function buildBoardEmbed(round, guild = null) {
   const allData = await db.getAllBoardData(round.id);
-  
+
   if (allData.length === 0) {
     const embed = new EmbedBuilder()
       .setTitle(`📋 Live Board — ${round.name}`)
@@ -88,7 +88,7 @@ async function buildBoardEmbed(round, guild = null) {
   let totalItems = 0;
   let reservedCount = 0;
   const embeds = [];
-  
+
   for (let i = 0; i < pages.length; i += 24) {
     const pageSlice = pages.slice(i, i + 24);
     const embed = new EmbedBuilder().setColor(0x57F287);
@@ -130,7 +130,7 @@ async function buildBoardEmbed(round, guild = null) {
 
   const remaining = totalItems - reservedCount;
   const description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\nพิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
-  
+
   const finalEmbeds = embeds.slice(0, 10);
   finalEmbeds[0].setDescription(description);
   finalEmbeds[finalEmbeds.length - 1].setFooter({ text: 'Auto-updates on reserve' }).setTimestamp();
@@ -173,9 +173,9 @@ async function buildBoardButtons(round, guild = null) {
     for (const item of items) {
       const id = type === 'album' ? item.id : item.page_id;
       let label = type === 'album' ? `หน้า ${item.page_name} #${item.position}` : `หน้า ${item.page_name}`;
-      
+
       const btn = new ButtonBuilder().setCustomId(`${prefix}${id}`).setLabel(label).setStyle(btnStyle);
-      if (type === 'album') btn.setEmoji(emojiStr);
+      if (emojiStr) btn.setEmoji(emojiStr);
       currentRow.addComponents(btn);
 
       if (currentRow.components.length === 5) {
@@ -194,8 +194,8 @@ async function buildBoardButtons(round, guild = null) {
 
   return {
     albumBundles: createGroupBundles(albums, 'album', resolveEmoji(ICONS.ALBUM, guild, '📒'), LB_BOOK_PREFIX, ButtonStyle.Primary),
-    ldBundles: createGroupBundles(ldPages, 'ld', null, LB_FEATHER_PREFIX, ButtonStyle.Success),
-    tsBundles: createGroupBundles(tsPages, 'ts', null, LB_FEATHER_PREFIX, ButtonStyle.Secondary)
+    ldBundles: createGroupBundles(ldPages, 'ld', resolveEmoji(ICONS.LIGHT_DARK, guild, '🤍'), LB_FEATHER_PREFIX, ButtonStyle.Success),
+    tsBundles: createGroupBundles(tsPages, 'ts', resolveEmoji(ICONS.TIME_SPACE, guild, '❤️'), LB_FEATHER_PREFIX, ButtonStyle.Secondary)
   };
 }
 
@@ -238,9 +238,9 @@ async function sendLiveBoard(client, channelId, round) {
     const brandingMsg = await channel.send({ components: [brandingRow] });
 
     const structuredIds = [
-      `EMB:${embIds.join(',')}`, 
-      `ALB:${albIds.join(',')}`, 
-      `LD:${ldIds.join(',')}`, 
+      `EMB:${embIds.join(',')}`,
+      `ALB:${albIds.join(',')}`,
+      `LD:${ldIds.join(',')}`,
       `TS:${tsIds.join(',')}`,
       `BRD:${brandingMsg.id}`
     ].join('|');
@@ -265,7 +265,7 @@ async function _performUpdate(client, roundId) {
     return;
   }
   activeUpdates.set(roundId, true);
-  
+
   try {
     const boardInfo = await db.getRoundBoardMessage(roundId);
     if (!boardInfo?.board_channel_id || !boardInfo?.board_message_id) return;
@@ -276,7 +276,7 @@ async function _performUpdate(client, roundId) {
     const ids = parseBoardIds(boardInfo.board_message_id);
     const { embeds } = await buildBoardEmbed({ id: roundId }, channel.guild);
     const { albumBundles, ldBundles, tsBundles } = await buildBoardButtons({ id: roundId }, channel.guild);
-    
+
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
       editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [embeds[i]] }).catch(() => null));
@@ -323,7 +323,7 @@ async function closeLiveBoard(client, round) {
 
     const ids = parseBoardIds(boardInfo.board_message_id);
     const { embeds } = await buildBoardEmbed(round, channel.guild);
-    
+
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
       const closedEmbed = EmbedBuilder.from(embeds[i]).setTitle(`🛑 ปิดรับจองแล้ว — ${round.name}`).setColor(0xEF4444);

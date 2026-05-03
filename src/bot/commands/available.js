@@ -16,10 +16,9 @@ async function checkEligibility(interaction) {
 async function renderUserStatus(interaction, discordUserId, round, successMsg = null) {
   const myReservations = await db.getMyReservations(discordUserId, round.id);
   const quota = round.quota || 1;
-  
+
   const featherPagesCount = new Set(myReservations.filter(r => FEATHER_TYPES.includes(r.item_type)).map(r => r.page_name)).size;
   const albumItemsCount = myReservations.filter(r => !FEATHER_TYPES.includes(r.item_type)).length;
-  const currentUsage = featherPagesCount + albumItemsCount;
 
   if (myReservations.length === 0) {
     const content = (successMsg ? `${successMsg}\n\n` : '') + '✅ คุณไม่มีรายการจองค้างอยู่ครับ';
@@ -29,7 +28,7 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
 
   const grouped = {};
   myReservations.forEach(r => { if (!grouped[r.page_name]) grouped[r.page_name] = []; grouped[r.page_name].push(r); });
-  
+
   const currentList = Object.keys(grouped).map(pageName => {
     const items = grouped[pageName];
     if (items.length >= 4) return `• **หน้า ${pageName}** (ยกหน้า)`;
@@ -47,14 +46,14 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
     if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
     currentRow.addComponents(btn);
   });
-  
+
   const cancelAllBtn = new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกทั้งหมด').setStyle(ButtonStyle.Danger);
   if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
   currentRow.addComponents(cancelAllBtn);
   rows.push(currentRow);
 
-  const finalContent = (successMsg ? `${successMsg}\n\n` : '') + 
-                       `🎒 รายการทั้งหมดของคุณ (${currentUsage}/${quota}):\n${currentList}`;
+  const finalContent = (successMsg ? `${successMsg}\n\n` : '') +
+    `🎒 รายการขนนกของคุณ (${featherPagesCount}/${quota})${albumItemsCount > 0 ? ' (+สมุด)' : ''}:\n${currentList}`;
 
   if (!interaction.deferred && !interaction.replied) return interaction.reply({ content: finalContent, components: rows.slice(0, 5), ephemeral: true });
   return interaction.editReply({ content: finalContent, components: rows.slice(0, 5) });
@@ -62,7 +61,7 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
 
 async function reserveFeatherPage(interaction, pageId) {
   const lockKey = `page_${pageId}`;
-  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', ephemeral: true }).catch(() => {});
+  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', ephemeral: true }).catch(() => { });
   activeLocks.add(lockKey);
 
   try {
@@ -74,13 +73,14 @@ async function reserveFeatherPage(interaction, pageId) {
 
     const myRes = await db.getMyReservations(discordUserId, round.id);
     const quota = round.quota || 1;
-    const currentUsage = new Set(myRes.filter(r => FEATHER_TYPES.includes(r.item_type)).map(r => r.page_name)).size + myRes.filter(r => !FEATHER_TYPES.includes(r.item_type)).length;
+    // นับเฉพาะขนนก (Light-Dark, Time-Space) ไม่นับสมุด
+    const currentUsage = new Set(myRes.filter(r => FEATHER_TYPES.includes(r.item_type)).map(r => r.page_name)).size;
 
-    if (currentUsage >= quota) return interaction.reply({ content: `❌ โควต้าเต็มแล้วครับ (${currentUsage}/${quota})`, ephemeral: true });
+    if (currentUsage >= quota) return interaction.reply({ content: `❌ โควต้าขนนกของคุณเต็มแล้วครับ (${currentUsage}/${quota})`, ephemeral: true });
 
     const allItems = await db.getItemsForPage(pageId, round.id);
     const available = allItems.filter(i => FEATHER_TYPES.includes(i.item_type) && !i.reserved_by);
-    
+
     if (available.length === 0) {
       await updateLiveBoard(interaction.client, round.id);
       return interaction.reply({ content: '❌ หน้านี้ถูกจองแล้วครับ', ephemeral: true });
@@ -88,7 +88,7 @@ async function reserveFeatherPage(interaction, pageId) {
 
     await db.addMultipleReservations(round.id, available.map(i => i.id), discordUserId, discordUsername);
     await updateLiveBoard(interaction.client, round.id);
-    
+
     // Success - Minimal Response
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`c_p_${pageId}`).setLabel(`❌ ยกเลิกหน้า ${allItems[0].page_name}`).setStyle(ButtonStyle.Danger)
@@ -97,7 +97,7 @@ async function reserveFeatherPage(interaction, pageId) {
 
   } catch (err) {
     await updateLiveBoard(interaction.client, 0); // Refresh if error
-    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', ephemeral: true }).catch(() => {});
+    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', ephemeral: true }).catch(() => { });
   } finally {
     activeLocks.delete(lockKey);
   }
@@ -105,7 +105,7 @@ async function reserveFeatherPage(interaction, pageId) {
 
 async function reserveBookItem(interaction, itemId) {
   const lockKey = `item_${itemId}`;
-  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', ephemeral: true }).catch(() => {});
+  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', ephemeral: true }).catch(() => { });
   activeLocks.add(lockKey);
 
   try {
@@ -116,7 +116,9 @@ async function reserveBookItem(interaction, itemId) {
     const { round } = check;
 
     const myRes = await db.getMyReservations(discordUserId, round.id);
-    if (myRes.length > 0) return interaction.reply({ content: '❌ โควต้าเต็มแล้วครับ', ephemeral: true });
+    // เช็คว่าเคยจองสมุด (Album) ไปหรือยัง (ขนนกไม่นับรวมโควต้าสมุด)
+    const hasAlbum = myRes.some(r => !FEATHER_TYPES.includes(r.item_type));
+    if (hasAlbum) return interaction.reply({ content: '❌ คุณจองสมุดไปแล้วครับ (จำกัด 1 เล่มต่อคน)', ephemeral: true });
 
     const ok = await db.isWhitelisted(discordUserId);
     if (!ok) return interaction.reply({ content: '❌ เฉพาะ Whitelist เท่านั้นครับ', ephemeral: true });
@@ -125,13 +127,13 @@ async function reserveBookItem(interaction, itemId) {
     if (!item) return interaction.reply({ content: '❌ ไม่พบสินค้า', ephemeral: true });
 
     if (await db.isItemReserved(round.id, itemId)) {
-       await updateLiveBoard(interaction.client, round.id);
-       return interaction.reply({ content: '❌ ถูกจองไปแล้วครับ', ephemeral: true });
+      await updateLiveBoard(interaction.client, round.id);
+      return interaction.reply({ content: '❌ ถูกจองไปแล้วครับ', ephemeral: true });
     }
 
     await db.addReservation(round.id, itemId, discordUserId, discordUsername);
     await updateLiveBoard(interaction.client, round.id);
-    
+
     // Success - Minimal Response
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`c_i_${itemId}`).setLabel(`❌ ยกเลิก Album #${item.position}`).setStyle(ButtonStyle.Danger)
@@ -139,7 +141,7 @@ async function reserveBookItem(interaction, itemId) {
     return interaction.reply({ content: `✅ จองสำเร็จ! **Album #${item.position}** (หน้า ${item.page_name})`, components: [row], ephemeral: true });
 
   } catch (err) {
-    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', ephemeral: true }).catch(() => {});
+    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', ephemeral: true }).catch(() => { });
   } finally {
     activeLocks.delete(lockKey);
   }
@@ -163,7 +165,19 @@ module.exports = {
     let currentRow = new ActionRowBuilder();
     Object.entries(grouped).forEach(([pageName, items]) => {
       const isFeather = items.some(i => FEATHER_TYPES.includes(i.item_type));
-      const btn = new ButtonBuilder().setCustomId(isFeather ? `reserve_p_${items[0].page_id}` : `reserve_i_${items[0].id}`).setLabel(`จองหน้า ${pageName}${isFeather ? '' : ' (Album)'}`).setStyle(isFeather ? ButtonStyle.Primary : ButtonStyle.Success);
+      const btn = new ButtonBuilder()
+        .setCustomId(isFeather ? `reserve_p_${items[0].page_id}` : `reserve_i_${items[0].id}`)
+        .setLabel(`จองหน้า ${pageName}${isFeather ? '' : ' (Album)'}`)
+        .setStyle(isFeather ? ButtonStyle.Primary : ButtonStyle.Success);
+
+      if (isFeather) {
+        const type = items[0].item_type.toLowerCase();
+        if (type === 'light-dark') btn.setEmoji(ICONS.LIGHT_DARK);
+        else if (type === 'time-space') btn.setEmoji(ICONS.TIME_SPACE);
+      } else {
+        btn.setEmoji(ICONS.ALBUM);
+      }
+
       if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
       currentRow.addComponents(btn);
     });
