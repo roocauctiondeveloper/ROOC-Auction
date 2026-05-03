@@ -399,7 +399,7 @@ async function autoAssignWhitelist(roundId) {
   // 1. Get active whitelist members
   const activeWhitelist = await getAllWhitelist(true);
   
-  // 2. Get available Album slots
+  // 2. Get available Album slots (that don't have any reservation in this round)
   const availableAlbums = await db.all(`
     SELECT i.id
     FROM items i
@@ -409,24 +409,19 @@ async function autoAssignWhitelist(roundId) {
   `, [roundId]);
 
   const assigned = [];
+  let albumIdx = 0; // ตัวชี้ตำแหน่งสินค้าที่ว่าง
   
-  // 3. Assign one by one
-  const count = Math.min(activeWhitelist.length, availableAlbums.length);
-  for (let i = 0; i < count; i++) {
-    const member = activeWhitelist[i];
-    const album = availableAlbums[i];
-    
-    // เช็คว่าคนนี้จอง "สมุด (Album)" ในรอบนี้ไปหรือยัง (ถ้ามีแค่ขนนก ให้ถือว่ายังไม่มีสมุดและจองให้ได้)
-    const existingAlbum = await db.get(`
-      SELECT 1 FROM reservations r
-      JOIN items i ON r.item_id = i.id
-      WHERE r.round_id = ? AND r.discord_user_id = ? AND i.item_type = 'Album'
-    `, [roundId, member.discord_user_id]);
+  // 3. วนลูปรายชื่อ Whitelist ทุกคน เพื่อแจกจ่ายสินค้าที่ว่างอยู่
+  for (const member of activeWhitelist) {
+    if (albumIdx >= availableAlbums.length) break;
+    if (!member.discord_user_id) continue;
 
-    if (!existingAlbum) {
-      await addReservation(roundId, album.id, member.discord_user_id, member.discord_username);
-      assigned.push(member.discord_username);
-    }
+    // จองให้ทันทีตามลำดับ โดยไม่สนใจว่าคนนี้จะมีรายการจองอื่นอยู่แล้วหรือไม่ 
+    // (เพื่อให้สามารถมี 2 เล่มได้ถ้าแอดมินจอง Manual ไว้ก่อนหน้า)
+    const album = availableAlbums[albumIdx];
+    await addReservation(roundId, album.id, member.discord_user_id, member.discord_username);
+    assigned.push(member.discord_username);
+    albumIdx++; // ขยับไปช่องสินค้าถัดไป
   }
   
   return assigned;
