@@ -416,9 +416,14 @@ async function autoAssignWhitelist(roundId) {
     const member = activeWhitelist[i];
     const album = availableAlbums[i];
     
-    // Check if user already has a reservation in this round (to be safe)
-    const existing = await db.all('SELECT 1 FROM reservations WHERE round_id = ? AND discord_user_id = ?', [roundId, member.discord_user_id]);
-    if (existing.length === 0) {
+    // เช็คว่าคนนี้จอง "สมุด (Album)" ในรอบนี้ไปหรือยัง (ถ้ามีแค่ขนนก ให้ถือว่ายังไม่มีสมุดและจองให้ได้)
+    const existingAlbum = await db.get(`
+      SELECT 1 FROM reservations r
+      JOIN items i ON r.item_id = i.id
+      WHERE r.round_id = ? AND r.discord_user_id = ? AND i.item_type = 'Album'
+    `, [roundId, member.discord_user_id]);
+
+    if (!existingAlbum) {
       await addReservation(roundId, album.id, member.discord_user_id, member.discord_username);
       assigned.push(member.discord_username);
     }

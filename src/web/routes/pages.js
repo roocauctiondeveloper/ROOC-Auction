@@ -69,7 +69,7 @@ router.post('/bulk-setup', async (req, res) => {
         await db.addItem(pageId, itemType, pos);
       }
     }
-
+    
     req.session.success_msg = `สร้างระบบเรียบร้อย: ทั้งหมด ${numPages} หน้า และสินค้า ${totalItems} ชิ้น`;
   } catch (err) {
     console.error(err);
