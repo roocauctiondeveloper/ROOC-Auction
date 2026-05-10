@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const db = require('../../db/queries');
-const { BRANDING, FEATHER_TYPES } = require('../../utils/constants');
+const { BRANDING, FEATHER_TYPES, ICONS } = require('../../utils/constants');
 const { updateLiveBoard } = require('../liveboard');
 
 const activeLocks = new Set();

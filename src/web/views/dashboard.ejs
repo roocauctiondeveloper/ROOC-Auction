@@ -117,8 +117,68 @@
 </div>
 <% } %>
 
-<!-- Preset Selection (Show only if preparing) -->
+<!-- Setup Sections (Show only if preparing) -->
 <% if (round && round.status === 'preparing') { %>
+<script>
+  function showFullLoading(message) {
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100vw';
+      overlay.style.height = '100vh';
+      overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+      overlay.style.zIndex = '9999';
+      overlay.style.display = 'flex';
+      overlay.style.flexDirection = 'column';
+      overlay.style.justifyContent = 'center';
+      overlay.style.alignItems = 'center';
+      
+      const spinner = document.createElement('div');
+      spinner.innerHTML = '⏳';
+      spinner.style.fontSize = '4rem';
+      spinner.style.animation = 'spin 2s linear infinite';
+      
+      const text = document.createElement('h2');
+      text.innerText = message;
+      text.style.color = 'var(--primary)';
+      text.style.marginTop = '1rem';
+      
+      overlay.appendChild(spinner);
+      overlay.appendChild(text);
+      document.body.appendChild(overlay);
+
+      if (!document.getElementById('spinner-style')) {
+        const style = document.createElement('style');
+        style.id = 'spinner-style';
+        style.innerHTML = '@keyframes spin { 100% { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
+      }
+  }
+
+  function applyPreset() {
+    const selector = document.getElementById('preset-selector');
+    const id = selector.value;
+    if (!id) return alert('กรุณาเลือก Preset ก่อนครับ');
+    
+    if (confirm('ยืนยันการใช้ Preset นี้? ระบบจะสร้าง Page และ Item ให้โดยอัตโนมัติ (รายการเก่าในรอบนี้จะยังอยู่)')) {
+      showFullLoading('กำลังสร้างรายการจาก Preset...');
+      const form = document.getElementById('apply-preset-form');
+      form.action = '/presets/apply/' + id;
+      form.submit();
+    }
+  }
+
+  function handleMultiplyForm(pctMsg) {
+    if (confirm(pctMsg + ' ระบบจะคำนวณจำนวนใหม่และเรียงไอเทมบนกระดานให้ใหม่ทั้งหมด')) {
+      showFullLoading('กำลังคำนวณและจัดเรียงไอเทมใหม่...');
+      return true;
+    }
+    return false;
+  }
+</script>
+
+  <% if (pagesCount === 0) { %>
 <div class="card" style="background: #fcfaff; border: 1px dashed var(--primary); margin-bottom: 2.5rem;">
   <div class="flex items-center space-between flex-desktop">
     <div>
@@ -139,56 +199,39 @@
     </div>
   </div>
 </div>
-
-<script>
-  function applyPreset() {
-    const selector = document.getElementById('preset-selector');
-    const id = selector.value;
-    if (!id) return alert('กรุณาเลือก Preset ก่อนครับ');
-    
-    if (confirm('ยืนยันการใช้ Preset นี้? ระบบจะสร้าง Page และ Item ให้โดยอัตโนมัติ (รายการเก่าในรอบนี้จะยังอยู่)')) {
-      // สร้าง Overlay บังทั้งหน้าจอ
-      const overlay = document.createElement('div');
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.width = '100vw';
-      overlay.style.height = '100vh';
-      overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
-      overlay.style.zIndex = '9999';
-      overlay.style.display = 'flex';
-      overlay.style.flexDirection = 'column';
-      overlay.style.justifyContent = 'center';
-      overlay.style.alignItems = 'center';
-      
-      const spinner = document.createElement('div');
-      spinner.innerHTML = '⏳';
-      spinner.style.fontSize = '4rem';
-      spinner.style.animation = 'spin 2s linear infinite';
-      
-      const text = document.createElement('h2');
-      text.innerText = 'กำลังสร้างรายการจาก Preset...';
-      text.style.color = 'var(--primary)';
-      text.style.marginTop = '1rem';
-      
-      overlay.appendChild(spinner);
-      overlay.appendChild(text);
-      document.body.appendChild(overlay);
-
-      // ใส่ style animation spin ถ้ายังไม่มี
-      if (!document.getElementById('spinner-style')) {
-        const style = document.createElement('style');
-        style.id = 'spinner-style';
-        style.innerHTML = '@keyframes spin { 100% { transform: rotate(360deg); } }';
-        document.head.appendChild(style);
-      }
-
-      const form = document.getElementById('apply-preset-form');
-      form.action = '/presets/apply/' + id;
-      form.submit();
-    }
-  }
-</script>
+  <% } else { %>
+<!-- Multiply Items Section -->
+<div class="card" style="background: #f0fdf4; border: 1px dashed #10b981; margin-bottom: 2.5rem;">
+  <div class="flex items-center space-between flex-desktop">
+    <div>
+      <h3 style="margin: 0; color: #065f46;">📈 Multiply / Boost Items</h3>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">เพิ่มจำนวนไอเทมทั้งหมดจากของที่มีอยู่ตอนนี้ตามเปอร์เซ็นต์ (ปัดเศษทิ้ง)</p>
+    </div>
+    <div style="margin-top: 1rem; flex-wrap: wrap; align-items: center;" class="flex gap-1">
+      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทม 50%?');">
+        <input type="hidden" name="percentage" value="50">
+        <button type="submit" class="btn" style="background: #10b981; color: white;">+50%</button>
+      </form>
+      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทม 70%?');">
+        <input type="hidden" name="percentage" value="70">
+        <button type="submit" class="btn" style="background: #10b981; color: white;">+70%</button>
+      </form>
+      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทม 100%?');">
+        <input type="hidden" name="percentage" value="100">
+        <button type="submit" class="btn" style="background: #059669; color: white;">+100% (x2)</button>
+      </form>
+      <form action="/pages/multiply" method="POST" class="flex gap-1" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทมตามที่ระบุ?');">
+        <input type="number" name="percentage" placeholder="Custom %" min="1" max="1000" class="form-control" style="width: 110px; padding: 0.6rem;" required>
+        <button type="submit" class="btn" style="background: var(--text); color: white;">Apply %</button>
+      </form>
+      <div style="width: 1px; height: 30px; background: #cbd5e1; margin: 0 0.5rem;"></div>
+      <form action="/pages/delete-all?redirect=/" method="POST" onsubmit="return confirm('ยืนยันล้างไอเทมทั้งหมดเพื่อตั้งค่าใหม่?');">
+        <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: var(--danger); background: white;">🗑️ ล้างกระดาน (Reset)</button>
+      </form>
+    </div>
+  </div>
+</div>
+  <% } %>
 <% } %>
 
 <!-- Live Progress -->

@@ -98,7 +98,78 @@ router.post('/delete-all', async (req, res) => {
   } catch (err) {
     req.session.error_msg = 'เกิดข้อผิดพลาดในการลบทั้งหมด';
   }
-  res.redirect('/pages');
+  const redirectUrl = req.query.redirect || '/pages';
+  res.redirect(redirectUrl);
+});
+
+// POST /pages/multiply
+router.post('/multiply', async (req, res) => {
+  const { percentage } = req.body;
+  const pct = parseInt(percentage);
+
+  if (!pct || pct <= 0) {
+    req.session.error_msg = 'เปอร์เซ็นต์ต้องมากกว่า 0';
+    return res.redirect('/');
+  }
+
+  try {
+    const round = await db.getOrCreateCurrentRound();
+    if (round.status !== 'preparing') {
+      req.session.error_msg = 'ต้องอยู่ในสถานะกำลังเตรียมของเท่านั้น';
+      return res.redirect('/');
+    }
+
+    const allData = await db.getAllBoardData(round.id);
+    let currentAlbum = 0;
+    let currentLD = 0;
+    let currentTS = 0;
+
+    for (const item of allData) {
+      const type = item.item_type.toLowerCase();
+      if (type === 'album') currentAlbum++;
+      else if (type === 'light-dark') currentLD++;
+      else if (type === 'time-space') currentTS++;
+    }
+
+    const addAlbum = Math.floor(currentAlbum * (pct / 100));
+    const addLD = Math.floor(currentLD * (pct / 100));
+    const addTS = Math.floor(currentTS * (pct / 100));
+
+    if (addAlbum === 0 && addLD === 0 && addTS === 0) {
+      req.session.error_msg = 'เพิ่ม 0 ชิ้น (จำนวนปัจจุบันน้อยเกินไปสำหรับการคำนวณ)';
+      return res.redirect('/');
+    }
+
+    // ล้างหน้าเก่าทั้งหมดเพื่อจัดเรียงใหม่ทั้งหมด
+    await db.deleteAllPages();
+
+    const queue = [];
+    const totalAlbum = currentAlbum + addAlbum;
+    const totalLD = currentLD + addLD;
+    const totalTS = currentTS + addTS;
+
+    for (let i = 0; i < totalAlbum; i++) queue.push('Album');
+    for (let i = 0; i < totalLD; i++) queue.push('Light-Dark');
+    for (let i = 0; i < totalTS; i++) queue.push('Time-Space');
+
+    const numPages = Math.ceil(queue.length / 4);
+
+    for (let p = 1; p <= numPages; p++) {
+      const pageName = p.toString();
+      const pageId = await db.addPage(pageName);
+      for (let pos = 1; pos <= 4; pos++) {
+        if (queue.length === 0) break;
+        await db.addItem(pageId, queue.shift(), pos);
+      }
+    }
+
+    req.session.success_msg = `เพิ่มจำนวนไอเทมอีก ${pct}% และจัดเรียงใหม่สำเร็จ! (+Album: ${addAlbum}, +LD: ${addLD}, +TS: ${addTS} รวมทั้งหมด ${numPages} หน้า)`;
+  } catch (err) {
+    console.error(err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการคูณจำนวนสินค้า';
+  }
+  
+  res.redirect('/');
 });
 
 module.exports = router;
