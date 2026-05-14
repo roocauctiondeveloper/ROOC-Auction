@@ -2,28 +2,28 @@
   <div>
     <h1>Admin Dashboard</h1>
     <% if (user.server_name || user.discord_username) { %>
-      <p style="color: var(--text-light); margin: 0;">ยินดีต้อนรับคุณ <%= user.server_name || user.discord_username %></p>
+      <p style="color: var(--text-light); margin: 0;">Welcome, <%= user.server_name || user.discord_username %></p>
     <% } else { %>
-      <p style="color: var(--text-light); margin: 0;">ยินดีต้อนรับ Admin</p>
+      <p style="color: var(--text-light); margin: 0;">Welcome, Admin</p>
     <% } %>
   </div>
   <div style="margin-top: 1rem;">
     <div id="round-status-container">
       <% if (round && round.status === 'preparing') { %>
         <div style="display: flex; gap: 1rem; align-items: center;">
-          <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 0.5rem 1rem;">เตรียมพร้อม (Preparing)</span>
-          <form action="/round/open" method="POST" onsubmit="return handleFormLoading(this, 'ยืนยันเปิดรับจอง? บอทจะประกาศลง Discord ทันที', 'กำลังเตรียมบอร์ด...');">
+          <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 0.5rem 1rem;">Preparing</span>
+          <form action="/round/open" method="POST" onsubmit="return handleFormLoading(this, 'Start the round? The bot will post to Discord immediately.', 'Opening...');">
             <button type="submit" class="btn btn-primary" style="background: var(--success);">
-              เปิดรับจอง (Start)
+              Start Round
             </button>
           </form>
         </div>
       <% } else if (round && round.status === 'open') { %>
         <div style="display: flex; gap: 1rem; align-items: center;">
-          <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 0.9rem; padding: 0.5rem 1rem;">กำลังเปิดรับจอง (OPEN)</span>
-          <form action="/round/close" method="POST" onsubmit="return handleFormLoading(this, 'ยืนยันปิดการจองรอบนี้?', 'กำลังปิดรับจอง...');">
+          <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 0.9rem; padding: 0.5rem 1rem;">OPEN</span>
+          <form action="/round/close" method="POST" onsubmit="return handleFormLoading(this, 'End the round?', 'Closing...');">
             <button type="submit" class="btn btn-danger">
-              ปิดการจอง (End Round)
+              End Round
             </button>
           </form>
         </div>
@@ -75,50 +75,86 @@
   </div>
 </div>
 
-<!-- Quota Management (Visible only if round is open or preparing) -->
-<% if (round) { %>
-<div class="card" style="border-left: 4px solid var(--secondary); margin-bottom: 2.5rem; background: #fffcf8;">
-  <div class="flex space-between items-center flex-desktop">
+<!-- Click Quota Management (Visible only when round is open) -->
+<% if (round && round.status === 'open') { %>
+<div class="card" style="border-left: 4px solid var(--primary); margin-bottom: 2.5rem; background: #f0fdf4;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
     <div>
-      <h3 style="margin: 0;">🎯 Quota Control</h3>
+      <h3 style="margin: 0; color: #065f46;">🖱️ Button Click Quota</h3>
       <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">
-        Current limit for Feathers: 
-        <strong style="color: var(--secondary); font-size: 1.1rem;">
-          <%= round.quota >= 999 ? 'Unlimited' : round.quota + ' items/person' %>
-        </strong>
-        <br><small style="color: #94a3b8;">*Album remains strictly 1 per person*</small>
+        Limit how many buttons a user can click. Current: <strong style="color: #059669;"><%= round.quota >= 999 ? 'Unlimited' : round.quota + ' Clicks' %></strong>
       </p>
-    </div>
-    <div style="display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap;">
-      <form action="/reservations/quota" method="POST">
-        <input type="hidden" name="quota" value="<%= (round.quota || 1) + 1 %>">
-        <button type="submit" class="btn btn-secondary" style="padding: 0.6rem 1.2rem; font-size: 0.85rem;">
-          <%= ICONS.PLUS || '➕' %> Increase Quota (+1)
-        </button>
-      </form>
-      
-      <form action="/reservations/quota" method="POST">
-        <input type="hidden" name="quota" value="999">
-        <button type="submit" class="btn btn-blue" style="padding: 0.6rem 1.2rem; font-size: 0.85rem; <%= round.quota >= 999 ? 'opacity: 0.5; pointer-events: none;' : '' %>">
-          <%= ICONS.UNLOCKED || '🔓' %> Unlimited
-        </button>
-      </form>
-
-      <% if (round.quota > 1) { %>
+      <div style="display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap;">
         <form action="/reservations/quota" method="POST">
-          <input type="hidden" name="quota" value="1">
-          <button type="submit" class="btn btn-outline" style="padding: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--danger); border-color: var(--danger);">
-            Reset to 1
-          </button>
+          <input type="hidden" name="quota" value="<%= round.quota >= 999 ? 2 : round.quota + 1 %>">
+          <button type="submit" class="btn" style="background: #10b981; color: white; padding: 0.6rem 1.2rem; font-weight: bold; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);">+1 Click</button>
         </form>
-      <% } %>
+        <form action="/reservations/quota" method="POST" onsubmit="return confirm('Reset click quota to 1?');">
+          <input type="hidden" name="quota" value="1">
+          <button type="submit" class="btn btn-secondary" style="padding: 0.6rem 1.2rem; font-weight: bold; border-radius: 8px;">🔄 Reset</button>
+        </form>
+        <form action="/reservations/quota" method="POST" onsubmit="return confirm('Set click quota to UNLIMITED? Users will be able to click as many times as they want.');">
+          <input type="hidden" name="quota" value="999">
+          <button type="submit" class="btn btn-blue" style="padding: 0.6rem 1.2rem; font-weight: bold; border-radius: 8px;">Unlimited</button>
+        </form>
+      </div>
     </div>
   </div>
 </div>
 <% } %>
 
-<!-- Setup Sections (Show only if preparing) -->
-<% if (round && round.status === 'preparing') { %>
+<!-- Feather Quota Management (Visible only if round is NOT open AND items exist) -->
+<% if (round && round.status !== 'open' && pagesCount > 0) { %>
+<div class="card" style="border-left: 4px solid var(--secondary); margin-bottom: 2.5rem; background: #fffcf8;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+    <!-- Light-Dark Quota -->
+    <div>
+      <h3 style="margin: 0;">🤍 LD Quota (White)</h3>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">
+        Limit: <strong style="color: #059669;"><%= round.quota_ld >= 999 ? 'Unlimited' : round.quota_ld + ' items' %></strong>
+      </p>
+      <form action="/reservations/quota" method="POST" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+        <input type="hidden" name="type" value="ld">
+        <input type="number" name="quota" value="<%= round.quota_ld >= 999 ? 1 : round.quota_ld %>" min="1" max="999" class="form-control" style="width: 100px; padding: 0.4rem;">
+        <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Set LD</button>
+      </form>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+        <form action="/reservations/quota" method="POST">
+          <input type="hidden" name="type" value="ld">
+          <input type="hidden" name="quota" value="999">
+          <button type="submit" class="btn btn-blue" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Unlimited</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Time-Space Quota -->
+    <div>
+      <h3 style="margin: 0;">❤️ TS Quota (Red)</h3>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">
+        Limit: <strong style="color: #dc2626;"><%= round.quota_ts >= 999 ? 'Unlimited' : round.quota_ts + ' items' %></strong>
+      </p>
+      <form action="/reservations/quota" method="POST" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+        <input type="hidden" name="type" value="ts">
+        <input type="number" name="quota" value="<%= round.quota_ts >= 999 ? 1 : round.quota_ts %>" min="1" max="999" class="form-control" style="width: 100px; padding: 0.4rem;">
+        <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Set TS</button>
+      </form>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+        <form action="/reservations/quota" method="POST">
+          <input type="hidden" name="type" value="ts">
+          <input type="hidden" name="quota" value="999">
+          <button type="submit" class="btn btn-blue" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Unlimited</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top: 1.5rem; font-size: 0.75rem; color: #94a3b8; border-top: 1px solid #fee2e2; padding-top: 1rem;">
+    *Albums and Boxes remain managed via spin wheel only. Users cannot reserve them directly on Discord.*
+  </p>
+</div>
+<% } %>
+
+<!-- Setup Sections (Show only if NOT open) -->
+<% if (round && round.status !== 'open') { %>
 <script>
   function showFullLoading(message) {
       const overlay = document.createElement('div');
@@ -159,10 +195,10 @@
   function applyPreset() {
     const selector = document.getElementById('preset-selector');
     const id = selector.value;
-    if (!id) return alert('กรุณาเลือก Preset ก่อนครับ');
+    if (!id) return alert('Please select a Preset');
     
-    if (confirm('ยืนยันการใช้ Preset นี้? ระบบจะสร้าง Page และ Item ให้โดยอัตโนมัติ (รายการเก่าในรอบนี้จะยังอยู่)')) {
-      showFullLoading('กำลังสร้างรายการจาก Preset...');
+    if (confirm('Apply this preset? (Automatically creates pages and items)')) {
+      showFullLoading('Applying Preset...');
       const form = document.getElementById('apply-preset-form');
       form.action = '/presets/apply/' + id;
       form.submit();
@@ -170,8 +206,8 @@
   }
 
   function handleMultiplyForm(pctMsg) {
-    if (confirm(pctMsg + ' ระบบจะคำนวณจำนวนใหม่และเรียงไอเทมบนกระดานให้ใหม่ทั้งหมด')) {
-      showFullLoading('กำลังคำนวณและจัดเรียงไอเทมใหม่...');
+    if (confirm(pctMsg + ' System will recalculate all items and re-sort the board.')) {
+      showFullLoading('Recalculating...');
       return true;
     }
     return false;
@@ -183,19 +219,19 @@
   <div class="flex items-center space-between flex-desktop">
     <div>
       <h3 style="margin: 0;">⚡ Fast Setup: Apply Item Preset</h3>
-      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">เลือกรูปแบบรายการสินค้าที่ตั้งไว้ เพื่อสร้างหน้าและไอเทมทั้งหมดในคลิกเดียว</p>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">Create all pages and items in one click using a saved preset template.</p>
     </div>
     <div style="margin-top: 1rem;">
       <form action="" id="apply-preset-form" method="POST" class="flex gap-1">
         <select id="preset-selector" class="form-control" style="min-width: 250px; padding: 0.6rem;">
-          <option value="">-- เลือก Preset ที่ต้องการ --</option>
+          <option value="">-- Select Preset --</option>
           <% presets.forEach(p => { %>
-            <option value="<%= p.id %>"><%= p.name %> (<%- ICONS.ALBUM %>:<%= p.album_count %>, <%- ICONS.LIGHT_DARK %>:<%= p.light_dark_count %>, <%- ICONS.TIME_SPACE %>:<%= p.time_space_count %>)</option>
+            <option value="<%= p.id %>"><%= p.name %> (<%- ICONS.ALBUM %>:<%= p.album_count %>, <%- ICONS.ILLUTION_BOX %>:<%= p.illution_box_count || 0 %>, <%- ICONS.LIGHT_DARK %>:<%= p.light_dark_count %>, <%- ICONS.TIME_SPACE %>:<%= p.time_space_count %>)</option>
           <% }) %>
         </select>
         <button type="button" class="btn" onclick="applyPreset()" style="background: var(--primary);">Apply</button>
       </form>
-      <a href="/presets" style="font-size: 0.75rem; color: var(--primary); display: block; margin-top: 0.5rem; text-align: right;">+ สร้าง/จัดการ Preset ใหม่</a>
+      <a href="/presets" style="font-size: 0.75rem; color: var(--primary); display: block; margin-top: 0.5rem; text-align: right;">+ Create/Manage Presets</a>
     </div>
   </div>
 </div>
@@ -205,28 +241,28 @@
   <div class="flex items-center space-between flex-desktop">
     <div>
       <h3 style="margin: 0; color: #065f46;">📈 Multiply / Boost Items</h3>
-      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">เพิ่มจำนวนไอเทมทั้งหมดจากของที่มีอยู่ตอนนี้ตามเปอร์เซ็นต์ (ปัดเศษทิ้ง)</p>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">Multiply current inventory by a percentage (rounded down).</p>
     </div>
     <div style="margin-top: 1rem; flex-wrap: wrap; align-items: center;" class="flex gap-1">
-      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทม 50%?');">
+      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('Increase inventory by 50%?');">
         <input type="hidden" name="percentage" value="50">
         <button type="submit" class="btn" style="background: #10b981; color: white;">+50%</button>
       </form>
-      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทม 70%?');">
+      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('Increase inventory by 70%?');">
         <input type="hidden" name="percentage" value="70">
         <button type="submit" class="btn" style="background: #10b981; color: white;">+70%</button>
       </form>
-      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทม 100%?');">
+      <form action="/pages/multiply" method="POST" onsubmit="return handleMultiplyForm('Double inventory?');">
         <input type="hidden" name="percentage" value="100">
         <button type="submit" class="btn" style="background: #059669; color: white;">+100% (x2)</button>
       </form>
-      <form action="/pages/multiply" method="POST" class="flex gap-1" onsubmit="return handleMultiplyForm('ยืนยันการเพิ่มจำนวนไอเทมตามที่ระบุ?');">
+      <form action="/pages/multiply" method="POST" class="flex gap-1" onsubmit="return handleMultiplyForm('Apply custom percentage?');">
         <input type="number" name="percentage" placeholder="Custom %" min="1" max="1000" class="form-control" style="width: 110px; padding: 0.6rem;" required>
         <button type="submit" class="btn" style="background: var(--text); color: white;">Apply %</button>
       </form>
       <div style="width: 1px; height: 30px; background: #cbd5e1; margin: 0 0.5rem;"></div>
-      <form action="/pages/delete-all?redirect=/" method="POST" onsubmit="return confirm('ยืนยันล้างไอเทมทั้งหมดเพื่อตั้งค่าใหม่?');">
-        <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: var(--danger); background: white;">🗑️ ล้างกระดาน (Reset)</button>
+      <form action="/pages/delete-all?redirect=/" method="POST" onsubmit="return confirm('Wipe all items and reset?');">
+        <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: var(--danger); background: white;">🗑️ Reset Board</button>
       </form>
     </div>
   </div>
@@ -239,7 +275,7 @@
   <div class="flex space-between items-center" style="margin-bottom: 2rem;">
     <div>
       <h3 style="margin: 0;">Live Progress / Items Overview</h3>
-      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">อัปเดตอัตโนมัติทุก 5 วินาที • <span id="last-update" style="font-weight: 600;">Loading...</span></p>
+      <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">Updates every 5 seconds • <span id="last-update" style="font-weight: 600;">Loading...</span></p>
     </div>
     <div style="text-align: right;" id="progress-badges">
        <span class="badge badge-success"><%= reservationsCount %> RESERVED</span>
@@ -275,6 +311,8 @@
 <script>
   const ITEM_TYPE_DISPLAY = { 
     'Album':      '<%- ITEM_TYPES["Album"] ? ITEM_TYPES["Album"].emoji + " " + ITEM_TYPES["Album"].label : "Album" %>', 
+    'Illution Box': '<%- ITEM_TYPES["Illution Box"] ? ITEM_TYPES["Illution Box"].emoji + " " + ITEM_TYPES["Illution Box"].label : "Box" %>',
+    'illution-box': '<%- ITEM_TYPES["Illution Box"] ? ITEM_TYPES["Illution Box"].emoji + " " + ITEM_TYPES["Illution Box"].label : "Box" %>',
     'Light-Dark': '<%- ITEM_TYPES["Light-Dark"] ? ITEM_TYPES["Light-Dark"].emoji + " " + ITEM_TYPES["Light-Dark"].label : "Light-Dark" %>', 
     'Time-Space': '<%- ITEM_TYPES["Time-Space"] ? ITEM_TYPES["Time-Space"].emoji + " " + ITEM_TYPES["Time-Space"].label : "Time-Space" %>',
     'light-dark': '<%- ITEM_TYPES["light-dark"] ? ITEM_TYPES["light-dark"].emoji + " " + ITEM_TYPES["light-dark"].label : "Light-Dark" %>',
@@ -302,7 +340,7 @@
       // Update Pages Container
       const container = document.getElementById('pages-container');
       if (data.pagesWithItems.length === 0) {
-        container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-light); border: 2px dashed #e2e8f0; border-radius: 12px; grid-column: 1/-1;">ยังไม่มีการสร้างหน้าประมูล</div>';
+        container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-light); border: 2px dashed #e2e8f0; border-radius: 12px; grid-column: 1/-1;">No pages created yet</div>';
       } else {
         const pagesHtml = data.pagesWithItems.map(p => {
           const reservedCount = p.items.filter(i => i.reserved_by).length;

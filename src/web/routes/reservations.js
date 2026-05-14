@@ -85,22 +85,10 @@ router.post('/:id/delete', async (req, res) => {
     const reservation = await db.getReservationById(resId);
 
     if (reservation) {
-      const { round_id, page_id, item_type, discord_user_id } = reservation;
-
-      // เช็คแบบไม่สนตัวพิมพ์เล็ก-ใหญ่ (Case-Insensitive)
-      const type = item_type.toLowerCase();
-
-      // ถ้าไม่ใช่ Album (คือเป็น Light-Dark หรือ Time-Space) ให้ลบยกหน้า
-      if (type !== 'album') {
-        await db.deletePageReservationsForUser(round_id, page_id, discord_user_id);
-        req.session.success_msg = `ยกเลิกการจองขนนกยกหน้า (${reservation.discord_username}) สำเร็จ`;
-      } else {
-        // ถ้าเป็น Album ลบแค่ชิ้นเดียว
-        await db.deleteReservation(resId);
-        req.session.success_msg = 'ลบข้อมูลการจองสำเร็จ';
-      }
+      // Always delete single item now that feathers are item-based
+      await db.deleteReservation(resId);
+      req.session.success_msg = `Cancelled reservation for ${reservation.discord_username}`;
     }
-
 
     // 📢 Update Live Board
     const currentRound = await db.getCurrentRound();
@@ -109,7 +97,7 @@ router.post('/:id/delete', async (req, res) => {
     }
   } catch (err) {
     console.error('[web] delete reservation error:', err);
-    req.session.error_msg = 'เกิดข้อผิดพลาดในการลบข้อมูลการจอง';
+    req.session.error_msg = 'Error cancelling reservation';
   }
   res.redirect('/reservations');
 });
@@ -117,21 +105,21 @@ router.post('/:id/delete', async (req, res) => {
 
 // POST /reservations/quota
 router.post('/quota', async (req, res) => {
-  const { quota } = req.body;
+  const { quota, type } = req.body;
   try {
     const currentRound = await db.getOrCreateCurrentRound();
-    // Allow 0 or null for "Unlimited" (we'll represent Unlimited as 999 or just 0 in UI)
     let newQuota = parseInt(quota);
     if (isNaN(newQuota)) {
-      req.session.error_msg = 'จำนวนโควต้าไม่ถูกต้อง';
+      req.session.error_msg = 'Invalid quota value';
       return res.redirect(req.get('Referrer') || '/reservations');
     }
     
-    await db.updateRoundQuota(currentRound.id, newQuota);
-    req.session.success_msg = `อัปเดตโควต้าการจองเป็น ${newQuota >= 999 ? 'ไม่จำกัด' : newQuota + ' ชิ้น'} เรียบร้อยแล้ว`;
+    await db.updateRoundQuota(currentRound.id, type, newQuota);
+    console.log(`[Admin] Quota updated: Round ${currentRound.id}, Type: ${type || 'General'}, Value: ${newQuota}`);
+    req.session.success_msg = `Updated ${type ? type.toUpperCase() : 'General'} quota to ${newQuota >= 999 ? 'Unlimited' : newQuota}`;
   } catch (err) {
     console.error('[web] update quota error:', err);
-    req.session.error_msg = 'เกิดข้อผิดพลาดในการอัปเดตโควต้า: ' + err.message;
+    req.session.error_msg = 'Failed to update quota: ' + err.message;
   }
   res.redirect(req.get('Referrer') || '/reservations');
 });

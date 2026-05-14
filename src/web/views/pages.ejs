@@ -1,43 +1,99 @@
 <div class="flex space-between items-center" style="margin-bottom: 2rem;">
-  <h1>Pages Management (จัดการหน้า)</h1>
+  <h1>Pages Management</h1>
 </div>
 
-<div class="card" style="border: 2px solid #e0e7ff; background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);">
-  <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
-    <div style="background: var(--primary); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">🚀</div>
-    <div>
-      <h3 style="color: var(--primary); margin: 0;">Bulk Reset & Setup (รีเซ็ตและตั้งค่าใหม่)</h3>
-      <p style="color: var(--text-light); font-size: 0.875rem; margin-top: 0.25rem;">
-        ล้างข้อมูลทั้งหมดแล้วสร้างหน้าใหม่พร้อมสินค้าตามจำนวนที่ระบุ (Album &raquo; Light-Dark &raquo; Time-Space)
-      </p>
+<div class="grid" style="gap: 1.5rem; margin-bottom: 2rem;">
+  <!-- Bulk Reset & Setup -->
+  <div class="card" style="border: 2px solid #e0e7ff; background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%); margin: 0;">
+    <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
+      <div style="background: var(--primary); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">🚀</div>
+      <div>
+        <h3 style="color: var(--primary); margin: 0;">Bulk Reset & Setup</h3>
+        <p style="color: var(--text-light); font-size: 0.875rem; margin-top: 0.25rem;">
+          Clears everything and creates new pages sorted by type (Album &raquo; Box &raquo; LD &raquo; TS)
+        </p>
+      </div>
     </div>
+    
+    <form action="/pages/bulk-setup" method="POST" onsubmit="return handleFormSubmit(this, 'WARNING: This will DELETE all existing pages and items. Continue?', 'Setting up...');">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.ALBUM %> Album</label>
+          <input type="number" name="card_total" min="0" value="0" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.ILLUTION_BOX %> Box</label>
+          <input type="number" name="box_total" min="0" value="0" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.LIGHT_DARK %> LD</label>
+          <input type="number" name="white_total" min="0" value="0" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.TIME_SPACE %> TS</label>
+          <input type="number" name="black_total" min="0" value="0" required>
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit" style="width: 100%; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);">Wipe & Generate All</button>
+    </form>
   </div>
-  
-  <form action="/pages/bulk-setup" method="POST" onsubmit="return confirm('คำเตือน: ข้อมูลหน้าและสินค้าเดิมจะถูกลบทั้งหมดเพื่อเริ่มใหม่ ยืนยันหรือไม่?');">
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label><%- ICONS.ALBUM %> Album ทั้งหมด</label>
-        <input type="number" name="card_total" min="0" value="0" required>
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label><%- ICONS.LIGHT_DARK %> Light-Dark ทั้งหมด</label>
-        <input type="number" name="white_total" min="0" value="0" required>
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label><%- ICONS.TIME_SPACE %> Time-Space ทั้งหมด</label>
-        <input type="number" name="black_total" min="0" value="0" required>
+
+  <!-- Add to Current -->
+  <div class="card" style="border: 2px solid #ecfdf5; background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); margin: 0;">
+    <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem;">
+      <div style="background: var(--success); color: white; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">➕</div>
+      <div>
+        <h3 style="color: var(--success); margin: 0;">Add Items to Current</h3>
+        <p style="color: var(--text-light); font-size: 0.875rem; margin-top: 0.25rem;">
+          Inject items into current inventory and re-sort all pages.
+        </p>
       </div>
     </div>
-    <button class="btn btn-primary" type="submit" style="width: 100%; box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);">Generate All Pages & Items (สร้างทั้งหมด)</button>
-  </form>
+    
+    <form action="/pages/bulk-add" method="POST" onsubmit="return handleFormSubmit(this, 'Inject these items and re-sort all pages?', 'Injecting...');">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.ALBUM %> +Album</label>
+          <input type="number" name="card_add" min="0" value="0" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.ILLUTION_BOX %> +Box</label>
+          <input type="number" name="box_add" min="0" value="0" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.LIGHT_DARK %> +LD</label>
+          <input type="number" name="white_add" min="0" value="0" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label><%- ICONS.TIME_SPACE %> +TS</label>
+          <input type="number" name="black_add" min="0" value="0" required>
+        </div>
+      </div>
+      <button id="inject-btn" class="btn" style="width: 100%; background: var(--success); border: none; color: white; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);">Inject & Re-sort</button>
+    </form>
+  </div>
 </div>
+
+<script>
+  function handleFormSubmit(form, confirmMsg, loadingText) {
+    if (!confirm(confirmMsg)) return false;
+    const btn = form.querySelector('button[type="submit"]') || form.querySelector('.btn');
+    if (btn) {
+      btn.innerHTML = `⏳ ${loadingText}`;
+      btn.disabled = true;
+      btn.style.opacity = '0.7';
+      btn.style.cursor = 'wait';
+    }
+    return true;
+  }
+</script>
 
 <div class="card">
   <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
-    <h3 style="margin: 0;">All Pages (หน้าทั้งหมด) (<%= pages.length %>)</h3>
+    <h3 style="margin: 0;">All Pages (<%= pages.length %>)</h3>
     <% if (pages.length > 0) { %>
-      <form action="/pages/delete-all" method="POST" class="ajax-delete" data-confirm="ยืนยันลบข้อมูลหน้าและสินค้าทั้งหมดจริงๆ ใช่ไหม?">
-        <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete All (ลบทั้งหมด)</button>
+      <form action="/pages/delete-all" method="POST" class="ajax-delete" data-confirm="Are you sure you want to delete ALL pages and items?">
+        <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete All</button>
       </form>
     <% } %>
   </div>
@@ -51,9 +107,9 @@
         <thead>
           <tr>
             <th>Page ID</th>
-            <th>Name (ชื่อ)</th>
-            <th>Items Status (สถานะ)</th>
-            <th style="text-align: right;">Actions (จัดการ)</th>
+            <th>Name</th>
+            <th>Items Status</th>
+            <th style="text-align: right;">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -71,9 +127,9 @@
               </td>
               <td style="text-align: right;">
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                  <a href="/items/page/<%= p.id %>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Edit Items (แก้ไข)</a>
-                  <form action="/pages/<%= p.id %>/delete" method="POST" class="ajax-delete" data-confirm="ยืนยันลบหน้านี้และสินค้าทั้งหมดในหน้านี้?" style="display:inline;">
-                    <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete (ลบ)</button>
+                  <a href="/items/page/<%= p.id %>" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Edit Items</a>
+                  <form action="/pages/<%= p.id %>/delete" method="POST" class="ajax-delete" data-confirm="Delete this page and all items?" style="display:inline;">
+                    <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Delete</button>
                   </form>
                 </div>
               </td>

@@ -6,8 +6,15 @@ const { formatThaiDate } = require('../utils/date');
 (async () => {
   try {
     await db.run('CREATE TABLE IF NOT EXISTS user_dashboards (user_id TEXT PRIMARY KEY, thread_id TEXT, message_id TEXT)');
+    
+    // Migrations
+    await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota INTEGER DEFAULT 1');
+    await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota_ld INTEGER DEFAULT 1');
+    await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota_ts INTEGER DEFAULT 1');
+    await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_channel_id TEXT');
+    await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_message_id TEXT');
   } catch (err) {
-    console.error('❌ Failed to initialize user_dashboards table:', err);
+    console.error('❌ Failed to initialize database tables:', err);
   }
 })();
 
@@ -135,11 +142,11 @@ async function getCurrentReservations() {
       r.discord_username,
       MIN(r.reserved_at) as reserved_at,
       CASE 
-        WHEN MAX(i.item_type) = 'Album' THEN 'Album'
+        WHEN MAX(i.item_type) IN ('Album', 'Illution Box') THEN MAX(i.item_type)
         ELSE 'Page-Based'
       END as display_type,
       CASE 
-        WHEN MAX(i.item_type) = 'Album' THEN MAX(i.item_type) || ' ชิ้นที่ ' || MAX(i.position)
+        WHEN MAX(i.item_type) IN ('Album', 'Illution Box') THEN MAX(i.item_type) || ' ชิ้นที่ ' || MAX(i.position)
         ELSE 'ยกหน้า (' || COUNT(r.id) || ' ชิ้น)'
       END as item_display_name
     FROM reservations r
@@ -152,7 +159,7 @@ async function getCurrentReservations() {
       p.name, 
       r.discord_user_id, 
       r.discord_username,
-      (CASE WHEN i.item_type = 'Album' THEN i.id ELSE 0 END)
+      (CASE WHEN i.item_type IN ('Album', 'Illution Box') THEN i.id ELSE 0 END)
     ORDER BY reserved_at DESC
   `, [round.id]);
 }
@@ -264,16 +271,25 @@ async function getOrCreateCurrentRound() {
       minute: '2-digit' 
     })}`;
     const r = await db.run(
-      'INSERT INTO rounds (name, status, quota) VALUES (?, ?, 1) RETURNING id',
+      'INSERT INTO rounds (name, status, quota, quota_ld, quota_ts) VALUES (?, ?, 1, 1, 1) RETURNING id',
       [name, 'preparing']
     );
-    round = { id: r.lastInsertRowid, name, status: 'preparing', quota: 1 };
+    round = { id: r.lastInsertRowid, name, status: 'preparing', quota: 1, quota_ld: 1, quota_ts: 1 };
   }
   return round;
 }
 
-async function updateRoundQuota(roundId, quota) {
+async function updateRoundQuota(roundId, type, quota) {
+  if (type === 'ld') {
+    return db.run('UPDATE rounds SET quota_ld = ? WHERE id = ?', [quota, roundId]);
+  } else if (type === 'ts') {
+    return db.run('UPDATE rounds SET quota_ts = ? WHERE id = ?', [quota, roundId]);
+  }
   return db.run('UPDATE rounds SET quota = ? WHERE id = ?', [quota, roundId]);
+}
+
+async function getRoundById(id) {
+  return db.get('SELECT * FROM rounds WHERE id = ?', [id]);
 }
 
 async function updateRoundStatus(roundId, status) {
@@ -404,8 +420,8 @@ async function autoAssignWhitelist(roundId) {
     SELECT i.id
     FROM items i
     LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = ?
-    WHERE i.item_type = 'Album' AND r.id IS NULL
-    ORDER BY i.id ASC
+    WHERE i.item_type IN ('Album', 'Illution Box') AND r.id IS NULL
+    ORDER BY (CASE WHEN i.item_type = 'Album' THEN 1 ELSE 2 END) ASC, i.id ASC
   `, [roundId]);
 
   const assigned = [];
@@ -499,18 +515,18 @@ async function getPresetById(id) {
   return db.get('SELECT * FROM item_presets WHERE id = ?', [id]);
 }
 
-async function addPreset(name, albumCount, lightDarkCount, timeSpaceCount) {
+async function addPreset(name, albumCount, illutionBoxCount, lightDarkCount, timeSpaceCount) {
   const r = await db.run(
-    'INSERT INTO item_presets (name, album_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?) RETURNING id',
-    [name, albumCount, lightDarkCount, timeSpaceCount]
+    'INSERT INTO item_presets (name, album_count, illution_box_count, light_dark_count, time_space_count) VALUES (?, ?, ?, ?, ?) RETURNING id',
+    [name, albumCount, illutionBoxCount, lightDarkCount, timeSpaceCount]
   );
   return r.lastInsertRowid;
 }
 
-async function updatePreset(id, name, albumCount, lightDarkCount, timeSpaceCount) {
+async function updatePreset(id, name, albumCount, illutionBoxCount, lightDarkCount, timeSpaceCount) {
   return db.run(
-    'UPDATE item_presets SET name = ?, album_count = ?, light_dark_count = ?, time_space_count = ? WHERE id = ?',
-    [name, albumCount, lightDarkCount, timeSpaceCount, id]
+    'UPDATE item_presets SET name = ?, album_count = ?, illution_box_count = ?, light_dark_count = ?, time_space_count = ? WHERE id = ?',
+    [name, albumCount, illutionBoxCount, lightDarkCount, timeSpaceCount, id]
   );
 }
 
@@ -523,7 +539,7 @@ module.exports = {
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
   getCurrentReservations, getReservationsByRound, addReservation, addMultipleReservations, deleteReservation, isItemReserved,
   getReservationById, deletePageReservationsForUser, deleteAllUserReservationsInRound, deleteSingleReservation,
-  getCurrentRound, getOrCreateCurrentRound, updateRoundStatus,
+  getCurrentRound, getOrCreateCurrentRound, getRoundById, updateRoundStatus,
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
   saveRoundSnapshot, getRoundHistoryItems,

@@ -2,7 +2,7 @@
   <div>
     <a href="/whitelist" style="text-decoration: none; color: var(--primary); font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-        กลับไปหน้า Whitelist
+        Back to Whitelist
     </a>
     <h1>History: <%= member.discord_username %></h1>
   </div>
@@ -18,7 +18,7 @@
   <div class="flex-desktop flex space-between items-center" style="margin-bottom: 2rem;">
     <div>
         <h3 style="margin: 0;">Lottery Results Timeline</h3>
-        <p style="color: var(--text-light); font-size: 0.9rem;">ประวัติการสุ่มทั้งหมดที่ผู้เล่นคนนี้เข้ารวม</p>
+        <p style="color: var(--text-light); font-size: 0.9rem;">Complete history of lottery participations for this member.</p>
     </div>
     <div class="flex" style="gap: 2rem;">
         <div style="text-align: center;">
@@ -44,7 +44,7 @@
       <tbody>
         <% if (history.length === 0) { %>
           <tr>
-            <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-light);">ยังไม่มีประวัติการร่วมสุ่ม</td>
+            <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-light);">No participation history found.</td>
           </tr>
         <% } else { %>
           <% for(let entry of history) { %>

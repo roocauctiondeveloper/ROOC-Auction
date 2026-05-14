@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS pages (
 CREATE TABLE IF NOT EXISTS items (
     id         SERIAL PRIMARY KEY,
     page_id    INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-    item_type  TEXT NOT NULL CHECK (item_type IN ('Album', 'Light-Dark', 'Time-Space')),
+    item_type  TEXT NOT NULL CHECK (item_type IN ('Album', 'Illution Box', 'Light-Dark', 'Time-Space')),
     position   INTEGER NOT NULL CHECK (position BETWEEN 1 AND 4),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (page_id, position)
@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS item_presets (
     id               SERIAL PRIMARY KEY,
     name             TEXT NOT NULL,
     album_count      INTEGER NOT NULL,
+    illution_box_count INTEGER NOT NULL DEFAULT 0,
     light_dark_count INTEGER NOT NULL,
     time_space_count INTEGER NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()

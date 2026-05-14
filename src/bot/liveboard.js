@@ -28,6 +28,7 @@ const getEmoji = (t, guild = null) => {
 };
 
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
+const BOOK_TYPES = ['Album', 'Illution Box', 'album', 'illution-box'];
 
 // Button prefix สำหรับ live board (แยกจาก /available)
 const LB_FEATHER_PREFIX = 'lb_f_';
@@ -38,17 +39,19 @@ const LB_BOOK_PREFIX = 'lb_b_';
  */
 function parseBoardIds(idStr) {
   if (!idStr) return { emb: [], alb: [], ld: [], ts: [], brd: [] };
+  const result = { emb: [], alb: [], ld: [], ts: [], brd: [] };
+
   if (!idStr.includes('|')) {
     const ids = idStr.split(',');
-    if (ids.length < 4) return { emb: ids, alb: [], ld: [], ts: [] };
-    const emb = ids.slice(0, ids.length - 3);
-    const alb = [ids[ids.length - 3]];
-    const ld = [ids[ids.length - 2]];
-    const ts = [ids[ids.length - 1]];
-    return { emb, alb, ld, ts };
+    if (ids.length < 4) return { ...result, emb: ids };
+    result.emb = ids.slice(0, ids.length - 3);
+    result.alb = [ids[ids.length - 3]];
+    result.ld = [ids[ids.length - 2]];
+    result.ts = [ids[ids.length - 1]];
+    return result;
   }
+
   const parts = idStr.split('|');
-  const result = { emb: [], alb: [], ld: [], ts: [] };
   parts.forEach(p => {
     const [key, val] = p.split(':');
     const ids = val ? val.split(',').filter(x => x) : [];
@@ -89,8 +92,8 @@ async function buildBoardEmbed(round, guild = null) {
   let reservedCount = 0;
   const embeds = [];
 
-  for (let i = 0; i < pages.length; i += 24) {
-    const pageSlice = pages.slice(i, i + 24);
+  for (let i = 0; i < pages.length; i += 18) {
+    const pageSlice = pages.slice(i, i + 18);
     const embed = new EmbedBuilder().setColor(0x57F287);
     if (i === 0) embed.setTitle(`📋 Live Board — ${round.name}`);
 
@@ -132,8 +135,13 @@ async function buildBoardEmbed(round, guild = null) {
   const description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\nพิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
 
   const finalEmbeds = embeds.slice(0, 10);
-  finalEmbeds[0].setDescription(description);
-  finalEmbeds[finalEmbeds.length - 1].setFooter({ text: 'Auto-updates on reserve' }).setTimestamp();
+  if (finalEmbeds.length > 0) {
+    finalEmbeds[0].setDescription(description);
+    finalEmbeds[finalEmbeds.length - 1].setFooter({ text: 'Auto-updates on reserve' }).setTimestamp();
+  }
+
+  const totalChars = finalEmbeds.reduce((sum, emb) => sum + (JSON.stringify(emb.data).length), 0);
+  console.log(`📊 Embeds built: ${finalEmbeds.length} messages, Total approx chars: ${totalChars}`);
 
   return { embeds: finalEmbeds, totalItems, reservedCount };
 }
@@ -143,60 +151,152 @@ async function buildBoardEmbed(round, guild = null) {
  */
 async function buildBoardButtons(round, guild = null) {
   const availableItems = await db.getAvailableItems(round.id);
-  if (availableItems.length === 0) return { albumBundles: [], ldBundles: [], tsBundles: [] };
+  if (availableItems.length === 0) return { ldBundles: [], tsBundles: [] };
 
-  const albums = [];
-  const featherPagesMap = new Map();
+  const ldItems = availableItems.filter(i => i.item_type.toLowerCase() === 'light-dark');
+  const tsItems = availableItems.filter(i => i.item_type.toLowerCase() === 'time-space');
 
-  for (const item of availableItems) {
-    const t = item.item_type.toLowerCase();
-    if (t === 'album') {
-      albums.push(item);
-    } else {
-      if (!featherPagesMap.has(item.page_id)) {
-        featherPagesMap.set(item.page_id, { page_name: item.page_name, page_id: item.page_id, items: [] });
-      }
-      featherPagesMap.get(item.page_id).items.push(item);
+  const formatSetLabel = (items) => {
+    const pages = {};
+    items.forEach(i => {
+      if (!pages[i.page_name]) pages[i.page_name] = [];
+      pages[i.page_name].push(i.position);
+    });
+
+    const pageLabels = Object.entries(pages).map(([pageNum, posList]) => {
+      posList.sort((a, b) => a - b);
+      return `P.${pageNum} [${posList.join(', ')}]`;
+    });
+
+    let finalLabel = pageLabels.join(' | ');
+    if (finalLabel.length > 55) {
+      finalLabel = pageLabels.join(' | ').substring(0, 52) + '...';
     }
-  }
+    return `${finalLabel} (x${items.length})`;
+  };
 
-  const ldPages = [], tsPages = [];
-  for (const page of featherPagesMap.values()) {
-    if (page.items.some(i => i.item_type.toLowerCase() === 'light-dark')) ldPages.push(page);
-    else tsPages.push(page);
-  }
+  const createBundleRow = (type, items, quota, emojiStr, prefix, btnStyle) => {
+    if (items.length === 0) return [];
+    
+    const bundleSize = quota || 1;
+    const allSubChunks = [];
 
-  const createGroupBundles = (items, type, emojiStr, prefix, btnStyle) => {
-    const bundles = [];
-    let currentRows = [], currentRow = new ActionRowBuilder();
+    if (bundleSize < 4) {
+      // Logic A: Quota < 4 -> Strict Quota Sets (Allow mixing pages)
+      for (let i = 0; i < items.length; i += bundleSize) {
+        allSubChunks.push(items.slice(i, i + bundleSize));
+      }
+    } else {
+      // Logic B: Quota >= 4 -> Page-First Grouping with Batch Splitting (4s first, then 2s)
+      const itemsByPage = {};
+      items.forEach(item => {
+        if (!itemsByPage[item.page_name]) itemsByPage[item.page_name] = [];
+        itemsByPage[item.page_name].push(item);
+      });
 
-    for (const item of items) {
-      const id = type === 'album' ? item.id : item.page_id;
-      let label = type === 'album' ? `หน้า ${item.page_name} #${item.position}` : `หน้า ${item.page_name}`;
+      // Calculate ideal sub-chunks for this quota (e.g., 6 -> [4, 2], so targetSize = 2)
+      const idealSizes = [];
+      let rem = bundleSize;
+      while (rem > 0) {
+        if (rem >= 4) { idealSizes.push(4); rem -= 4; }
+        else { idealSizes.push(rem); rem = 0; }
+      }
+      const targetSize = idealSizes.length > 1 ? idealSizes[idealSizes.length - 1] : 4;
 
-      const btn = new ButtonBuilder().setCustomId(`${prefix}${id}`).setLabel(label).setStyle(btnStyle);
-      if (emojiStr) btn.setEmoji(emojiStr);
+      const sortedPageNames = Object.keys(itemsByPage).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      
+      const fullPages = sortedPageNames.filter(name => itemsByPage[name].length === 4);
+      
+      let numSplit = 0;
+      if (targetSize < 4) {
+        const piecesPerPage = Math.floor(4 / targetSize);
+        numSplit = Math.floor(fullPages.length / (piecesPerPage + 1));
+      }
+      const numKeep = fullPages.length - numSplit;
+
+      const pool = [];
+      let keptCount = 0;
+
+      const flushPool = () => {
+        if (pool.length === 0) return;
+        for (let i = 0; i < pool.length; i += targetSize) {
+          allSubChunks.push(pool.slice(i, i + targetSize));
+        }
+        pool.length = 0;
+      };
+
+      for (const pageName of sortedPageNames) {
+        const pageItems = itemsByPage[pageName];
+        if (pageItems.length === 4 && keptCount < numKeep) {
+          flushPool();
+          allSubChunks.push(pageItems);
+          keptCount++;
+        } else {
+          pool.push(...pageItems);
+        }
+      }
+      flushPool();
+    }
+
+    // Sort sub-chunks:
+    // Priority: 1. Page Name (Asc), 2. Position (Asc)
+    allSubChunks.sort((a, b) => {
+      if (a[0].page_name !== b[0].page_name) {
+        return a[0].page_name.localeCompare(b[0].page_name, undefined, { numeric: true });
+      }
+      return a[0].position - b[0].position;
+    });
+
+    const allRows = [];
+    let currentRow = new ActionRowBuilder();
+    const maxButtons = Math.min(allSubChunks.length, 40);
+
+    console.log(`\n--- [ROUND LOG: ${type.toUpperCase()} BUTTONS] ---`);
+
+    for (let i = 0; i < maxButtons; i++) {
+      const setSlice = allSubChunks[i];
+      const idsStr = setSlice.map(item => item.id).join(',');
+      const numPages = new Set(setSlice.map(i => i.page_name)).size;
+
+      // Color Logic: 
+      // Main color if Full amount (up to 4) regardless of page mixing
+      const maxChunkSize = Math.min(bundleSize, 4);
+      const isMain = setSlice.length === maxChunkSize;
+      let finalStyle = isMain ? btnStyle : (type === 'ld' ? ButtonStyle.Primary : ButtonStyle.Danger);
+
+      const label = formatSetLabel(setSlice);
+      // Removed per-button log
+      const btn = new ButtonBuilder()
+        .setCustomId(`${prefix}${type}_bundle_${idsStr}`)
+        .setLabel(label)
+        .setStyle(finalStyle);
+
+      if (emojiStr) btn.setEmoji(resolveEmoji(emojiStr, guild, ICONS.DEFAULT));
       currentRow.addComponents(btn);
 
       if (currentRow.components.length === 5) {
-        currentRows.push(currentRow);
+        allRows.push(currentRow);
         currentRow = new ActionRowBuilder();
       }
-      if (currentRows.length === 5) {
-        bundles.push(currentRows);
-        currentRows = [];
-      }
     }
-    if (currentRow.components.length > 0) currentRows.push(currentRow);
-    if (currentRows.length > 0) bundles.push(currentRows);
-    return bundles;
+    if (currentRow.components.length > 0) allRows.push(currentRow);
+    const sizes = allSubChunks.map(c => c.length);
+    const summary = Array.from(new Set(sizes)).sort((a,b)=>b-a).map(s => `${sizes.filter(x=>x===s).length}x(${s})`).join(', ');
+    console.log(`[Board] Generated ${allSubChunks.length} ${type.toUpperCase()} buttons: ${summary}`);
+
+    const messages = [];
+    for (let i = 0; i < allRows.length; i += 5) {
+      messages.push(allRows.slice(i, i + 5));
+    }
+    return messages;
   };
 
-  return {
-    albumBundles: createGroupBundles(albums, 'album', resolveEmoji(ICONS.ALBUM, guild, '📒'), LB_BOOK_PREFIX, ButtonStyle.Primary),
-    ldBundles: createGroupBundles(ldPages, 'ld', resolveEmoji(ICONS.LIGHT_DARK, guild, '🤍'), LB_FEATHER_PREFIX, ButtonStyle.Success),
-    tsBundles: createGroupBundles(tsPages, 'ts', resolveEmoji(ICONS.TIME_SPACE, guild, '❤️'), LB_FEATHER_PREFIX, ButtonStyle.Secondary)
+  const { ldBundles, tsBundles } = {
+    ldBundles: createBundleRow('ld', ldItems, round.quota_ld, ICONS.LIGHT_DARK, LB_FEATHER_PREFIX, ButtonStyle.Success),
+    tsBundles: createBundleRow('ts', tsItems, round.quota_ts, ICONS.TIME_SPACE, LB_FEATHER_PREFIX, ButtonStyle.Secondary)
   };
+
+  return { ldBundles, tsBundles };
 }
 
 async function sendLiveBoard(client, channelId, round) {
@@ -205,31 +305,38 @@ async function sendLiveBoard(client, channelId, round) {
     if (!channel?.isTextBased()) return null;
 
     const { embeds } = await buildBoardEmbed(round, channel.guild);
-    const { albumBundles, ldBundles, tsBundles } = await buildBoardButtons(round, channel.guild);
+    const { ldBundles, tsBundles } = await buildBoardButtons(round, channel.guild);
 
-    const embIds = [], albIds = [], ldIds = [], tsIds = [];
+    const embIds = [], ldIds = [], tsIds = [];
 
-    for (const embed of embeds) {
-      const msg = await channel.send({ embeds: [embed] });
-      embIds.push(msg.id);
+    for (let i = 0; i < embeds.length; i++) {
+      try {
+        const msg = await channel.send({ embeds: [embeds[i]] });
+        embIds.push(msg.id);
+      } catch (err) {
+        console.error(`❌ Failed to send Embed ${i}:`, err.message);
+      }
     }
+
     const sendGroup = async (bundles, targetIds, emptyText) => {
-      if (bundles.length > 0) {
-        for (const bundle of bundles) {
-          const msg = await channel.send({ components: bundle });
+      try {
+        if (bundles.length > 0) {
+          for (const bundle of bundles) {
+            const msg = await channel.send({ components: bundle });
+            targetIds.push(msg.id);
+          }
+        } else {
+          const msg = await channel.send({ content: emptyText });
           targetIds.push(msg.id);
         }
-      } else {
-        const msg = await channel.send({ content: emptyText });
-        targetIds.push(msg.id);
+      } catch (err) {
+        console.error(`❌ Failed to send group:`, err.message);
       }
     };
 
-    await sendGroup(albumBundles, albIds, '**[ 📒 สมุด / Albums ]** หมดแล้ว / ไม่มีรายการ');
     await sendGroup(ldBundles, ldIds, '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ');
     await sendGroup(tsBundles, tsIds, '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ');
 
-    // 4. Send Branding Button
     const brandingBtn = new ButtonBuilder()
       .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
       .setURL(BRANDING.URL)
@@ -239,7 +346,6 @@ async function sendLiveBoard(client, channelId, round) {
 
     const structuredIds = [
       `EMB:${embIds.join(',')}`,
-      `ALB:${albIds.join(',')}`,
       `LD:${ldIds.join(',')}`,
       `TS:${tsIds.join(',')}`,
       `BRD:${brandingMsg.id}`
@@ -265,6 +371,7 @@ async function _performUpdate(client, roundId) {
     return;
   }
   activeUpdates.set(roundId, true);
+  const start = Date.now();
 
   try {
     const boardInfo = await db.getRoundBoardMessage(roundId);
@@ -273,35 +380,50 @@ async function _performUpdate(client, roundId) {
     const channel = await client.channels.fetch(boardInfo.board_channel_id).catch(() => null);
     if (!channel) return;
 
+    const round = await db.getRoundById(roundId);
+    if (!round) return;
+
     const ids = parseBoardIds(boardInfo.board_message_id);
-    const { embeds } = await buildBoardEmbed({ id: roundId }, channel.guild);
-    const { albumBundles, ldBundles, tsBundles } = await buildBoardButtons({ id: roundId }, channel.guild);
+    const { embeds } = await buildBoardEmbed(round, channel.guild);
+    const { ldBundles, tsBundles } = await buildBoardButtons(round, channel.guild);
 
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
-      editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [embeds[i]] }).catch(() => null));
+      editPromises.push(
+        channel.messages.edit(ids.emb[i], { embeds: [embeds[i]] })
+          .catch(err => console.error(`❌ Failed to edit Embed ${i}:`, err.message))
+      );
     }
 
     const updateBundleGroup = (bundles, msgIds, label) => {
+      if (!msgIds || msgIds.length === 0) return;
       for (let i = 0; i < msgIds.length; i++) {
         if (i < bundles.length) {
-          editPromises.push(channel.messages.edit(msgIds[i], { components: bundles[i], content: null }).catch(() => null));
+          editPromises.push(
+            channel.messages.edit(msgIds[i], { components: bundles[i], content: null })
+              .catch(err => console.error(`❌ Failed to edit ${label} Bundle ${i}:`, err.message))
+          );
         } else if (i === 0) {
-          editPromises.push(channel.messages.edit(msgIds[i], { content: `**[ ${label} ]** หมดแล้ว / ไม่มีรายการ`, components: [] }).catch(() => null));
+          editPromises.push(
+            channel.messages.edit(msgIds[i], { content: `**[ ${label} ]** หมดแล้ว / ไม่มีรายการ`, components: [] })
+              .catch(err => console.error(`❌ Failed to clear ${label} Bundle:`, err.message))
+          );
         } else {
-          editPromises.push(channel.messages.edit(msgIds[i], { content: '.', components: [] }).catch(() => null));
+          editPromises.push(
+            channel.messages.edit(msgIds[i], { content: '.', components: [] })
+              .catch(err => console.error(`❌ Failed to reset ${label} extra message:`, err.message))
+          );
         }
       }
     };
 
-    updateBundleGroup(albumBundles, ids.alb, '📒 สมุด');
-    updateBundleGroup(ldBundles, ids.ld, '🤍 ขนนก (LD)');
-    updateBundleGroup(tsBundles, ids.ts, '❤️ ขนนก (TS)');
+    updateBundleGroup(ldBundles, ids.ld, '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ');
+    updateBundleGroup(tsBundles, ids.ts, '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ');
 
 
 
     await Promise.all(editPromises);
-    console.log(`✅ Live board updated for Round ${roundId}`);
+    console.log(`✅ [Board Update] Round ${roundId} updated successfully in ${Date.now() - start}ms`);
   } catch (err) {
     console.error('❌ Failed to update live board:', err);
   } finally {
@@ -331,7 +453,7 @@ async function closeLiveBoard(client, round) {
     }
 
     [...ids.alb, ...ids.ld, ...ids.ts].forEach(msgId => {
-      editPromises.push(channel.messages.delete(msgId).catch(() => null));
+      if (msgId) editPromises.push(channel.messages.delete(msgId).catch(() => null));
     });
 
     await Promise.all(editPromises);

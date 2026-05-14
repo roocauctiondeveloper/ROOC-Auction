@@ -258,7 +258,7 @@
         e.preventDefault();
         
         const form = e.target;
-        const confirmMsg = form.dataset.confirm || 'ยืนยันการลบ?';
+        const confirmMsg = form.dataset.confirm || 'Are you sure you want to delete this?';
         if (!confirm(confirmMsg)) return;
 
         const submitBtn = form.querySelector('button[type="submit"]');
@@ -285,14 +285,14 @@
               window.location.reload(); // Fallback if not in a table
             }
           } else {
-            alert('ลบไม่สำเร็จ กรุณาลองใหม่');
+            alert('Delete failed. Please try again.');
             if (submitBtn) {
               submitBtn.disabled = false;
               submitBtn.innerHTML = 'Delete';
             }
           }
         } catch (err) {
-          alert('เกิดข้อผิดพลาดในการลบ');
+          alert('An error occurred during deletion.');
           if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Delete';

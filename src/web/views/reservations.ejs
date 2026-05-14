@@ -1,39 +1,63 @@
 <div class="flex space-between items-center" style="margin-bottom: 2rem;">
   <h1>Reservations</h1>
-  <div class="quota-status badge <%= currentRound.quota >= 999 ? 'badge-blue' : 'badge-green' %>" style="font-size: 1rem; padding: 0.6rem 1.2rem;">
-    Current Quota: <strong><%= currentRound.quota >= 999 ? 'Unlimited' : currentRound.quota + ' items/person' %></strong>
+  <div style="display: flex; gap: 0.5rem;">
+    <div class="quota-status badge badge-green" style="font-size: 0.9rem;">
+      LD Quota: <strong><%= currentRound.quota_ld >= 999 ? '∞' : currentRound.quota_ld %></strong>
+    </div>
+    <div class="quota-status badge badge-blue" style="font-size: 0.9rem;">
+      TS Quota: <strong><%= currentRound.quota_ts >= 999 ? '∞' : currentRound.quota_ts %></strong>
+    </div>
   </div>
 </div>
 
-<div class="card" style="border-left: 4px solid var(--secondary); margin-bottom: 2rem;">
-  <h3 style="margin-bottom: 1rem;">Quota Management</h3>
-  <p style="color: var(--text-light); margin-bottom: 1.5rem; font-size: 0.9rem;">
-    Control how many items each person can reserve in this round. 
-    <br><small>*Note: Album logic is handled separately and always limited to 1 per person.*</small>
-  </p>
-  <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-    <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
-      <input type="hidden" name="quota" value="<%= (currentRound.quota || 1) + 1 %>">
-      <button type="submit" class="btn btn-secondary">
-        <%= ICONS.PLUS || '➕' %> Increase Quota (+1)
-      </button>
-    </form>
-    
-    <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
-      <input type="hidden" name="quota" value="999">
-      <button type="submit" class="btn btn-blue" style="<%= currentRound.quota >= 999 ? 'opacity: 0.5; pointer-events: none;' : '' %>">
-        <%= ICONS.UNLOCKED || '🔓' %> Set Unlimited
-      </button>
-    </form>
+<div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; margin-bottom: 2rem;">
+    <h2 style="color: #1e40af; margin-bottom: 1rem;">⚙️ Quota Management Instructions</h2>
+    <div style="color: #1e40af; font-size: 0.95rem; line-height: 1.6;">
+      <p><strong>Current Policy:</strong></p>
+      <ul>
+        <li><strong>Feathers (LD/TS):</strong> Limited by the <strong>Quota</strong> value set in the round. If set to 1, users can reserve 1 feather piece. If 2, they can reserve 2 pieces, etc.</li>
+        <li><strong>Albums/Boxes:</strong> Always limited to <strong>1 item per person</strong> (combined). These do NOT count towards the Feather quota.</li>
+      </ul>
+      <p style="margin-top: 1rem;">
+        <em>Note: The "Smart Quota" logic handles this automatically. Whitelist members are prioritized for Album/Box slots during round opening.</em>
+      </p>
+    </div>
+</div>
 
-    <% if (currentRound.quota > 1) { %>
+<div class="card" style="border-left: 4px solid var(--secondary); margin-bottom: 2rem;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
+    <!-- LD -->
+    <div>
+      <h3 style="margin-bottom: 0.5rem;">🤍 LD Quota (White)</h3>
       <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
-        <input type="hidden" name="quota" value="1">
-        <button type="submit" class="btn btn-outline" style="color: var(--danger); border-color: var(--danger);">
-          Reset to 1
-        </button>
+        <input type="hidden" name="type" value="ld">
+        <input type="number" name="quota" value="<%= currentRound.quota_ld >= 999 ? 1 : currentRound.quota_ld %>" min="1" max="999" style="width: 80px;">
+        <button type="submit" class="btn btn-secondary">Set LD</button>
       </form>
-    <% } %>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <form action="/reservations/quota" method="POST">
+          <input type="hidden" name="type" value="ld">
+          <input type="hidden" name="quota" value="999">
+          <button type="submit" class="btn btn-blue" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Unlimited</button>
+        </form>
+      </div>
+    </div>
+    <!-- TS -->
+    <div>
+      <h3 style="margin-bottom: 0.5rem;">❤️ TS Quota (Red)</h3>
+      <form action="/reservations/quota" method="POST" style="display: flex; gap: 0.5rem;">
+        <input type="hidden" name="type" value="ts">
+        <input type="number" name="quota" value="<%= currentRound.quota_ts >= 999 ? 1 : currentRound.quota_ts %>" min="1" max="999" style="width: 80px;">
+        <button type="submit" class="btn btn-secondary">Set TS</button>
+      </form>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <form action="/reservations/quota" method="POST">
+          <input type="hidden" name="type" value="ts">
+          <input type="hidden" name="quota" value="999">
+          <button type="submit" class="btn btn-blue" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">Unlimited</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -43,15 +67,15 @@
     <div class="form-group" style="margin-bottom: 0;">
       <label for="item_id">Select Item</label>
       <select id="item_id" name="item_id" required>
-        <option value="" disabled selected>เลือกสินค้าที่ว่าง...</option>
+        <option value="" disabled selected>Select available item...</option>
         <% for(let item of availableItems) { %>
-          <option value="<%= item.id %>">Page: <%= item.page_name %> - ชิ้นที่ <%= item.position %> (<%= displayItemType(item.item_type) %>)</option>
+          <option value="<%= item.id %>">Page: <%= item.page_name %> - Position: <%= item.position %> (<%= displayItemType(item.item_type) %>)</option>
         <% } %>
       </select>
     </div>
     <div class="form-group" style="margin-bottom: 0;">
       <label for="discord_user_id">Select User (from Whitelist)</label>
-      <input type="text" id="discord_user_id" name="discord_user_id" list="whitelist-users" required placeholder="พิมพ์ชื่อหรือ ID...">
+      <input type="text" id="discord_user_id" name="discord_user_id" list="whitelist-users" required placeholder="Type name or ID...">
       <datalist id="whitelist-users">
         <% for(let u of whitelist) { %>
           <option value="<%= u.discord_user_id %>"><%= u.discord_username %></option>
@@ -67,7 +91,7 @@
   <% if (reservations.length === 0) { %>
     <div style="text-align: center; padding: 3rem 1rem;">
       <div style="font-size: 3rem; margin-bottom: 1rem;">📭</div>
-      <p style="color: var(--text-light); font-style: italic;">ยังไม่มีการจองในรอบปัจจุบัน</p>
+      <p style="color: var(--text-light); font-style: italic;">No active reservations in this round.</p>
     </div>
   <% } else { %>
     <div class="table-responsive">
@@ -92,7 +116,7 @@
                 <span style="font-size: 0.85rem; color: var(--text-light);"><%= r.item_display_name %></span>
               </td>
               <td style="text-align: right;">
-                <form action="/reservations/<%= r.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('ยืนยันการยกเลิกรายการนี้? (หากเป็นการจองยกหน้า ข้อมูลของหน้านี้จะถูกลบทั้งหมด)');">
+                <form action="/reservations/<%= r.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('Cancel this reservation?');">
                   <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.85rem; padding: 0.4rem 0.8rem;">Cancel</button>
                 </form>
               </td>

@@ -54,8 +54,14 @@ client.on('interactionCreate', async interaction => {
       // อัปเดตบอร์ด (งานหนัก)
       await updateLiveBoard(interaction.client, currentRound.id);
 
+      const ldQuota = currentRound.quota_ld || 1;
+      const tsQuota = currentRound.quota_ts || 1;
+      const ldLeft = ldQuota >= 999 ? '∞' : ldQuota;
+      const tsLeft = tsQuota >= 999 ? '∞' : tsQuota;
+      const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+
       // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
-      return interaction.editReply({ content: '✅ ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ', components: [] });
+      return interaction.editReply({ content: `✅ ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
     } catch (err) {
       console.error('[client] unreserve button error:', err);
       if (interaction.deferred || interaction.replied) {
@@ -65,8 +71,8 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // Handle Individual Cancel Buttons (from /mystuff)
-  if (interaction.isButton() && (interaction.customId.startsWith('c_p_') || interaction.customId.startsWith('c_i_'))) {
+  // Handle Individual and Bulk Cancel Buttons (from /mystuff or success message)
+  if (interaction.isButton() && (interaction.customId.startsWith('c_p_') || interaction.customId.startsWith('c_i_') || interaction.customId.startsWith('c_b_'))) {
     try {
       const db = require('../db/queries');
       const { updateLiveBoard } = require('./liveboard');
@@ -80,16 +86,33 @@ client.on('interactionCreate', async interaction => {
 
       if (interaction.customId.startsWith('c_p_')) {
         const pageId = interaction.customId.replace('c_p_', '');
+        console.log(`[Cancel] User ${interaction.user.id} requested to cancel Page ${pageId}`);
         await db.deletePageReservationsForUser(currentRound.id, pageId, interaction.user.id);
+      } else if (interaction.customId.startsWith('c_b_')) {
+        const itemIds = interaction.customId.replace('c_b_', '').split('_');
+        console.log(`[Cancel] User ${interaction.user.id} requested to cancel bulk items:`, itemIds);
+        for (const id of itemIds) {
+          if (id) await db.deleteSingleReservation(currentRound.id, id, interaction.user.id);
+        }
       } else {
         const itemId = interaction.customId.replace('c_i_', '');
+        console.log(`[Cancel] User ${interaction.user.id} requested to cancel Item ID: ${itemId}`);
         await db.deleteSingleReservation(currentRound.id, itemId, interaction.user.id);
       }
 
       await updateLiveBoard(interaction.client, currentRound.id);
 
+      const updatedRes = await db.getMyReservations(interaction.user.id, currentRound.id);
+      const ldUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
+      const tsUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'time-space').length;
+      const ldQuota = currentRound.quota_ld || 1;
+      const tsQuota = currentRound.quota_ts || 1;
+      const ldLeft = ldQuota >= 999 ? '∞' : Math.max(0, ldQuota - ldUsage);
+      const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
+      const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+
       // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
-      return interaction.editReply({ content: '✅ ยกเลิกรายการเรียบร้อยแล้วครับ', components: [] });
+      return interaction.editReply({ content: `✅ ยกเลิกรายการเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
     } catch (err) {
       console.error('[client] individual cancel error:', err);
       return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', ephemeral: true });

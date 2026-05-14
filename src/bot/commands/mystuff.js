@@ -59,8 +59,19 @@ module.exports = {
     let currentRow = new ActionRowBuilder();
 
     for (const [pageName, items] of grouped) {
-      const lines = items.map(i => `ชิ้นที่ ${i.position} — ${getDisplay(i.item_type, interaction.guild)}`);
-      embed.addFields({ name: `📄 หน้า ${pageName}`, value: lines.join('\n'), inline: false });
+      // Group by item_type within the same page
+      const byType = {};
+      items.forEach(i => {
+         if (!byType[i.item_type]) byType[i.item_type] = [];
+         byType[i.item_type].push(i.position);
+      });
+
+      const lines = Object.keys(byType).map(type => {
+         const posList = byType[type].sort((a,b) => a-b);
+         return `${getDisplay(type, interaction.guild)} — ตำแหน่ง: [${posList.join(', ')}]`;
+      });
+
+      embed.addFields({ name: `📄 หน้า ${pageName} (รวม ${items.length} ชิ้น)`, value: lines.join('\n'), inline: false });
 
       // สร้างปุ่มยกเลิกสำหรับหน้านี้
       const isFeather = items.some(it => FEATHER_TYPES.includes(it.item_type));
@@ -71,7 +82,7 @@ module.exports = {
         .setStyle(ButtonStyle.Danger);
 
       if (isFeather) {
-        btn.setCustomId(`c_p_${pageId}`).setLabel(`❌ ยกเลิกหน้า ${pageName}`);
+        btn.setCustomId(`c_p_${pageId}`).setLabel(`❌ ยกเลิกหน้า ${pageName} (x${items.length})`);
       } else {
         btn.setCustomId(`c_i_${itemId}`).setLabel(`❌ ยกเลิก Album #${items[0].position}`);
       }
@@ -96,7 +107,15 @@ module.exports = {
     currentRow.addComponents(cancelAllBtn);
     rows.push(currentRow);
 
-    embed.setDescription(`คุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ`);
+    const ldUsage = myReservations.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
+    const tsUsage = myReservations.filter(r => r.item_type.toLowerCase() === 'time-space').length;
+    const ldQuota = currentRound.quota_ld || 1;
+    const tsQuota = currentRound.quota_ts || 1;
+    const ldLeft = ldQuota >= 999 ? '∞' : Math.max(0, ldQuota - ldUsage);
+    const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
+    const quotaStr = `📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+
+    embed.setDescription(`คุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ\n${quotaStr}`);
 
     return interaction.reply({ embeds: [embed], components: rows.slice(0, 5), ephemeral: true });
   },

@@ -26,13 +26,14 @@ router.get('/page/:pageId', async (req, res) => {
 
 router.post('/page/:pageId', async (req, res) => {
   const pageId = req.params.pageId;
-  const { card_count, white_count, black_count } = req.body;
+  const { card_count, box_count, white_count, black_count } = req.body;
 
   const nCard = parseInt(card_count) || 0;
+  const nBox = parseInt(box_count) || 0;
   const nWhite = parseInt(white_count) || 0;
   const nBlack = parseInt(black_count) || 0;
 
-  if (nCard + nWhite + nBlack > 4) {
+  if (nCard + nBox + nWhite + nBlack > 4) {
     req.session.error_msg = 'รวมทุกอย่างแล้วต้องไม่เกิน 4 ชิ้นต่อหน้า';
     return res.redirect(`/items/page/${pageId}`);
   }
@@ -42,9 +43,12 @@ router.post('/page/:pageId', async (req, res) => {
 
     let currentPos = 1;
     
-    // เรียงตาม Album -> Light-Dark -> Time-Space
+    // เรียงตาม Album -> Illution Box -> Light-Dark -> Time-Space
     for (let i = 0; i < nCard; i++) {
       await db.addItem(pageId, 'Album', currentPos++);
+    }
+    for (let i = 0; i < nBox; i++) {
+      await db.addItem(pageId, 'Illution Box', currentPos++);
     }
     for (let i = 0; i < nWhite; i++) {
       await db.addItem(pageId, 'Light-Dark', currentPos++);

@@ -1,77 +1,106 @@
 <div class="header">
   <div>
-    <h1>📋 จัดการ Item Presets</h1>
-    <p>สร้างแม่แบบรายการสินค้าเพื่อนำไปใช้เปิดรอบประมูลอย่างรวดเร็ว</p>
+    <h1>📋 Item Presets Management</h1>
+    <p>Create item templates to quickly open new auction rounds.</p>
   </div>
 </div>
 
 <div class="grid">
   <!-- Create Preset Form -->
-  <div class="card">
-    <h2 style="margin-bottom: 1.5rem;">✨ สร้าง Preset ใหม่</h2>
-    <form action="/presets/add" method="POST">
-      <div class="form-group">
-        <label>ชื่อ Preset</label>
-        <input type="text" name="name" placeholder="" required>
-      </div>
-      <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+    <div class="card">
+      <h2 id="form-title" style="margin-bottom: 1.5rem;">✨ Create New Preset</h2>
+      <form id="preset-form" action="/presets/add" method="POST">
         <div class="form-group">
-          <label><%- ICONS.ALBUM %> Album (จำนวนชิ้น)</label>
-          <input type="number" name="album" value="0" min="0" onclick="this.select()">
+          <label>Preset Name</label>
+          <input type="text" id="preset-name" name="name" placeholder="e.g. Starter Round" required>
         </div>
-        <div class="form-group">
-          <label><%- ICONS.LIGHT_DARK %> Light-Dark</label>
-          <input type="number" name="ld" value="0" min="0" onclick="this.select()">
+        <div class="grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label><%- ICONS.ALBUM %> Album</label>
+            <input type="number" id="preset-album" name="album" value="0" min="0" onclick="this.select()">
+          </div>
+          <div class="form-group">
+            <label><%- ICONS.ILLUTION_BOX %> Box</label>
+            <input type="number" id="preset-box" name="box" value="0" min="0" onclick="this.select()">
+          </div>
+          <div class="form-group">
+            <label><%- ICONS.LIGHT_DARK %> LD</label>
+            <input type="number" id="preset-ld" name="ld" value="0" min="0" onclick="this.select()">
+          </div>
+          <div class="form-group">
+            <label><%- ICONS.TIME_SPACE %> TS</label>
+            <input type="number" id="preset-ts" name="ts" value="0" min="0" onclick="this.select()">
+          </div>
         </div>
-        <div class="form-group">
-          <label><%- ICONS.TIME_SPACE %> Time-Space</label>
-          <input type="number" name="ts" value="0" min="0" onclick="this.select()">
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+          <button type="submit" id="submit-btn" class="btn" style="flex: 1;">💾 Save Preset</button>
+          <button type="button" id="cancel-btn" class="btn btn-secondary" style="display: none;" onclick="cancelEdit()">Cancel</button>
         </div>
-      </div>
-      <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">💾 บันทึก Preset</button>
-    </form>
-  </div>
+      </form>
+    </div>
+... (Help Card omitted for brevity in targetContent match, but I will keep it in replacement) ...
+<script>
+  function editPreset(id, name, album, box, ld, ts) {
+    document.getElementById('form-title').innerText = '📝 Edit Preset: ' + name;
+    document.getElementById('preset-form').action = '/presets/edit/' + id;
+    document.getElementById('preset-name').value = name;
+    document.getElementById('preset-album').value = album;
+    document.getElementById('preset-box').value = box;
+    document.getElementById('preset-ld').value = ld;
+    document.getElementById('preset-ts').value = ts;
+    document.getElementById('submit-btn').innerText = '✅ Update Preset';
+    document.getElementById('cancel-btn').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
-  <!-- Help Card -->
-  <div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe;">
-    <h2 style="color: #1e40af;">💡 วิธีการใช้งาน</h2>
-    <p style="color: #1e40af; font-size: 0.95rem;">
-      1. ตั้งชื่อและกำหนดจำนวนไอเทมที่ต้องการในแต่ละประเภท<br>
-      2. กดบันทึก Preset เก็บไว้<br>
-      3. เมื่อต้องการใช้งาน ให้ไปที่หน้า **Dashboard** แล้วกดปุ่ม "Apply" ครั้งเดียว<br>
-      <br>
-      <b>หลักการ:</b> ระบบจะสร้าง Page ให้โดยอัตโนมัติ (ใส่หน้าละ 4 ชิ้น) เช่น ถ้าคุณระบุ Album 7 ชิ้น ระบบจะสร้าง "Album หน้าที่ 1" (4 ชิ้น) และ "Album หน้าที่ 2" (3 ชิ้น) ให้ทันที
-    </p>
-  </div>
-</div>
+  function cancelEdit() {
+    document.getElementById('form-title').innerText = '✨ Create New Preset';
+    document.getElementById('preset-form').action = '/presets/add';
+    document.getElementById('preset-name').value = '';
+    document.getElementById('preset-album').value = 0;
+    document.getElementById('preset-box').value = 0;
+    document.getElementById('preset-ld').value = 0;
+    document.getElementById('preset-ts').value = 0;
+    document.getElementById('submit-btn').innerText = '💾 Save Preset';
+    document.getElementById('cancel-btn').style.display = 'none';
+  }
+</script>
 
 <div class="card" style="margin-top: 2rem;">
-  <h2 style="margin-bottom: 1.5rem;">รายการ Preset ทั้งหมด</h2>
+  <h2 style="margin-bottom: 1.5rem;">All Saved Presets</h2>
   <% if (presets.length === 0) { %>
-    <p style="text-align: center; color: var(--text-light); padding: 2rem;">ยังไม่มี Preset ในระบบ</p>
+    <p style="text-align: center; color: var(--text-light); padding: 2rem;">No presets found.</p>
   <% } else { %>
     <div style="overflow-x: auto;">
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr style="border-bottom: 2px solid var(--border-color); text-align: left;">
-            <th style="padding: 1rem;">ชื่อ Preset</th>
+            <th style="padding: 1rem;">Name</th>
             <th style="padding: 1rem;">Album</th>
-            <th style="padding: 1rem;">Light-Dark</th>
-            <th style="padding: 1rem;">Time-Space</th>
-            <th style="padding: 1rem; text-align: right;">จัดการ</th>
+            <th style="padding: 1rem;">Box</th>
+            <th style="padding: 1rem;">LD</th>
+            <th style="padding: 1rem;">TS</th>
+            <th style="padding: 1rem; text-align: right;">Actions</th>
           </tr>
         </thead>
         <tbody>
           <% presets.forEach(p => { %>
             <tr style="border-bottom: 1px solid var(--border-color);">
               <td style="padding: 1rem; font-weight: 600;"><%= p.name %></td>
-              <td style="padding: 1rem;"><span class="badge" style="background: #e0f2fe; color: #0369a1;"><%= p.album_count %> ชิ้น</span></td>
-              <td style="padding: 1rem;"><span class="badge" style="background: #fef3c7; color: #92400e;"><%= p.light_dark_count %> ชิ้น</span></td>
-              <td style="padding: 1rem;"><span class="badge" style="background: #f3f4f6; color: #374151;"><%= p.time_space_count %> ชิ้น</span></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #e0f2fe; color: #0369a1;"><%= p.album_count %></span></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #ede9fe; color: #6d28d9;"><%= p.illution_box_count || 0 %></span></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #fef3c7; color: #92400e;"><%= p.light_dark_count %></span></td>
+              <td style="padding: 1rem;"><span class="badge" style="background: #f3f4f6; color: #374151;"><%= p.time_space_count %></span></td>
               <td style="padding: 1rem; text-align: right;">
-                <form action="/presets/delete/<%= p.id %>" method="POST" class="ajax-delete" data-confirm="ยืนยันการลบ Preset นี้หรือไม่?" style="display: inline;">
-                  <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; color: #ef4444;">ลบ</button>
-                </form>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                  <button type="button" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; color: var(--primary);" 
+                    onclick="editPreset('<%= p.id %>', '<%= p.name %>', <%= p.album_count %>, <%= p.illution_box_count || 0 %>, <%= p.light_dark_count %>, <%= p.time_space_count %>)">
+                    Edit
+                  </button>
+                  <form action="/presets/delete/<%= p.id %>" method="POST" class="ajax-delete" data-confirm="Delete this preset?">
+                    <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; color: #ef4444;">Delete</button>
+                  </form>
+                </div>
               </td>
             </tr>
           <% }) %>

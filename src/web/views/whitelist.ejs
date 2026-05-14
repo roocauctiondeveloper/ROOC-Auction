@@ -7,12 +7,12 @@
 <div class="card" style="border-left: 4px solid var(--primary);">
   <h3 style="margin-bottom: 1.5rem;">Add New Member</h3>
   <p style="color: var(--text-light); margin-bottom: 1rem; font-size: 0.9rem;">
-    💡 ใส่เพียง <b>Discord User ID</b> ระบบจะดึงชื่อมาให้โดยอัตโนมัติครับ
+    💡 Enter the <b>Discord User ID</b> and the system will automatically fetch the username.
   </p>
   <form action="/whitelist" method="POST" style="display: flex; gap: 1rem; align-items: flex-end;">
     <div class="form-group" style="margin-bottom: 0; flex-grow: 1;">
       <label for="discord_user_id">Discord User ID</label>
-      <input type="text" id="discord_user_id" name="discord_user_id" required placeholder="ตัวอย่าง: 123456789012345678">
+      <input type="text" id="discord_user_id" name="discord_user_id" required placeholder="Example: 123456789012345678">
     </div>
     <button class="btn btn-primary" type="submit">Add User</button>
   </form>
@@ -23,13 +23,13 @@
     <div class="flex-desktop flex space-between items-center" style="margin-bottom: 2rem;">
         <div>
             <h3 style="margin: 0; font-family: 'Outfit';">🎡 Whitelist Lottery (Gacha Mode)</h3>
-            <p style="color: var(--text-light); font-size: 0.85rem;">ระบบจะสุ่มชื่อทีละคนเพื่อความตื่นเต้นครับ!</p>
+            <p style="color: var(--text-light); font-size: 0.85rem;">Randomly select members one by one!</p>
         </div>
         <div class="lottery-controls">
             <div style="background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1rem;">
-                <span style="font-weight: 600; font-size: 0.9rem;">จำนวนผู้ชนะ:</span>
+                <span style="font-weight: 600; font-size: 0.9rem;">Winner Count:</span>
                 <input type="number" id="lottery-count" value="1" min="1" max="<%= whitelist.length %>" style="width: 60px; border:none; background:transparent; font-weight: 700; color: var(--primary); font-size: 1.1rem;">
-                <button class="btn btn-primary" onclick="startLottery()" id="spin-btn" style="border-radius: 10px; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);">🔥 เริ่มสุ่ม!</button>
+                <button class="btn btn-primary" onclick="startLottery()" id="spin-btn" style="border-radius: 10px; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);">🔥 Spin!</button>
             </div>
         </div>
     </div>
@@ -48,16 +48,16 @@
             </div>
             <div id="winners-timeline" style="display: flex; flex-direction: column; gap: 0.75rem; min-height: 300px; padding: 1rem; background: #f8fafc; border-radius: var(--radius); border: 2px dashed #e2e8f0;">
                 <!-- Winners appear here one by one -->
-                <div style="text-align: center; color: #94a3b8; margin-top: 5rem;">รายชื่อผู้โชคดีจะปรากฏที่นี่...</div>
+                <div style="text-align: center; color: #94a3b8; margin-top: 5rem;">Winners list will appear here...</div>
             </div>
 
             <!-- Final Action (hidden until end) -->
             <div id="final-actions" style="display: none; margin-top: 1.5rem; animation: celebrate 0.5s ease-out;">
                 <form id="lottery-form" onsubmit="applyLottery(event)">
                     <div id="winners-hidden-input"></div>
-                    <button type="submit" id="confirm-winners-btn" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem;">✅ ยืนยันผลการสุ่มทั้งหมด</button>
+                    <button type="submit" id="confirm-winners-btn" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem;">✅ Confirm All Winners</button>
                 </form>
-                <button type="button" onclick="resetLottery()" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">ยกเลิกและสุ่มใหม่</button>
+                <button type="button" onclick="resetLottery()" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">Cancel & Reset</button>
             </div>
         </div>
     </div>
@@ -103,7 +103,7 @@
                     id="btn-status-<%= user.id %>"
                     class="badge <%= user.is_active ? 'badge-success' : 'badge-gray' %>" 
                     style="border:none; cursor:pointer;" 
-                    title="คลิกเพื่อสลับสถานะ"
+                    title="Click to toggle status"
                 >
                     <%= user.is_active ? '● ACTIVE' : '○ STANDBY' %>
                 </button>
@@ -128,7 +128,7 @@
                 <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= user.discord_user_id %></code>
               </td>
               <td style="text-align: right;">
-                <form action="/whitelist/<%= user.id %>/delete" method="POST" class="ajax-delete" data-confirm="ยืนยันลบถาวร?" style="display:inline;">
+                <form action="/whitelist/<%= user.id %>/delete" method="POST" class="ajax-delete" data-confirm="Confirm permanent deletion?" style="display:inline;">
                   <button type="submit" class="btn btn-secondary" style="color: var(--danger); font-size: 0.8rem; padding: 0.3rem 0.6rem;">Delete</button>
                 </form>
               </td>
@@ -162,7 +162,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "#ccc";
             ctx.textAlign = "center";
-            ctx.fillText("กรุณาเลือกรายชื่อด้านล่าง", canvas.width/2, canvas.height/2);
+            ctx.fillText("Please select names below", canvas.width/2, canvas.height/2);
             return;
         }
         const segments = selectedMembers.length;
@@ -236,8 +236,8 @@
 
     async function startLottery() {
         const count = parseInt(document.getElementById('lottery-count').value);
-        if (!selectedMembers.length) return alert('กรุณาเลือกรายชื่ออย่างน้อย 1 คนครับ');
-        if (count > selectedMembers.length) return alert('จำนวนสุ่มต้องไม่เกินจำนวนคนที่เลือก');
+        if (!selectedMembers.length) return alert('Please select at least 1 person');
+        if (count > selectedMembers.length) return alert('Count cannot exceed selected members');
 
         spinBtn.disabled = true;
         winnersList = [];
@@ -247,7 +247,7 @@
         let availablePool = [...selectedMembers];
 
         for (let i = 0; i < count; i++) {
-            statusText.innerText = `🌀 กำลังสุ่มคนที่ ${i + 1} จาก ${count}...`;
+            statusText.innerText = `🌀 Spinning winner ${i + 1} of ${count}...`;
             
             const winnerIdxInPool = Math.floor(Math.random() * availablePool.length);
             const winner = availablePool[winnerIdxInPool];
@@ -268,7 +268,7 @@
             if (i < count - 1) await new Promise(r => setTimeout(r, 1000));
         }
 
-        statusText.innerText = `✨ สุ่มครบ ${count} คนเรียบร้อยแล้ว!`;
+        statusText.innerText = `✨ Successfully selected ${count} winners!`;
         showFinalActions();
     }
 
@@ -329,9 +329,9 @@
     }
 
     function resetLottery() {
-        // เคลียร์รายชื่อผู้ชนะ
+        // Clear winners
         winnersList = [];
-        timeline.innerHTML = '<div style="text-align: center; color: #94a3b8; margin-top: 5rem;">รายชื่อผู้โชคดีจะปรากฏที่นี่...</div>';
+        timeline.innerHTML = '<div style="text-align: center; color: #94a3b8; margin-top: 5rem;">Winners list will appear here...</div>';
         
         // รีเซ็ตสถานะ
         statusText.innerText = 'Waiting to start...';
@@ -352,7 +352,7 @@
         const btn = document.getElementById('confirm-winners-btn');
         const originalText = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '⌛ กำลังบันทึกข้อมูล...';
+        btn.innerHTML = '⌛ Saving results...';
 
         try {
             const formData = new URLSearchParams();
@@ -365,8 +365,8 @@
             });
 
             if (response.ok) {
-                // แจ้งเตือนสำเร็จแบบไม่กระพริบ
-                statusText.innerHTML = '✅ บันทึกผลการสุ่มเรียบร้อยแล้ว!';
+                // Success
+                statusText.innerHTML = '✅ Winners saved successfully!';
                 statusText.style.color = 'var(--success)';
                 
                 // รอสักครู่แล้วรีเซ็ตหน้าวงล้อ
@@ -384,7 +384,7 @@
             }
         } catch (err) {
             console.error(err);
-            alert('เกิดข้อผิดพลาด: ' + err.message);
+            alert('Error: ' + err.message);
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
@@ -413,8 +413,8 @@
             
         } catch (err) {
             console.error(err);
-            alert('เกิดข้อผิดพลาดในการสลับสถานะ');
-            // ถ้าพังให้คืนค่าเดิม
+            alert('Error toggling status');
+            // Revert
             updateToggleUI(id, currentStatus);
         }
     }
