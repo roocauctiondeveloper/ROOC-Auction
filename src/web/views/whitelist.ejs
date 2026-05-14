@@ -156,6 +156,7 @@
 
     let currentRotation = 0;
     let winnersList = [];
+    let lastSpinParticipants = []; // จำรายชื่อคนที่สุ่มจริงๆ
 
     function drawWheel() {
         if (!selectedMembers.length) {
@@ -239,12 +240,15 @@
         if (!selectedMembers.length) return alert('Please select at least 1 person');
         if (count > selectedMembers.length) return alert('Count cannot exceed selected members');
 
+        // จำรายชื่อคนเข้าวงล้อรอบนี้ไว้ เพื่อให้ตอนกดเซฟข้อมูลตรงกัน 100%
+        lastSpinParticipants = [...selectedMembers];
+
         spinBtn.disabled = true;
         winnersList = [];
         timeline.innerHTML = '';
         finalActions.style.display = 'none';
         
-        let availablePool = [...selectedMembers];
+        let availablePool = [...lastSpinParticipants];
 
         for (let i = 0; i < count; i++) {
             statusText.innerText = `🌀 Spinning winner ${i + 1} of ${count}...`;
@@ -355,13 +359,16 @@
         btn.innerHTML = '⌛ Saving results...';
 
         try {
-            const formData = new URLSearchParams();
-            winnersList.forEach(w => formData.append('winners[]', w.id));
+            // ใช้รายชื่อที่จำไว้ตอนสุ่ม (lastSpinParticipants) แทนการดึงใหม่
+            const payload = {
+                winners: winnersList.map(w => w.id),
+                participants: lastSpinParticipants.map(m => m.id)
+            };
 
             const response = await fetch('/whitelist/lottery-apply', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {

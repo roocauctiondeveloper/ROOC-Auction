@@ -85,27 +85,43 @@ router.post('/:id/toggle', async (req, res) => {
 // POST /whitelist/lottery-apply
 router.post('/lottery-apply', async (req, res) => {
   try {
-    const { winners } = req.body; // Array of IDs
-    const winnerIds = Array.isArray(winners) ? winners : [winners];
-    const allMembers = await db.getAllWhitelist();
-    const allIds = allMembers.map(m => m.id);
+    const { winners, participants } = req.body; 
     
-    const losersIds = allIds.filter(id => !winnerIds.includes(id.toString()));
+    // มั่นใจว่าเป็น Array ของตัวเลขเสมอ
+    let winnerIds = (Array.isArray(winners) ? winners : (winners ? [winners] : [])).map(id => parseInt(id));
+    let participantIds = (Array.isArray(participants) ? participants : (participants ? [participants] : [])).map(id => parseInt(id));
 
-    // บันทึกสถิติ: ทุกคนที่มีชื่อในวงล้อถือว่าได้ Spin +1, คนชนะได้ Win +1
-    await db.recordLotteryResults(allIds, winnerIds);
+    // กรองค่าที่ไม่ใช่ตัวเลขออก
+    winnerIds = winnerIds.filter(id => !isNaN(id));
+    participantIds = participantIds.filter(id => !isNaN(id));
 
-    // บันทึกผลสถานะ: คนชนะเป็น Active คนแพ้เป็น Inactive
-    await db.bulkUpdateWhitelistStatus(winnerIds, true);
-    await db.bulkUpdateWhitelistStatus(losersIds, false);
+    // Fallback: ถ้าคนร่วมสุ่มว่าง แต่คนชนะมีค่า (ป้องกันกรณี Error จากหน้าเว็บ)
+    // ให้ถือว่าคนชนะคือคนร่วมสุ่มด้วยเลย
+    if (participantIds.length === 0 && winnerIds.length > 0) {
+      console.warn('[Lottery] Participants empty but winners present. Using winners as participants.');
+      participantIds = [...winnerIds];
+    }
 
+    if (participantIds.length === 0) {
+      console.error('[Lottery] No participants found in JSON body:', req.body);
+      return res.status(400).json({ error: 'ไม่พบรายชื่อผู้เข้าร่วม' });
+    }
+    
+    const losersIds = participantIds.filter(id => !winnerIds.includes(id));
 
-    req.session.success_msg = 'บันทึกผลการสุ่มเรียบร้อยแล้ว!';
+    // บันทึกสถิติ: เฉพาะคนที่มีชื่อในวงล้อจริงๆ เท่านั้น
+    await db.recordLotteryResults(participantIds, winnerIds);
+
+    // บันทึกผลสถานะ: เฉพาะคนที่เข้าร่วมรอบนี้
+    // คนชนะเป็น Active คนที่เข้าวงล้อแต่แพ้เป็น Inactive
+    if (winnerIds.length > 0) await db.bulkUpdateWhitelistStatus(winnerIds, true);
+    if (losersIds.length > 0) await db.bulkUpdateWhitelistStatus(losersIds, false);
+
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
-    req.session.error_msg = 'เกิดข้อผิดพลาดในการบันทึกผลการสุ่ม';
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกผลการสุ่ม' });
   }
-  res.redirect('/whitelist');
 });
 
 
