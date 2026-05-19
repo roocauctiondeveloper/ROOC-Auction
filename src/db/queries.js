@@ -6,7 +6,7 @@ const { formatThaiDate } = require('../utils/date');
 (async () => {
   try {
     await db.run('CREATE TABLE IF NOT EXISTS user_dashboards (user_id TEXT PRIMARY KEY, thread_id TEXT, message_id TEXT)');
-    
+
     // Migrations
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota INTEGER DEFAULT 1');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota_ld INTEGER DEFAULT 1');
@@ -130,7 +130,7 @@ async function getItemById(id) {
 
 async function getCurrentReservations() {
   const round = await getOrCreateCurrentRound();
-  
+
   // ดึงข้อมูลแบบจัดกลุ่ม (Postgres-Compliant + Grouping Fix)
   return db.all(`
     SELECT 
@@ -238,10 +238,13 @@ async function deletePageReservationsForUser(roundId, pageId, discordUserId) {
 }
 
 async function deleteAllUserReservationsInRound(roundId, discordUserId) {
-  // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน
+  // ลบการจองทั้งหมดของ User นี้ในรอบปัจจุบัน ยกเว้นประเภทสมุด (Album / Illution Box)
   return db.run(`
     DELETE FROM reservations 
     WHERE round_id = ? AND discord_user_id = ?
+    AND item_id NOT IN (
+      SELECT id FROM items WHERE LOWER(item_type) IN ('album', 'illution box', 'illution-box', 'สมุดการ์ด')
+    )
   `, [roundId, discordUserId]);
 }
 
@@ -263,12 +266,12 @@ async function getCurrentRound() {
 async function getOrCreateCurrentRound() {
   let round = await db.get('SELECT * FROM rounds ORDER BY id DESC LIMIT 1');
   if (!round || round.status === 'closed') {
-    const name = `รอบประมูล ${formatThaiDate(new Date(), { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const name = `รอบประมูล ${formatThaiDate(new Date(), {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     })}`;
     const r = await db.run(
       'INSERT INTO rounds (name, status, quota, quota_ld, quota_ts) VALUES (?, ?, 1, 1, 1) RETURNING id',
@@ -346,7 +349,7 @@ async function saveRoundSnapshot(roundId) {
         (round_id, page_name, item_type, item_pos, discord_user_id, discord_username, reserved_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [roundId, item.page_name, item.item_type, item.item_pos,
-        item.discord_user_id, item.discord_username, item.reserved_at]);
+      item.discord_user_id, item.discord_username, item.reserved_at]);
   }
 }
 
@@ -377,7 +380,7 @@ async function toggleWhitelistStatus(id, isActive) {
 
 async function recordLotteryResults(participantIds, winnerIds) {
   if (participantIds.length === 0) return;
-  
+
   const winnerIdSet = new Set(winnerIds.map(id => id.toString()));
 
   // 1. เพิ่ม spin_count ให้กับทุกคนที่มีชื่อในวงล้อ และบันทึกลง lottery_logs
@@ -414,7 +417,7 @@ async function bulkUpdateWhitelistStatus(ids, isActive) {
 async function autoAssignWhitelist(roundId) {
   // 1. Get active whitelist members
   const activeWhitelist = await getAllWhitelist(true);
-  
+
   // 2. Get available Album slots (that don't have any reservation in this round)
   const availableAlbums = await db.all(`
     SELECT i.id
@@ -426,7 +429,7 @@ async function autoAssignWhitelist(roundId) {
 
   const assigned = [];
   let albumIdx = 0; // ตัวชี้ตำแหน่งสินค้าที่ว่าง
-  
+
   // 3. วนลูปรายชื่อ Whitelist ทุกคน เพื่อแจกจ่ายสินค้าที่ว่างอยู่
   for (const member of activeWhitelist) {
     if (albumIdx >= availableAlbums.length) break;
@@ -439,7 +442,7 @@ async function autoAssignWhitelist(roundId) {
     assigned.push(member.discord_username);
     albumIdx++; // ขยับไปช่องสินค้าถัดไป
   }
-  
+
   return assigned;
 }
 

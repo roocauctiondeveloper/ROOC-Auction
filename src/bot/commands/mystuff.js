@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const db = require('../../db/queries');
 const { ICONS, ITEM_TYPES } = require('../../utils/constants');
 const { resolveEmoji } = require('../utils/emoji');
@@ -11,55 +11,62 @@ const getDisplay = (t, guild = null) => {
   return `${emoji} ${entry.label}`;
 };
 
-module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('mystuff')
-    .setDescription('ดูรายการที่คุณจองไว้ในรอบปัจจุบัน'),
 
-  async execute(interaction) {
-    const discordUserId = interaction.user.id;
-    const discordUsername = interaction.member
-      ? interaction.member.displayName
-      : interaction.user.username;
+async function renderMyStuff(interaction, isEdit = false, successMsg = null) {
+  const discordUserId = interaction.user.id;
+  const discordUsername = interaction.member
+    ? interaction.member.displayName
+    : interaction.user.username;
 
-    const currentRound = await db.getCurrentRound();
+  const currentRound = await db.getCurrentRound();
 
-    if (!currentRound) {
-      return interaction.reply({
-        content: '📭 ยังไม่มีรอบการจองในระบบ',
-        ephemeral: true,
-      });
-    }
+  if (!currentRound) {
+    const msg = '📭 ยังไม่มีรอบการจองในระบบ';
+    if (isEdit) return interaction.editReply({ content: msg, embeds: [], components: [] });
+    return interaction.reply({ content: msg, flags: [MessageFlags.Ephemeral] });
+  }
 
-    const myReservations = await db.getMyReservations(discordUserId, currentRound.id);
+  const myReservations = await db.getMyReservations(discordUserId, currentRound.id);
 
-    if (myReservations.length === 0) {
-      return interaction.reply({
-        content: `📭 **${discordUsername}** ยังไม่มีการจองในรอบนี้`,
-        ephemeral: true,
-      });
-    }
+  if (myReservations.length === 0) {
+    const msg = successMsg ? `${successMsg}\n\n📭 **${discordUsername}** ไม่มีรายการจองเหลืออยู่แล้ว` : `📭 **${discordUsername}** ยังไม่มีการจองในรอบนี้`;
+    if (isEdit) return interaction.editReply({ content: msg, embeds: [], components: [] });
+    return interaction.reply({ content: msg, flags: [MessageFlags.Ephemeral] });
+  }
 
-    const embed = new EmbedBuilder()
-      .setTitle(`🎒 รายการของ ${discordUsername}`)
-      .setColor(0x5865F2)
+  const embed = new EmbedBuilder()
+    .setTitle(`🎒 รายการของ ${discordUsername}`)
+    .setColor(0x5865F2)
       .setFooter({ text: `Round: ${currentRound.name}` })
       .setTimestamp();
 
     // จัด group ตาม page
-    const grouped = new Map();
-    for (const r of myReservations) {
-      if (!grouped.has(r.page_name)) grouped.set(r.page_name, []);
-      grouped.get(r.page_name).push(r);
-    }
+    // จัด group ตาม page สำหรับแสดงผลข้อความ
+    const groupedByPage = new Map();
+    // จัด group ตามเวลาที่จอง (reserved_at) และประเภท สำหรับสร้างปุ่มยกเลิก
+    const groupedByTime = new Map();
 
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
     const { FEATHER_TYPES } = require('../../utils/constants');
+
+    for (const r of myReservations) {
+      // Group by page
+      if (!groupedByPage.has(r.page_name)) groupedByPage.set(r.page_name, []);
+      groupedByPage.get(r.page_name).push(r);
+
+      // Group by time & type
+      if (FEATHER_TYPES.includes(r.item_type)) {
+        const timeKey = `${r.reserved_at}_${r.item_type}`;
+        if (!groupedByTime.has(timeKey)) groupedByTime.set(timeKey, { type: r.item_type, items: [] });
+        groupedByTime.get(timeKey).items.push(r);
+      }
+    }
+
     const rows = [];
     let currentRow = new ActionRowBuilder();
 
-    for (const [pageName, items] of grouped) {
-      // Group by item_type within the same page
+    // 1. สร้างข้อความใน Embed โดยแยกตามหน้า
+    for (const [pageName, items] of groupedByPage) {
       const byType = {};
       items.forEach(i => {
          if (!byType[i.item_type]) byType[i.item_type] = [];
@@ -72,20 +79,38 @@ module.exports = {
       });
 
       embed.addFields({ name: `📄 หน้า ${pageName} (รวม ${items.length} ชิ้น)`, value: lines.join('\n'), inline: false });
+    }
 
-      // สร้างปุ่มยกเลิกสำหรับหน้านี้
-      const isFeather = items.some(it => FEATHER_TYPES.includes(it.item_type));
-      const pageId = items[0].page_id;
-      const itemId = items[0].item_id;
+    // 2. สร้างปุ่มยกเลิก โดยจัดกลุ่มตามการกดจอง (reserved_at)
+    for (const group of groupedByTime.values()) {
+      const type = group.type;
+      const items = group.items;
+      
+      // จัดกลุ่มตามหน้าอีกที เพื่อแสดง label P.X [..] | P.Y [..]
+      const pages = {};
+      items.forEach(i => {
+        if (!pages[i.page_name]) pages[i.page_name] = [];
+        pages[i.page_name].push(i.position);
+      });
+
+      const detailList = Object.entries(pages).map(([pageNum, posList]) => {
+        posList.sort((a, b) => a - b);
+        return `P.${pageNum} [${posList.join(', ')}]`;
+      }).join(' | ');
+
+      const itemIds = items.map(i => i.item_id).join('_');
+      const isLD = type.toLowerCase() === 'light-dark' || type.toLowerCase() === 'ขนนกดำ';
+      const typeEmoji = isLD ? '🤍' : '❤️';
+      
+      // Truncate label if it's too long (Discord limit is 80 chars for button label)
+      let labelStr = `❌ ${typeEmoji} ${detailList}`;
+      if (labelStr.length > 70) labelStr = labelStr.substring(0, 67) + '...';
+      labelStr += ` (x${items.length})`;
 
       const btn = new ButtonBuilder()
+        .setCustomId(`c_b_${itemIds}`)
+        .setLabel(labelStr)
         .setStyle(ButtonStyle.Danger);
-
-      if (isFeather) {
-        btn.setCustomId(`c_p_${pageId}`).setLabel(`❌ ยกเลิกหน้า ${pageName} (x${items.length})`);
-      } else {
-        btn.setCustomId(`c_i_${itemId}`).setLabel(`❌ ยกเลิก Album #${items[0].position}`);
-      }
 
       if (currentRow.components.length === 5) {
         rows.push(currentRow);
@@ -94,18 +119,24 @@ module.exports = {
       currentRow.addComponents(btn);
     }
 
-    // เพิ่มปุ่มยกเลิกทั้งหมดไว้ท้ายสุด (ถ้ามีปุ่มเดียวไม่ต้องขึ้นแถวใหม่)
-    const cancelAllBtn = new ButtonBuilder()
-      .setCustomId('unreserve_me')
-      .setLabel('❌ ยกเลิกทั้งหมด')
-      .setStyle(ButtonStyle.Danger);
+    // เพิ่มปุ่มยกเลิกทั้งหมดไว้ท้ายสุด (ถ้ามีขนนกให้ยกเลิก)
+    const hasFeather = myReservations.some(r => FEATHER_TYPES.includes(r.item_type));
+    if (hasFeather) {
+      const cancelAllBtn = new ButtonBuilder()
+        .setCustomId('unreserve_me')
+        .setLabel('❌ ยกเลิกทั้งหมด')
+        .setStyle(ButtonStyle.Danger);
 
-    if (currentRow.components.length === 5) {
-      rows.push(currentRow);
-      currentRow = new ActionRowBuilder();
+      if (currentRow.components.length === 5) {
+        rows.push(currentRow);
+        currentRow = new ActionRowBuilder();
+      }
+      currentRow.addComponents(cancelAllBtn);
     }
-    currentRow.addComponents(cancelAllBtn);
-    rows.push(currentRow);
+    
+    if (currentRow.components.length > 0) {
+      rows.push(currentRow);
+    }
 
     const ldUsage = myReservations.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
     const tsUsage = myReservations.filter(r => r.item_type.toLowerCase() === 'time-space').length;
@@ -115,8 +146,24 @@ module.exports = {
     const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
     const quotaStr = `📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
 
-    embed.setDescription(`คุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ\n${quotaStr}`);
+    const content = successMsg ? `✅ ${successMsg}\n\nคุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ\n${quotaStr}` : `คุณได้ทำการจองไปแล้วทั้งหมด **${myReservations.length}** รายการ\n${quotaStr}`;
+    embed.setDescription(content);
 
-    return interaction.reply({ embeds: [embed], components: rows.slice(0, 5), ephemeral: true });
+    if (isEdit) {
+      return interaction.editReply({ content: '', embeds: [embed], components: rows.slice(0, 5) });
+    } else {
+      return interaction.reply({ embeds: [embed], components: rows.slice(0, 5), flags: [MessageFlags.Ephemeral] });
+    }
+}
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('mystuff')
+    .setDescription('ดูรายการที่คุณจองไว้ในรอบปัจจุบัน'),
+
+  async execute(interaction) {
+    return renderMyStuff(interaction, false, null);
   },
+  
+  renderMyStuff
 };

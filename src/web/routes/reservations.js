@@ -13,27 +13,27 @@ router.get('/', async (req, res) => {
     const reservations = await db.getCurrentReservations();
     const pages = await db.getAllPages();
     const whitelist = await db.getAllWhitelist();
-    
+
     // Collect all items across pages to show in dropdown
     const allItems = [];
     const itemsPromises = pages.map(page => db.getItemsForPage(page.id));
     const itemsResults = await Promise.all(itemsPromises);
 
     for (let i = 0; i < pages.length; i++) {
-        const items = itemsResults[i];
-        const page = pages[i];
-        for (const item of items) {
-            if (!item.reserved_by) {
-                allItems.push({ ...item, page_name: page.name });
-            }
+      const items = itemsResults[i];
+      const page = pages[i];
+      for (const item of items) {
+        if (!item.reserved_by) {
+          allItems.push({ ...item, page_name: page.name });
         }
+      }
     }
 
     const currentRound = await db.getOrCreateCurrentRound();
-    res.render('reservations', { 
-      reservations, 
-      pages, 
-      whitelist, 
+    res.render('reservations', {
+      reservations,
+      pages,
+      whitelist,
       availableItems: allItems,
       currentRound
     });
@@ -54,10 +54,10 @@ router.post('/', async (req, res) => {
   try {
     const currentRound = await db.getOrCreateCurrentRound();
     const isReserved = await db.isItemReserved(currentRound.id, item_id);
-    
+
     if (isReserved) {
-        req.session.error_msg = 'Item นี้ถูกจองไปแล้ว';
-        return res.redirect('/reservations');
+      req.session.error_msg = 'Item นี้ถูกจองไปแล้ว';
+      return res.redirect('/reservations');
     }
 
     // Find username from whitelist if possible
@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
   } catch (err) {
     req.session.error_msg = 'เกิดข้อผิดพลาดในการเพิ่มข้อมูลการจอง';
   }
-  
+
   res.redirect('/reservations');
 });
 
@@ -113,7 +113,7 @@ router.post('/quota', async (req, res) => {
       req.session.error_msg = 'Invalid quota value';
       return res.redirect(req.get('Referrer') || '/reservations');
     }
-    
+
     await db.updateRoundQuota(currentRound.id, type, newQuota);
     console.log(`[Admin] Quota updated: Round ${currentRound.id}, Type: ${type || 'General'}, Value: ${newQuota}`);
     req.session.success_msg = `Updated ${type ? type.toUpperCase() : 'General'} quota to ${newQuota >= 999 ? 'Unlimited' : newQuota}`;

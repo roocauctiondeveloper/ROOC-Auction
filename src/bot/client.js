@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const availableCmd = require('./commands/available');
@@ -35,6 +35,16 @@ client.once('clientReady', (c) => {
 
 client.on('interactionCreate', async interaction => {
   // Handle Unreserve Button (จากข้อความจองสำเร็จ)
+  if (interaction.isButton() && interaction.customId === 'lb_mystuff') {
+    try {
+      const { renderMyStuff } = require('./commands/mystuff');
+      return renderMyStuff(interaction, false, null);
+    } catch (err) {
+      console.error('[client] lb_mystuff error:', err);
+      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการดึงข้อมูลกระเป๋า', flags: [MessageFlags.Ephemeral] });
+    }
+  }
+
   if (interaction.isButton() && interaction.customId === 'unreserve_me') {
     try {
       const db = require('../db/queries');
@@ -43,7 +53,7 @@ client.on('interactionCreate', async interaction => {
       const currentRound = await db.getCurrentRound();
       
       if (!currentRound || currentRound.status !== 'open') {
-        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', ephemeral: true });
+        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', flags: [MessageFlags.Ephemeral] });
       }
 
       // Acknowledge ทันที (ปุ่มจะหยุดหมุน) แต่ไม่ขึ้น "Thinking..."
@@ -51,23 +61,27 @@ client.on('interactionCreate', async interaction => {
 
       await db.deleteAllUserReservationsInRound(currentRound.id, interaction.user.id);
       
-      // อัปเดตบอร์ด (งานหนัก)
-      await updateLiveBoard(interaction.client, currentRound.id);
+      updateLiveBoard(interaction.client, currentRound.id).catch(err => console.error('❌ Board update error:', err));
 
-      const ldQuota = currentRound.quota_ld || 1;
-      const tsQuota = currentRound.quota_ts || 1;
-      const ldLeft = ldQuota >= 999 ? '∞' : ldQuota;
-      const tsLeft = tsQuota >= 999 ? '∞' : tsQuota;
-      const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+      if (interaction.message.embeds && interaction.message.embeds.length > 0) {
+        const { renderMyStuff } = require('./commands/mystuff');
+        return renderMyStuff(interaction, true, 'ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ');
+      } else {
+        const ldQuota = currentRound.quota_ld || 1;
+        const tsQuota = currentRound.quota_ts || 1;
+        const ldLeft = ldQuota >= 999 ? '∞' : ldQuota;
+        const tsLeft = tsQuota >= 999 ? '∞' : tsQuota;
+        const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
 
-      // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
-      return interaction.editReply({ content: `✅ ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
+        // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
+        return interaction.editReply({ content: `✅ ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
+      }
     } catch (err) {
       console.error('[client] unreserve button error:', err);
       if (interaction.deferred || interaction.replied) {
-        return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', ephemeral: true });
+        return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
       }
-      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', ephemeral: true });
+      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
     }
   }
 
@@ -79,43 +93,50 @@ client.on('interactionCreate', async interaction => {
       const currentRound = await db.getCurrentRound();
 
       if (!currentRound || currentRound.status !== 'open') {
-        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', ephemeral: true });
+        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', flags: [MessageFlags.Ephemeral] });
       }
 
       await interaction.deferUpdate();
 
+      const discordUsername = interaction.member?.displayName ?? interaction.user.username;
+
       if (interaction.customId.startsWith('c_p_')) {
         const pageId = interaction.customId.replace('c_p_', '');
-        console.log(`[Cancel] User ${interaction.user.id} requested to cancel Page ${pageId}`);
+        console.log(`[Cancel] User ${discordUsername} requested to cancel Page ${pageId}`);
         await db.deletePageReservationsForUser(currentRound.id, pageId, interaction.user.id);
       } else if (interaction.customId.startsWith('c_b_')) {
         const itemIds = interaction.customId.replace('c_b_', '').split('_');
-        console.log(`[Cancel] User ${interaction.user.id} requested to cancel bulk items:`, itemIds);
+        console.log(`[Cancel] User ${discordUsername} requested to cancel bulk items:`, itemIds);
         for (const id of itemIds) {
           if (id) await db.deleteSingleReservation(currentRound.id, id, interaction.user.id);
         }
       } else {
         const itemId = interaction.customId.replace('c_i_', '');
-        console.log(`[Cancel] User ${interaction.user.id} requested to cancel Item ID: ${itemId}`);
+        console.log(`[Cancel] User ${discordUsername} requested to cancel Item ID: ${itemId}`);
         await db.deleteSingleReservation(currentRound.id, itemId, interaction.user.id);
       }
 
-      await updateLiveBoard(interaction.client, currentRound.id);
+      updateLiveBoard(interaction.client, currentRound.id).catch(err => console.error('❌ Board update error:', err));
 
-      const updatedRes = await db.getMyReservations(interaction.user.id, currentRound.id);
-      const ldUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
-      const tsUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'time-space').length;
-      const ldQuota = currentRound.quota_ld || 1;
-      const tsQuota = currentRound.quota_ts || 1;
-      const ldLeft = ldQuota >= 999 ? '∞' : Math.max(0, ldQuota - ldUsage);
-      const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
-      const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+      if (interaction.message.embeds && interaction.message.embeds.length > 0) {
+        const { renderMyStuff } = require('./commands/mystuff');
+        return renderMyStuff(interaction, true, 'ยกเลิกรายการเรียบร้อยแล้วครับ');
+      } else {
+        const updatedRes = await db.getMyReservations(interaction.user.id, currentRound.id);
+        const ldUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
+        const tsUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'time-space').length;
+        const ldQuota = currentRound.quota_ld || 1;
+        const tsQuota = currentRound.quota_ts || 1;
+        const ldLeft = ldQuota >= 999 ? '∞' : Math.max(0, ldQuota - ldUsage);
+        const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
+        const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
 
-      // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
-      return interaction.editReply({ content: `✅ ยกเลิกรายการเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
+        // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
+        return interaction.editReply({ content: `✅ ยกเลิกรายการเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
+      }
     } catch (err) {
       console.error('[client] individual cancel error:', err);
-      return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', ephemeral: true });
+      return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', flags: [MessageFlags.Ephemeral] });
     }
   }
 
@@ -135,7 +156,7 @@ client.on('interactionCreate', async interaction => {
       } catch (error) {
         console.error('[available button] error:', error);
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: 'เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true });
+          await interaction.reply({ content: 'เกิดข้อผิดพลาด กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
         }
       }
     }
@@ -149,7 +170,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
       console.error('[available select] error:', error);
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'เกิดข้อผิดพลาด กรุณาลองใหม่', ephemeral: true });
+        await interaction.reply({ content: 'เกิดข้อผิดพลาด กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
       }
     }
     return;
@@ -169,9 +190,9 @@ client.on('interactionCreate', async interaction => {
   } catch (error) {
     console.error(error);
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+      await interaction.followUp({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
     } else {
-      await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+      await interaction.reply({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
     }
   }
 });

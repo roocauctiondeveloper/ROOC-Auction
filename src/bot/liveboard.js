@@ -134,27 +134,32 @@ async function buildBoardEmbed(round, guild = null) {
   const remaining = totalItems - reservedCount;
   const description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\nพิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
 
-  const finalEmbeds = embeds.slice(0, 10);
-  if (finalEmbeds.length > 0) {
-    finalEmbeds[0].setDescription(description);
-    finalEmbeds[finalEmbeds.length - 1].setFooter({ text: 'Auto-updates on reserve' }).setTimestamp();
+  if (embeds.length > 0) {
+    embeds[0].setDescription(description);
+    embeds[embeds.length - 1].setFooter({ text: 'Auto-updates on reserve' }).setTimestamp();
   }
 
-  const totalChars = finalEmbeds.reduce((sum, emb) => sum + (JSON.stringify(emb.data).length), 0);
-  console.log(`📊 Embeds built: ${finalEmbeds.length} messages, Total approx chars: ${totalChars}`);
+  const totalChars = embeds.reduce((sum, emb) => sum + (JSON.stringify(emb.data).length), 0);
+  console.log(`📊 Embeds built: ${embeds.length} messages, Total approx chars: ${totalChars}`);
 
-  return { embeds: finalEmbeds, totalItems, reservedCount };
+  return { embeds, totalItems, reservedCount };
 }
 
 /**
  * สร้าง buttons สำหรับ items ที่ยังว่าง
  */
 async function buildBoardButtons(round, guild = null) {
-  const availableItems = await db.getAvailableItems(round.id);
-  if (availableItems.length === 0) return { ldBundles: [], tsBundles: [] };
+  const allData = await db.getAllBoardData(round.id);
+  if (allData.length === 0) return { ldBundles: [], tsBundles: [] };
 
-  const ldItems = availableItems.filter(i => i.item_type.toLowerCase() === 'light-dark');
-  const tsItems = availableItems.filter(i => i.item_type.toLowerCase() === 'time-space');
+  // Map database item_id to id for downstream compatibility
+  const items = allData.map(item => ({
+    ...item,
+    id: item.item_id
+  }));
+
+  const ldItems = items.filter(i => i.item_type.toLowerCase() === 'light-dark');
+  const tsItems = items.filter(i => i.item_type.toLowerCase() === 'time-space');
 
   const formatSetLabel = (items) => {
     const pages = {};
@@ -207,12 +212,23 @@ async function buildBoardButtons(round, guild = null) {
       
       const fullPages = sortedPageNames.filter(name => itemsByPage[name].length === 4);
       
-      let numSplit = 0;
-      if (targetSize < 4) {
-        const piecesPerPage = Math.floor(4 / targetSize);
-        numSplit = Math.floor(fullPages.length / (piecesPerPage + 1));
+      let looseItemsCount = 0;
+      for (const pageName of sortedPageNames) {
+        if (itemsByPage[pageName].length < 4) {
+          looseItemsCount += itemsByPage[pageName].length;
+        }
       }
-      const numKeep = fullPages.length - numSplit;
+
+      let numKeep = fullPages.length;
+      if (targetSize < 4) {
+        // We want: (Keep count) >= (Total items in pool) / targetSize
+        // Keep >= (Split * 4 + looseItemsCount) / targetSize
+        // Keep * targetSize >= (FullPages - Keep) * 4 + looseItemsCount
+        // Keep * (targetSize + 4) >= FullPages * 4 + looseItemsCount
+        const requiredKeep = Math.ceil((fullPages.length * 4 + looseItemsCount) / (targetSize + 4));
+        numKeep = Math.min(fullPages.length, requiredKeep);
+      }
+      const numSplit = fullPages.length - numKeep;
 
       const pool = [];
       let keptCount = 0;
@@ -249,27 +265,43 @@ async function buildBoardButtons(round, guild = null) {
 
     const allRows = [];
     let currentRow = new ActionRowBuilder();
-    const maxButtons = Math.min(allSubChunks.length, 40);
+    const maxButtons = allSubChunks.length;
 
     console.log(`\n--- [ROUND LOG: ${type.toUpperCase()} BUTTONS] ---`);
+
+    let vacantCount = 0;
+    let partialCount = 0;
+    let reservedCount = 0;
 
     for (let i = 0; i < maxButtons; i++) {
       const setSlice = allSubChunks[i];
       const idsStr = setSlice.map(item => item.id).join(',');
-      const numPages = new Set(setSlice.map(i => i.page_name)).size;
+      
+      // Check reservation status of the items in this chunk
+      const vacantItems = setSlice.filter(item => !item.reserved_by);
+      const reservedItems = setSlice.filter(item => item.reserved_by);
+      const isFullyReserved = vacantItems.length === 0;
 
-      // Color Logic: 
-      // Main color if Full amount (up to 4) regardless of page mixing
+      if (isFullyReserved) {
+        reservedCount++;
+        continue; // 🚀 SKIP: Don't add button if fully reserved!
+      } else if (reservedItems.length === 0) {
+        vacantCount++;
+      } else {
+        partialCount++;
+      }
+
       const maxChunkSize = Math.min(bundleSize, 4);
-      const isMain = setSlice.length === maxChunkSize;
-      let finalStyle = isMain ? btnStyle : (type === 'ld' ? ButtonStyle.Primary : ButtonStyle.Danger);
+      const isMain = vacantItems.length === maxChunkSize;
+      const finalStyle = isMain ? btnStyle : (type === 'ld' ? ButtonStyle.Primary : ButtonStyle.Danger);
 
-      const label = formatSetLabel(setSlice);
-      // Removed per-button log
+      const label = formatSetLabel(vacantItems);
+
       const btn = new ButtonBuilder()
         .setCustomId(`${prefix}${type}_bundle_${idsStr}`)
         .setLabel(label)
-        .setStyle(finalStyle);
+        .setStyle(finalStyle)
+        .setDisabled(false);
 
       if (emojiStr) btn.setEmoji(resolveEmoji(emojiStr, guild, ICONS.DEFAULT));
       currentRow.addComponents(btn);
@@ -282,7 +314,7 @@ async function buildBoardButtons(round, guild = null) {
     if (currentRow.components.length > 0) allRows.push(currentRow);
     const sizes = allSubChunks.map(c => c.length);
     const summary = Array.from(new Set(sizes)).sort((a,b)=>b-a).map(s => `${sizes.filter(x=>x===s).length}x(${s})`).join(', ');
-    console.log(`[Board] Generated ${allSubChunks.length} ${type.toUpperCase()} buttons: ${summary}`);
+    console.log(`[Board] Generated ${allSubChunks.length} ${type.toUpperCase()} buttons: ${summary} | State: ${vacantCount} vacant, ${partialCount} partial, ${reservedCount} reserved`);
 
     const messages = [];
     for (let i = 0; i < allRows.length; i += 5) {
@@ -313,6 +345,8 @@ async function sendLiveBoard(client, channelId, round) {
       try {
         const msg = await channel.send({ embeds: [embeds[i]] });
         embIds.push(msg.id);
+        messageCache.set(msg.id, JSON.stringify(embeds[i].data));
+        if (i < embeds.length - 1) await new Promise(r => setTimeout(r, 1500));
       } catch (err) {
         console.error(`❌ Failed to send Embed ${i}:`, err.message);
       }
@@ -321,28 +355,44 @@ async function sendLiveBoard(client, channelId, round) {
     const sendGroup = async (bundles, targetIds, emptyText) => {
       try {
         if (bundles.length > 0) {
-          for (const bundle of bundles) {
+          for (let i = 0; i < bundles.length; i++) {
+            const bundle = bundles[i];
             const msg = await channel.send({ components: bundle });
             targetIds.push(msg.id);
+            messageCache.set(msg.id, JSON.stringify(bundle.map(r => r.toJSON())));
+            if (i < bundles.length - 1) await new Promise(r => setTimeout(r, 1500));
           }
         } else {
           const msg = await channel.send({ content: emptyText });
           targetIds.push(msg.id);
+          messageCache.set(msg.id, `EMPTY_${emptyText}`);
         }
       } catch (err) {
         console.error(`❌ Failed to send group:`, err.message);
       }
     };
 
+    await new Promise(r => setTimeout(r, 1500));
     await sendGroup(ldBundles, ldIds, '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ');
+    
+    await new Promise(r => setTimeout(r, 1500));
     await sendGroup(tsBundles, tsIds, '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ');
+
+    await new Promise(r => setTimeout(r, 1500));
+    const myStuffBtn = new ButtonBuilder()
+      .setCustomId('lb_mystuff')
+      .setLabel('🎒 กระเป๋า & โควตาของฉัน (My Stuff)')
+      .setStyle(ButtonStyle.Primary);
 
     const brandingBtn = new ButtonBuilder()
       .setLabel(`Developed by ${BRANDING.EMOJI} ${BRANDING.DEVELOPER}`)
       .setURL(BRANDING.URL)
       .setStyle(ButtonStyle.Link);
-    const brandingRow = new ActionRowBuilder().addComponents(brandingBtn);
-    const brandingMsg = await channel.send({ components: [brandingRow] });
+
+    const row1 = new ActionRowBuilder().addComponents(myStuffBtn);
+    const row2 = new ActionRowBuilder().addComponents(brandingBtn);
+
+    const brandingMsg = await channel.send({ components: [row1, row2] });
 
     const structuredIds = [
       `EMB:${embIds.join(',')}`,
@@ -360,6 +410,7 @@ async function sendLiveBoard(client, channelId, round) {
 }
 
 const activeUpdates = new Map();
+const messageCache = new Map();
 
 async function updateLiveBoard(client, roundId) {
   _performUpdate(client, roundId);
@@ -389,30 +440,48 @@ async function _performUpdate(client, roundId) {
 
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
-      editPromises.push(
-        channel.messages.edit(ids.emb[i], { embeds: [embeds[i]] })
-          .catch(err => console.error(`❌ Failed to edit Embed ${i}:`, err.message))
-      );
+      const msgId = ids.emb[i];
+      const newJson = JSON.stringify(embeds[i].data);
+      if (messageCache.get(msgId) !== newJson) {
+        messageCache.set(msgId, newJson);
+        editPromises.push(
+          channel.messages.edit(msgId, { embeds: [embeds[i]] })
+            .catch(err => console.error(`❌ Failed to edit Embed ${i}:`, err.message))
+        );
+      }
     }
 
     const updateBundleGroup = (bundles, msgIds, label) => {
       if (!msgIds || msgIds.length === 0) return;
       for (let i = 0; i < msgIds.length; i++) {
+        const msgId = msgIds[i];
         if (i < bundles.length) {
-          editPromises.push(
-            channel.messages.edit(msgIds[i], { components: bundles[i], content: null })
-              .catch(err => console.error(`❌ Failed to edit ${label} Bundle ${i}:`, err.message))
-          );
+          const newJson = JSON.stringify(bundles[i].map(r => r.toJSON()));
+          if (messageCache.get(msgId) !== newJson) {
+            messageCache.set(msgId, newJson);
+            editPromises.push(
+              channel.messages.edit(msgId, { components: bundles[i], content: null })
+                .catch(err => console.error(`❌ Failed to edit ${label} Bundle ${i}:`, err.message))
+            );
+          }
         } else if (i === 0) {
-          editPromises.push(
-            channel.messages.edit(msgIds[i], { content: `**[ ${label} ]** หมดแล้ว / ไม่มีรายการ`, components: [] })
-              .catch(err => console.error(`❌ Failed to clear ${label} Bundle:`, err.message))
-          );
+          const newJson = `EMPTY_${label}`;
+          if (messageCache.get(msgId) !== newJson) {
+            messageCache.set(msgId, newJson);
+            editPromises.push(
+              channel.messages.edit(msgId, { content: `**[ ${label} ]** หมดแล้ว / ไม่มีรายการ`, components: [] })
+                .catch(err => console.error(`❌ Failed to clear ${label} Bundle:`, err.message))
+            );
+          }
         } else {
-          editPromises.push(
-            channel.messages.edit(msgIds[i], { content: '.', components: [] })
-              .catch(err => console.error(`❌ Failed to reset ${label} extra message:`, err.message))
-          );
+          const newJson = `DOT_${label}`;
+          if (messageCache.get(msgId) !== newJson) {
+            messageCache.set(msgId, newJson);
+            editPromises.push(
+              channel.messages.edit(msgId, { content: '.', components: [] })
+                .catch(err => console.error(`❌ Failed to reset ${label} extra message:`, err.message))
+            );
+          }
         }
       }
     };
@@ -452,7 +521,7 @@ async function closeLiveBoard(client, round) {
       editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [closedEmbed] }).catch(() => null));
     }
 
-    [...ids.alb, ...ids.ld, ...ids.ts].forEach(msgId => {
+    [...ids.alb, ...ids.ld, ...ids.ts, ...ids.brd].forEach(msgId => {
       if (msgId) editPromises.push(channel.messages.delete(msgId).catch(() => null));
     });
 
