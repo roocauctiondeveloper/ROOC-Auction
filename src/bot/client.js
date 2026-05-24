@@ -34,6 +34,37 @@ client.once('clientReady', (c) => {
 
 
 client.on('interactionCreate', async interaction => {
+  // ─── Whitelist & Reservations Auto-Sync Display Name ──────────────────────────────────
+  try {
+    const db = require('../db/queries');
+    const userId = interaction.user.id;
+    const currentDisplayName = interaction.member?.displayName ?? interaction.user.globalName ?? interaction.user.username;
+
+    if (currentDisplayName) {
+      // 1. Sync Whitelist display name
+      db.all('SELECT id, discord_username FROM whitelist WHERE discord_user_id = ?', [userId]).then(rows => {
+        if (rows && rows.length > 0) {
+          const whitelistMember = rows[0];
+          if (currentDisplayName !== whitelistMember.discord_username) {
+            console.log(`[Sync-Bot] Auto-updating whitelist nickname for ID ${userId}: "${whitelistMember.discord_username}" -> "${currentDisplayName}"`);
+            db.updateWhitelistUsername(whitelistMember.id, currentDisplayName).catch(err => {
+              console.error('[Sync-Bot] Failed to update whitelist username:', err.message);
+            });
+          }
+        }
+      }).catch(err => {
+        console.error('[Sync-Bot] Whitelist query failed:', err.message);
+      });
+
+      // 2. Sync Reservations display name for active reservations
+      db.updateUserReservationsUsername(userId, currentDisplayName).catch(err => {
+        console.error('[Sync-Bot] Failed to update user reservations username:', err.message);
+      });
+    }
+  } catch (syncErr) {
+    console.error('[Sync-Bot] Sync error:', syncErr.message);
+  }
+
   // Handle Unreserve Button (จากข้อความจองสำเร็จ)
   if (interaction.isButton() && interaction.customId === 'lb_mystuff') {
     try {

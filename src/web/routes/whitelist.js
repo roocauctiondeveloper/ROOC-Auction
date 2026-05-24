@@ -8,11 +8,64 @@ const client = require('../../bot/client');
 
 router.use(ensureAuthenticated);
 
+let isSyncing = false;
+
+async function syncWhitelistUsernames(whitelist) {
+  if (isSyncing) return;
+  isSyncing = true;
+  console.log('[Sync] Starting background whitelist username sync...');
+  
+  try {
+    const guild = await client.guilds.fetch(config.discordGuildId);
+    if (!guild) {
+      console.warn('[Sync] Discord guild not found');
+      isSyncing = false;
+      return;
+    }
+    
+    for (const member of whitelist) {
+      if (!member.discord_user_id) continue;
+      
+      try {
+        let currentUsername = '';
+        try {
+          const discordMember = await guild.members.fetch(member.discord_user_id);
+          currentUsername = discordMember.displayName; // ใช้ชื่อเล่นในเซิร์ฟเวอร์
+        } catch (guildErr) {
+          // ถ้าไม่เจอในเซิร์ฟเวอร์ ให้ดึงชื่อ Global แทน
+          const user = await client.users.fetch(member.discord_user_id);
+          currentUsername = user.globalName || user.username;
+        }
+
+        if (currentUsername && currentUsername !== member.discord_username) {
+          try {
+            console.log(`[Sync] Updating username for ID ${member.discord_user_id}: "${member.discord_username}" -> "${currentUsername}"`);
+            await db.updateWhitelistUsername(member.id, currentUsername);
+            await db.updateUserReservationsUsername(member.discord_user_id, currentUsername);
+          } catch (dbErr) {
+            console.warn(`[Sync] Could not update username for ${member.discord_user_id} (possibly duplicate):`, dbErr.message);
+          }
+        }
+      } catch (userErr) {
+        console.error(`[Sync] Failed to sync user ${member.discord_user_id}:`, userErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Sync] Whitelist sync failed:', err.message);
+  } finally {
+    isSyncing = false;
+    console.log('[Sync] Background whitelist username sync completed.');
+  }
+}
+
 // GET /whitelist
 router.get('/', async (req, res) => {
   try {
     const whitelist = await db.getAllWhitelist();
     res.render('whitelist', { whitelist });
+    
+    // ดำเนินการซิงก์ชื่อ Discord ล่าสุดใน Background โดยไม่หน่วงเวลาการโหลดหน้าเว็บ
+    syncWhitelistUsernames(whitelist).catch(err => console.error('[Sync] Error:', err));
   } catch (err) {
     console.error(err);
     res.status(500).send('Error loading whitelist');

@@ -460,6 +460,14 @@ async function removeFromWhitelist(id) {
   return db.run('DELETE FROM whitelist WHERE id = ?', [id]);
 }
 
+async function updateWhitelistUsername(id, username) {
+  return db.run('UPDATE whitelist SET discord_username = ? WHERE id = ?', [username, id]);
+}
+
+async function updateUserReservationsUsername(discordUserId, username) {
+  return db.run('UPDATE reservations SET discord_username = ? WHERE discord_user_id = ?', [username, discordUserId]);
+}
+
 
 // ─── Available / MyStuff ──────────────────────────────────────────────────────
 
@@ -546,7 +554,7 @@ module.exports = {
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
   saveRoundSnapshot, getRoundHistoryItems,
-  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus, recordLotteryResults, getMemberLotteryHistory, getWhitelistMemberById,
+  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus, recordLotteryResults, getMemberLotteryHistory, getWhitelistMemberById, updateWhitelistUsername, updateUserReservationsUsername,
   getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin,
 
 
