@@ -250,6 +250,12 @@
         
         let availablePool = [...lastSpinParticipants];
 
+        // กำหนดเวลาหน่วงตามจำนวนผู้ชนะ (ถ้าสุ่มคนเยอะ ให้ทำงานเร็วขึ้นเพื่อไม่ให้รอนาน)
+        const isMultiWinner = count > 1;
+        const postSpinWait = isMultiWinner ? 750 : 1500;      // เวลาหยุดชี้เป้าผู้ชนะ (750ms หรือ 1.5 วินาที)
+        const postTimelineWait = isMultiWinner ? 750 : 1500;  // เวลาแสดงผลบน Timeline (750ms หรือ 1.5 วินาที)
+        const nextSpinWait = isMultiWinner ? 400 : 800;       // เวลาเว้นช่วงก่อนสุ่มคนถัดไป (400ms หรือ 800ms)
+
         for (let i = 0; i < count; i++) {
             statusText.innerText = `🌀 Spinning winner ${i + 1} of ${count}...`;
             
@@ -259,60 +265,76 @@
             // หาตำแหน่งใน selectedMembers สำหรับวาดวงล้อ
             const wheelIdx = selectedMembers.findIndex(u => u.id === winner.id);
             
-            await spinTo(wheelIdx);
+            await spinTo(wheelIdx, count);
             
-            // --- จังหวะที่ 1: นิ่งชี้เป้าบนวงล้อให้คนดูและลุ้นทัน 1.5 วินาที ---
-            await new Promise(r => setTimeout(r, 1500));
+            // --- จังหวะที่ 1: นิ่งชี้เป้าบนวงล้อให้คนดูและลุ้นทัน ---
+            await new Promise(r => setTimeout(r, postSpinWait));
             
             // เพิ่มรายชื่อเข้า Timeline ด้านขวา
             winnersList.push(winner);
             availablePool.splice(winnerIdxInPool, 1);
             addWinnerToTimeline(winner, i + 1);
             
-            // --- จังหวะที่ 2: รอให้ชื่อโชว์เด่นอยู่บน Timeline อีก 1.5 วินาที เพื่อให้ฉลอง/อ่านชื่อทัน ---
-            await new Promise(r => setTimeout(r, 1500));
+            // --- จังหวะที่ 2: รอให้ชื่อโชว์เด่นอยู่บน Timeline เพื่อให้ฉลอง/อ่านชื่อทัน ---
+            await new Promise(r => setTimeout(r, postTimelineWait));
             
             // ลบชื่อออกจากวงล้อทีหลัง เพื่อไม่ให้วงล้อขยับสั่นทันทีจนขัดจังหวะสายตา
             selectedMembers.splice(wheelIdx, 1);
             drawWheel();
             
-            // หากมีคนต่อไปที่จะสุ่ม ให้เว้นจังหวะสั้นๆ (800ms) ก่อนจะหมุนต่อ
-            if (i < count - 1) await new Promise(r => setTimeout(r, 800));
+            // หากมีคนต่อไปที่จะสุ่ม ให้เว้นจังหวะสั้นๆ ก่อนจะหมุนต่อ
+            if (i < count - 1) await new Promise(r => setTimeout(r, nextSpinWait));
         }
 
         statusText.innerText = `✨ Successfully selected ${count} winners!`;
         showFinalActions();
     }
 
-    function spinTo(index) {
+    function spinTo(index, winnerCount = 1) {
         return new Promise((resolve) => {
             const segments = selectedMembers.length;
             const anglePerSegment = 360 / segments;
             
-            // สุ่มว่ารอบนี้จะเป็นจังหวะลุ้นเป็นพิเศษตรงเส้นแบ่งหรือไม่ (40% และมีผู้เล่นมากกว่า 1 คน)
-            const isSuspenseMode = segments > 1 && Math.random() < 0.4;
+            // สุ่มตำแหน่งหยุดเฉียดฉิวตรงขอบเขตเส้นแบ่ง (70% และมีผู้เล่นมากกว่า 1 คน)
+            const isSuspenseMode = segments > 1 && Math.random() < 0.7;
             
             let segmentTargetAngle;
             if (isSuspenseMode) {
-                // โหมดลุ้นพิเศษ: หยุดใกล้ขอบทางเข้าของช่องผู้ชนะ (2 - 4 องศา)
-                const closeToBorderOffset = Math.random() * 2 + 2;
-                segmentTargetAngle = ((index + 1) * anglePerSegment) - closeToBorderOffset;
+                // หยุดเฉียดฉิวสุดๆ ห่างจากเส้นแบ่งขอบเพียง 1.5 ถึง 4 องศา
+                const edgeOffset = Math.random() * 2.5 + 1.5; // 1.5 - 4 องศา
+                const isLeadingEdge = Math.random() < 0.5; // 50% เป็นขอบทางเข้า หรือขอบทางออกของช่อง
+                
+                if (isLeadingEdge) {
+                    // เฉียดฉิวแบบเกือบจะไม่เข้าช่องผู้ชนะ (เพิ่งข้ามเส้นเข้ามาจึ๋งนึง)
+                    segmentTargetAngle = (index * anglePerSegment) + edgeOffset;
+                } else {
+                    // เฉียดฉิวแบบเกือบจะหลุดไปช่องถัดไป (กำลังจะคาบเส้นออก)
+                    segmentTargetAngle = ((index + 1) * anglePerSegment) - edgeOffset;
+                }
             } else {
-                // โหมดปกติ: สุ่มตำแหน่งกระจายทั่วช่อง (15% - 85%)
-                const randomOffset = (Math.random() * 0.7 + 0.15) * anglePerSegment;
+                // โหมดปกติ: สุ่มตำแหน่งกระจายตัวเฉลี่ยในพื้นที่ส่วนกลางช่อง (20% - 80%)
+                const randomOffset = (Math.random() * 0.6 + 0.2) * anglePerSegment;
                 segmentTargetAngle = (index * anglePerSegment) + randomOffset;
             }
             
             const targetRotation = 360 - segmentTargetAngle;
-            const randomSpins = Math.floor(Math.random() * 5) + 8;
+            
+            // หากสุ่มผู้ชนะหลายคน ให้ย่อจำนวนรอบและเวลาลงเพื่อให้ snappy ขึ้น ไม่รอนาน
+            const isMultiWinner = winnerCount > 1;
+            const minSpins = isMultiWinner ? 4 : 8;
+            const spinsRange = isMultiWinner ? 3 : 5; // 4-6 รอบ หรือ 8-12 รอบ
+            
+            const randomSpins = Math.floor(Math.random() * spinsRange) + minSpins;
             const extraSpins = randomSpins * 360;
             
             // ตำแหน่งที่จะหยุดจริง (final resting position)
             let nextRotation = currentRotation + extraSpins + (targetRotation - (currentRotation % 360));
             if (nextRotation < currentRotation) nextRotation += 360;
             
-            const durationMs = 5000 + (randomSpins * 350);
-
+            const durationMs = isMultiWinner 
+                ? 2600 + (randomSpins * 250) // ความเร็วสลัดตัวเร็วขึ้นเมื่อมีหลายผู้ชนะ (3.6s - 4.1s)
+                : 5000 + (randomSpins * 350); // ความเร็วสุดลุ้นสำหรับเสพดราม่าทีละผู้ชนะ (7.8s - 9.2s)
+ 
             // ใช้ Transition แบบจังหวะเดียว (Single Stage) เพื่อความนุ่มนวลสูงสุดตามธรรมชาติ
             // ใช้ cubic-bezier(0.1, 0.85, 0.1, 1) หมุนเร็วมากในตอนแรกและชะลอช้าๆ นุ่มๆ จนหยุดสนิท
             canvas.style.transition = `transform ${durationMs}ms cubic-bezier(0.1, 0.85, 0.1, 1)`;
