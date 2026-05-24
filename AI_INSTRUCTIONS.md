@@ -1,51 +1,97 @@
-# 🤖 Instructions for AI Coding Assistant
+# Instructions for AI Coding Assistant
 
 **Project:** ROOC-Auction (Discord Reservation Bot & Web Dashboard)
 
-> [!IMPORTANT]
-> **READ THIS FIRST** before making any changes to the codebase. This document contains critical context on architecture decisions and recent fixes to prevent regressions.
+Read this before making code changes. This file captures the current architecture and behavior that should not be accidentally regressed.
 
----
+## Core Architecture
 
-## 🏗️ Core Architecture
-
-- **Entry Point:** `src/index.js` (Loads env, validates config, starts Web & Bot).
-- **Database:** PostgreSQL (Supabase) via `pg` module.
+- **Entry point:** `src/index.js`
+  - Loads `.env.local` first for local dev, otherwise `.env`.
+  - Validates required config.
+  - Starts the Express web dashboard.
+  - Logs in the Discord bot after the web server is listening.
+- **Database:** PostgreSQL/Supabase through `pg`.
+- **Database wrapper:** `src/db/database.js`
+  - Exposes SQLite-style helpers (`all`, `get`, `run`, `exec`) over Postgres.
+  - Converts `?` placeholders to `$1`, `$2`, etc.
+- **Business queries:** `src/db/queries.js`.
 - **Bot:** Discord.js v14.
-- **Web:** Express.js + EJS + Passport (Discord Strategy).
-- **Session Store:** `connect-pg-simple` (Postgres-backed).
+- **Web:** Express + EJS + Passport Discord OAuth.
+- **Session store:** `connect-pg-simple` when `DATABASE_TYPE=postgres`.
 
----
+## Current Product Behavior
 
-## ⚡ Critical Knowledge & Recent Fixes
+### Round Lifecycle
 
-### 1. Database Connection Management (`src/db/database.js`)
-- **Shared Pool:** The application MUST use a single shared `Pool` instance for both general queries and Web Sessions. This prevents reaching Supabase connection limits.
-- **Timeout Fixes:** We recently resolved `ETIMEDOUT` errors on Render by:
-    - Increasing `max` connections to 20.
-    - Setting `connectionTimeoutMillis` to 15000ms.
-    - Enabling `keepAlive: true`.
-    - Using object-based config for `Pool` to avoid URL parsing issues with special characters in passwords (like `$`).
-- **PgBouncer:** If using port 6543 (Pooler), be aware of "Transaction Mode" limitations. We added `idle_in_transaction_session_timeout` to mitigate stalls.
+- Rounds can be `preparing`, `open`, or `closed`.
+- Admins configure pages/items/presets/quotas while preparing.
+- Opening a round:
+  - changes status to `open`;
+  - auto-assigns active whitelist members to available Album/Illution Box slots;
+  - sends the Discord live board to `DISCORD_ANNOUNCE_CHANNEL_ID`.
+- Closing a round:
+  - changes status to `closed`;
+  - snapshots current item/reservation state into `round_history_items`;
+  - closes/deletes live board controls;
+  - clears current pages/items for the next round.
 
-### 2. Performance & Rate Limiting (`src/web/app.js`)
-- **Discord Info Caching:** The Express middleware now caches `server_name` in `req.session`. **DO NOT** remove this, as calling Discord API on every request causes heavy latency and `ETIMEDOUT` on session lookups.
+### Reservation Rules
 
-### 3. Live Board Logic (`src/bot/liveboard.js`)
-- **Debounce & Queue:** The `updateLiveBoard` function uses a 1.2s debounce and an internal lock (`activeUpdates`) to prevent overlapping Discord message edits. This is vital to stay under Discord rate limits.
-- **Grid Layout:** The board uses a 3-column grid via Embed fields. If adding fields, ensure they maintain the `inline: true` and modulo-3 padding logic.
+- Users can reserve only while the current round is `open`.
+- `Album` and `Illution Box`:
+  - require active whitelist membership;
+  - are limited to one Album/Illution Box-type reservation per user per round.
+- `Light-Dark` and `Time-Space`:
+  - are quota-based bundle reservations;
+  - use `quota_ld` and `quota_ts` per user;
+  - also respect the round-level `quota` as a feather click/action limit.
+- The database enforces one reservation per item per round with `UNIQUE (round_id, item_id)`.
+- Do not reintroduce the older rule that a user may have only one reservation total per round. The current behavior intentionally allows multiple LD/TS reservations according to quota.
 
----
+### Live Board
 
-## 🛠️ Common Workflows
+- Main file: `src/bot/liveboard.js`.
+- The board edits existing Discord messages instead of reposting the board.
+- It builds embed grids from `getAllBoardData`.
+- It builds LD/TS bundle buttons from current availability and round quotas.
+- It caches serialized message payloads to avoid unnecessary Discord edits.
+- It uses an active/pending update guard so overlapping updates do not fight each other.
+- Keep Discord limits in mind: 5 buttons per row, 25 buttons per message, practical embed field limits.
 
-- **Local Dev:** Uses `.env.local`.
-- **Resetting DB:** Use `npm run reset-all` (be careful, it clears transactions/reservations).
-- **Deploying Commands:** `node src/bot/deploy-commands.js`.
+### User Bot Commands
 
-## ⚠️ Environment Variables
-- `DATABASE_URL` / `SUPABASE_DB_URL`: If using Supabase, prefer Direct connection (port 5432) if the Pooler (6543) is unstable.
-- `SESSION_SECRET`: Essential for secure session management.
+- `/available` shows available LD/TS reservation options and handles live board reservation buttons.
+- `/mystuff` shows the user's current reservations and cancellation controls.
+- Button handlers in `src/bot/client.js` route cancel actions, My Stuff actions, and reservation actions.
 
----
-*Last Updated: 2026-04-24 by Antigravity AI*
+## Database Connection Notes
+
+- Use the shared `Pool` from `src/db/database.js`.
+- Do not create a second Postgres pool for sessions or routes.
+- Existing pool settings are intentional for Supabase/Render stability:
+  - `max: 20`
+  - `connectionTimeoutMillis: 15000`
+  - `keepAlive: true`
+  - statement and idle-in-transaction timeouts
+- If using Supabase pooler/PgBouncer, be careful with transaction behavior and prepared statements.
+
+## Web Dashboard Notes
+
+- Authentication is Discord OAuth.
+- Admin access comes from `admin_users` or `DISCORD_ADMIN_ID`.
+- `src/web/app.js` caches the Discord server display name in the session. Keep this cache because fetching Discord member data on every request can cause slow requests/timeouts.
+- Pages/items/presets are admin-managed and generally should only be changed during `preparing`.
+
+## Important Scripts
+
+- `npm start` / `npm run dev`: start the app.
+- `npm run deploy-commands`: deploy Discord slash commands.
+- `npm run add-admin`: add a Discord admin id.
+- `npm run reset-all`: clears reservations, rounds, round history, lottery logs, and resets whitelist stats/status while preserving admins, presets, pages, items, and whitelist rows.
+
+## Known Cleanup Areas
+
+- Some legacy tests reference old command names and old item names. Verify before trusting test failures as product regressions.
+- Some comments/messages contain encoding-damaged Thai or emoji. Fix them only when touching related code or when doing a focused copy cleanup.
+- `supabase_schema.sql` is a baseline schema; runtime migrations in `src/db/queries.js` add newer round columns.

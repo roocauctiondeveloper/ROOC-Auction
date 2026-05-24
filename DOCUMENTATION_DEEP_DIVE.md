@@ -1,87 +1,120 @@
-# 📘 Project Documentation: Deep Dive (ROOC-Auction)
+# Project Documentation: Deep Dive (ROOC-Auction)
 
-## 🌟 Project Purpose
-**ROOC-Auction** is a high-concurrency item reservation system designed for Discord communities (specifically for game-related auctions or giveaways). It provides a seamless bridge between a Discord bot (for user interactions) and a Web Dashboard (for administrative management).
+## Project Purpose
+**ROOC-Auction** is a Discord-based reservation system with a web dashboard for admins. It is built for running auction/reservation rounds where admins prepare item pages, open a round, let users reserve from Discord buttons, then close the round and keep a snapshot history.
 
----
+The app has two main surfaces:
+- **Discord bot:** Shows the live board, handles user reservations, and lets users check/cancel their own reservations.
+- **Web dashboard:** Lets admins manage pages, items, rounds, quotas, whitelist members, presets, and history.
 
-## 🏗️ Core Entities & Data Model
+## Core Entities
 
-### 1. Rounds (`rounds`)
-- The system operates in "Rounds". Only one round can be **'open'** at a time.
-- Statuses: `preparing`, `open`, `closed`.
-- Each round captures its own set of reservations.
+### Rounds (`rounds`)
+- The system works in rounds.
+- Statuses are `preparing`, `open`, and `closed`.
+- A new current round is created automatically when there is no round or the previous round is closed.
+- Quotas live on the round:
+  - `quota`: click/action limit for feather reservations.
+  - `quota_ld`: Light-Dark item quota per user.
+  - `quota_ts`: Time-Space item quota per user.
+- The live board Discord channel/message ids are also stored on the round.
 
-### 2. Pages (`pages`) & Items (`items`)
-- Items are grouped into "Pages".
-- **Item Types**:
-    - `Album`: Premium items (Restricted to Whitelisted users).
-    - `Light-Dark` / `Time-Space`: Common items (Open to everyone).
-- Items have a `position` on their page.
+### Pages (`pages`) and Items (`items`)
+- Items are grouped into pages.
+- Each page can hold up to 4 item positions.
+- Supported item types:
+  - `Album`
+  - `Illution Box`
+  - `Light-Dark`
+  - `Time-Space`
+- Admin tools and presets generate items in this order: Album, Illution Box, Light-Dark, Time-Space.
 
-### 3. Reservations (`reservations`)
-- Links a `user`, an `item`, and a `round`.
-- **Primary Rule:** A user can have **ONLY ONE** active reservation per round across all categories.
+### Reservations (`reservations`)
+- A reservation links a round, item, Discord user id, and Discord display name.
+- The database enforces one reservation per item per round with `UNIQUE (round_id, item_id)`.
+- Current behavior allows a user to reserve multiple Light-Dark/Time-Space items according to round quota.
+- Album/Illution Box are limited separately: users can have only one Album/Illution Box-style reservation in a round.
 
-### 4. Whitelist (`whitelist`)
-- A list of Discord IDs allowed to reserve "Album" items.
-- Track `spin_count` and `win_count` (used for lottery-style giveaways).
+### Whitelist (`whitelist`)
+- Whitelist members are allowed to reserve Album/Illution Box items.
+- Whitelist rows also track lottery stats:
+  - `spin_count`
+  - `win_count`
+  - active/inactive status
+- Lottery results are stored in `lottery_logs`.
 
----
+### Presets (`item_presets`)
+- Presets store reusable item counts for quick round setup.
+- Applying a preset creates pages/items and sets default LD/TS quotas:
+  - LD quota defaults to `floor(light_dark_count / 9)`, minimum 1.
+  - TS quota defaults to `floor(time_space_count / 10)`, minimum 1.
 
-## 📜 Business Rules & Logic Constraints
+## Reservation Rules
 
-### 🛡️ Reservation Logic (The most critical part)
-- **Concurrency:** When multiple users click the same button, the system uses a dual-layer lock:
-    1. **In-Memory Lock:** `activeLocks` (Set) in `available.js` prevents the same item/page from being processed twice simultaneously.
-    2. **Database Transaction:** `addMultipleReservations` uses a SQL Transaction to ensure all items in a page are reserved or none are.
-- **Validation Steps:**
-    1. Check if the Round is `open`.
-    2. Check if the user already has a reservation in this round.
-    3. For `Album` items, check if the user is in the `whitelist`.
-    4. Check if the item is still available.
+### Round State
+- Users can reserve only when the current round is `open`.
+- Admins prepare pages/items while the round is `preparing`.
+- Closing a round snapshots the results, closes the Discord live board, and clears current pages/items for the next round.
 
-### 📊 Live Board Behavior
-- A persistent message in a designated Discord channel.
-- **Dynamic Updates:** Edits existing messages instead of sending new ones to keep the channel clean.
-- **Debouncing:** Updates are delayed by 1.2s and queued to prevent Discord rate limits.
-- **Structure:**
-    - `EMB`: Embeds showing item grids.
-    - `ALB/LD/TS`: Dedicated messages for buttons (grouped by type).
+### Album / Illution Box
+- Requires active whitelist membership.
+- A user can reserve only one Album/Illution Box-type item per round.
+- On round open, active whitelist members are auto-assigned to available Album/Illution Box slots in order.
 
----
+### Light-Dark / Time-Space
+- These are quota-based bundle reservations.
+- `quota_ld` controls how many Light-Dark items a user may hold.
+- `quota_ts` controls how many Time-Space items a user may hold.
+- `quota` controls the number of feather reservation button actions/click groups.
+- Users can cancel their own feather reservations from the success message, `/mystuff`, or the live board My Stuff button.
 
-## 💻 Web Dashboard Features
-- **Authentication:** Discord OAuth2. Only users in the `admin_users` table can access.
-- **Session Management:** Uses `connect-pg-simple`. Session data is shared in the same PG Pool as the app to avoid connection leaks.
-- **Features:**
-    - Create/Delete Pages & Items.
-    - Start/Stop Rounds (Snapshotting history on close).
-    - Whitelist management (Add/Remove/Toggle).
-    - Presets for quick page/item generation.
+### Concurrency
+- Discord button handlers use in-memory locks in `src/bot/commands/available.js` to reduce duplicate processing.
+- Database uniqueness on `(round_id, item_id)` is the final protection against two users reserving the same item.
+- Multi-item feather reservations use a transaction in `addMultipleReservations`.
 
----
+## Live Board Behavior
 
-## 🚀 Technical Constraints & "Gotchas"
+- The live board is sent when an admin opens a round.
+- It shows item status in embed grids and exposes Discord buttons for available LD/TS bundles.
+- The board updates existing Discord messages instead of sending a new board every time.
+- `src/bot/liveboard.js` caches message payloads and skips edits when content did not change.
+- Update calls are guarded with an internal active/pending queue to avoid overlapping edits.
+- Discord limits matter:
+  - 5 buttons per action row.
+  - 25 buttons per message.
+  - Embed fields are padded to keep a 3-column grid.
 
-### 1. Discord UI Limits
-- **Buttons:** Max 25 buttons per message.
-- **Select Menus:** Used as a fallback if a category has more than 25 items.
-- **Embeds:** Max 25 fields. The system automatically splits pages into multiple embeds (bubbles) if necessary.
+## Web Dashboard
 
-### 2. Database (PostgreSQL/Supabase)
-- **Connection Limits:** Supabase (free tier) has strict limits. We use a **Shared Pool** with `max: 20` and `keepAlive: true`.
-- **PgBouncer:** Since we use the pooler (port 6543), **Transactions** must be handled carefully, and **Prepared Statements** should be avoided or limited.
+Authentication uses Discord OAuth through Passport. Access is granted when:
+- the Discord user id exists in `admin_users`, or
+- the id matches `DISCORD_ADMIN_ID`.
 
-### 3. Performance
-- **Caching:** Discord member information (nicknames) is cached in the web session to prevent redundant slow API calls.
-- **N+1 Queries:** `getAllBoardData` uses a single optimized JOIN query to fetch the entire board state at once.
+Dashboard features:
+- Manage pages and page items.
+- Bulk setup and bulk add inventory.
+- Apply presets.
+- Open/close rounds.
+- Manually add/cancel reservations.
+- Manage whitelist and lottery results.
+- View round history snapshots.
 
----
-## 🛠️ Maintenance & Development
-- **Log Monitoring:** Look for `📡 Initializing DB Pool` to verify the connection method.
-- **Adding Items:** Use the Dashboard "Presets" to quickly generate standardized item sets.
-- **Emergency Reset:** `npm run reset-all` clears all dynamic data but preserves admins and presets.
+## Database and Deployment
 
----
-*Documented by Antigravity AI - 2026-04-24*
+- Production is PostgreSQL/Supabase through the `pg` package.
+- The app uses a shared Postgres pool from `src/db/database.js`.
+- Web sessions use `connect-pg-simple` with the same shared pool when `DATABASE_TYPE=postgres`.
+- The project is configured for Docker deployment.
+- Important scripts:
+  - `npm start` / `npm run dev`: start web dashboard and Discord bot.
+  - `npm run deploy-commands`: register Discord slash commands.
+  - `npm run add-admin`: add a Discord admin id.
+  - `npm run reset-all`: clear reservations, rounds, history, and lottery logs while preserving admins, presets, pages, items, and whitelist.
+
+## Known Maintenance Notes
+
+- Many older comments and tests still contain legacy Thai item names or encoding-damaged text. Treat the current code paths as the source of truth.
+- `supabase_schema.sql` is the baseline schema. Some newer columns are also added at runtime by migrations in `src/db/queries.js`.
+- Avoid creating extra database pools; Supabase connection limits are tight.
+- Be careful when changing live board update logic because Discord rate limits and message component limits shape the implementation.

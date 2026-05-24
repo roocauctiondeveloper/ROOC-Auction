@@ -261,15 +261,23 @@
             
             await spinTo(wheelIdx);
             
+            // --- จังหวะที่ 1: นิ่งชี้เป้าบนวงล้อให้คนดูและลุ้นทัน 1.5 วินาที ---
+            await new Promise(r => setTimeout(r, 1500));
+            
+            // เพิ่มรายชื่อเข้า Timeline ด้านขวา
             winnersList.push(winner);
             availablePool.splice(winnerIdxInPool, 1);
             addWinnerToTimeline(winner, i + 1);
             
-            // ลบชื่อออกจากวงล้อทันทีเพื่อไม่ให้สุ่มได้ซ้ำ หรือเห็นชื่อซ้ำในรอบถัดไป
+            // --- จังหวะที่ 2: รอให้ชื่อโชว์เด่นอยู่บน Timeline อีก 1.5 วินาที เพื่อให้ฉลอง/อ่านชื่อทัน ---
+            await new Promise(r => setTimeout(r, 1500));
+            
+            // ลบชื่อออกจากวงล้อทีหลัง เพื่อไม่ให้วงล้อขยับสั่นทันทีจนขัดจังหวะสายตา
             selectedMembers.splice(wheelIdx, 1);
             drawWheel();
             
-            if (i < count - 1) await new Promise(r => setTimeout(r, 1000));
+            // หากมีคนต่อไปที่จะสุ่ม ให้เว้นจังหวะสั้นๆ (800ms) ก่อนจะหมุนต่อ
+            if (i < count - 1) await new Promise(r => setTimeout(r, 800));
         }
 
         statusText.innerText = `✨ Successfully selected ${count} winners!`;
@@ -281,28 +289,44 @@
             const segments = selectedMembers.length;
             const anglePerSegment = 360 / segments;
             
-            // สุ่มจุดหยุดให้อยู่ภายในช่องของชื่อนั้น (10% ถึง 90% ของความกว้างช่อง เพื่อไม่ให้หยุดตรงเส้นแบ่งพอดี)
-            const randomOffset = (Math.random() * 0.8 + 0.1) * anglePerSegment;
-            const segmentTargetAngle = (index * anglePerSegment) + randomOffset;
+            // สุ่มว่ารอบนี้จะเป็นจังหวะลุ้นเป็นพิเศษตรงเส้นแบ่งหรือไม่ (เช่น 40% ของการสุ่ม และมีผู้เล่นมากกว่า 1 คน)
+            const isSuspenseMode = segments > 1 && Math.random() < 0.4;
+            
+            let segmentTargetAngle;
+            if (isSuspenseMode) {
+                // โหมดลุ้นพิเศษ: ให้หยุดห่างจากเส้นแบ่งขอบทางเข้าเพียงเล็กน้อย (แค่ 2 ถึง 4 องศา)
+                // ทำให้ช่วงท้ายสุดของวงล้อ จะค่อยๆ คลานข้ามเส้นแบ่งขอบและหยุดนิ่งทันทีที่ข้ามพ้นมาได้นิดเดียว
+                const closeToBorderOffset = Math.random() * 2 + 2; // 2 - 4 องศา
+                segmentTargetAngle = ((index + 1) * anglePerSegment) - closeToBorderOffset;
+            } else {
+                // โหมดปกติ: สุ่มตำแหน่งหยุดนิ่งกระจายทั่วไปในช่องผู้ชนะ (15% ถึง 85% ของช่อง)
+                const randomOffset = (Math.random() * 0.7 + 0.15) * anglePerSegment;
+                segmentTargetAngle = (index * anglePerSegment) + randomOffset;
+            }
             
             const targetRotation = 360 - segmentTargetAngle;
             
-            // สุ่มจำนวนรอบหมุน 4 ถึง 9 รอบ (ทำให้แรงหมุนไม่เท่ากัน)
-            const randomSpins = Math.floor(Math.random() * 6) + 4;
+            // สุ่มจำนวนรอบหมุน 8 ถึง 12 รอบ (ให้หมุนเร็วและแรง)
+            const randomSpins = Math.floor(Math.random() * 5) + 8;
             const extraSpins = randomSpins * 360;
             
-            currentRotation += extraSpins + (targetRotation - (currentRotation % 360));
-            if (currentRotation < 0) currentRotation += 360;
-
-            // คำนวณเวลาหมุนให้สัมพันธ์กับรอบ (ยิ่งหมุนเยอะ ยิ่งใช้เวลา) เช่น 4000ms - 6500ms
-            const durationMs = 2000 + (randomSpins * 500);
-
-            // บังคับเปลี่ยน Transition ใหม่ทุกรอบเพื่อสุ่มความเร็ว
-            canvas.style.transition = `transform ${durationMs}ms cubic-bezier(0.15, 0, 0.15, 1)`;
-            canvas.style.transform = `rotate(${currentRotation}deg)`;
+            // คำนวณมุมเป้าหมายสุดท้ายที่จะหยุดจริง
+            let nextRotation = currentRotation + extraSpins + (targetRotation - (currentRotation % 360));
+            if (nextRotation < currentRotation) nextRotation += 360;
             
-            // รอจนกว่าจะหยุดหมุนสนิท ค่อยประกาศผล (บวกเวลาเผื่อ 100ms)
-            setTimeout(resolve, durationMs + 100); 
+            // เวลาการหมุนยาวขึ้น (7.8 - 9.2 วินาที) เพื่อให้ช่วงไหลช้าๆ ตอนท้ายสมจริงและตื่นเต้นยิ่งขึ้น
+            const durationMs = 5000 + (randomSpins * 350); 
+            
+            // ใช้ Transition แบบจังหวะเดียว (Single Stage) ไม่มี JS timeout ซ้อน เพื่อความนุ่มนวลขั้นสุดและไม่มีอาการกระตุกหรือเด้ง
+            // ใช้ cubic-bezier(0.1, 0.85, 0.1, 1) ซึ่งจะหมุนเร็วมากตอนแรก และค่อยๆ ผ่อนความเร็วลงช้าๆ นุ่มๆ จนหยุดสนิท
+            canvas.style.transition = `transform ${durationMs}ms cubic-bezier(0.1, 0.85, 0.1, 1)`;
+            canvas.style.transform = `rotate(${nextRotation}deg)`;
+            
+            // บันทึกมุมปัจจุบันเพื่อใช้คำนวณในรอบสุ่มถัดไป
+            currentRotation = nextRotation;
+            
+            // รอจนกว่าวงล้อจะหยุดสนิทตามเวลา Transition
+            setTimeout(resolve, durationMs + 100);
         });
     }
 
