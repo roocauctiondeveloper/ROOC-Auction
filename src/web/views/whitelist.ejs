@@ -289,44 +289,56 @@
             const segments = selectedMembers.length;
             const anglePerSegment = 360 / segments;
             
-            // สุ่มว่ารอบนี้จะเป็นจังหวะลุ้นเป็นพิเศษตรงเส้นแบ่งหรือไม่ (เช่น 40% ของการสุ่ม และมีผู้เล่นมากกว่า 1 คน)
+            // สุ่มว่ารอบนี้จะเป็นจังหวะลุ้นเป็นพิเศษตรงเส้นแบ่งหรือไม่ (40% และมีผู้เล่นมากกว่า 1 คน)
             const isSuspenseMode = segments > 1 && Math.random() < 0.4;
             
             let segmentTargetAngle;
             if (isSuspenseMode) {
-                // โหมดลุ้นพิเศษ: ให้หยุดห่างจากเส้นแบ่งขอบทางเข้าเพียงเล็กน้อย (แค่ 2 ถึง 4 องศา)
-                // ทำให้ช่วงท้ายสุดของวงล้อ จะค่อยๆ คลานข้ามเส้นแบ่งขอบและหยุดนิ่งทันทีที่ข้ามพ้นมาได้นิดเดียว
-                const closeToBorderOffset = Math.random() * 2 + 2; // 2 - 4 องศา
+                // โหมดลุ้นพิเศษ: หยุดใกล้ขอบทางเข้าของช่องผู้ชนะ (2 - 4 องศา)
+                const closeToBorderOffset = Math.random() * 2 + 2;
                 segmentTargetAngle = ((index + 1) * anglePerSegment) - closeToBorderOffset;
             } else {
-                // โหมดปกติ: สุ่มตำแหน่งหยุดนิ่งกระจายทั่วไปในช่องผู้ชนะ (15% ถึง 85% ของช่อง)
+                // โหมดปกติ: สุ่มตำแหน่งกระจายทั่วช่อง (15% - 85%)
                 const randomOffset = (Math.random() * 0.7 + 0.15) * anglePerSegment;
                 segmentTargetAngle = (index * anglePerSegment) + randomOffset;
             }
             
             const targetRotation = 360 - segmentTargetAngle;
-            
-            // สุ่มจำนวนรอบหมุน 8 ถึง 12 รอบ (ให้หมุนเร็วและแรง)
             const randomSpins = Math.floor(Math.random() * 5) + 8;
             const extraSpins = randomSpins * 360;
             
-            // คำนวณมุมเป้าหมายสุดท้ายที่จะหยุดจริง
+            // ตำแหน่งที่จะหยุดจริง (final resting position)
             let nextRotation = currentRotation + extraSpins + (targetRotation - (currentRotation % 360));
             if (nextRotation < currentRotation) nextRotation += 360;
             
-            // เวลาการหมุนยาวขึ้น (7.8 - 9.2 วินาที) เพื่อให้ช่วงไหลช้าๆ ตอนท้ายสมจริงและตื่นเต้นยิ่งขึ้น
-            const durationMs = 5000 + (randomSpins * 350); 
-            
-            // ใช้ Transition แบบจังหวะเดียว (Single Stage) ไม่มี JS timeout ซ้อน เพื่อความนุ่มนวลขั้นสุดและไม่มีอาการกระตุกหรือเด้ง
-            // ใช้ cubic-bezier(0.1, 0.85, 0.1, 1) ซึ่งจะหมุนเร็วมากตอนแรก และค่อยๆ ผ่อนความเร็วลงช้าๆ นุ่มๆ จนหยุดสนิท
-            canvas.style.transition = `transform ${durationMs}ms cubic-bezier(0.1, 0.85, 0.1, 1)`;
-            canvas.style.transform = `rotate(${nextRotation}deg)`;
-            
-            // บันทึกมุมปัจจุบันเพื่อใช้คำนวณในรอบสุ่มถัดไป
-            currentRotation = nextRotation;
-            
-            // รอจนกว่าวงล้อจะหยุดสนิทตามเวลา Transition
-            setTimeout(resolve, durationMs + 100);
+            const durationMs = 5000 + (randomSpins * 350);
+
+            if (isSuspenseMode) {
+                // --- โหมดลุ้นขอบ: หมุนจังหวะเดียวไหลเข้าช่องผู้ชนะ ไม่มี overshoot ---
+                canvas.style.transition = `transform ${durationMs}ms cubic-bezier(0.1, 0.85, 0.1, 1)`;
+                canvas.style.transform = `rotate(${nextRotation}deg)`;
+                currentRotation = nextRotation;
+                setTimeout(resolve, durationMs + 100);
+            } else {
+                // --- โหมดปกติ: ล้อหมุนเลยตำแหน่งผู้ชนะไปนิดนึง (5 - 8 องศา ในทิศหมุนเดิม)
+                //     แล้วแรงหนืดค่อยๆ ดึงกลับมาหยุดนิ่งที่ผู้ชนะ ---
+                const overshootDeg = Math.random() * 3 + 5; // 5 - 8 องศา เลยผ่านไป
+                const overshootRotation = nextRotation + overshootDeg;
+                
+                // Stage 1: หมุนเลยผู้ชนะไปนิดนึง (ยังคงทิศทางเดิม ดูเป็นธรรมชาติ)
+                canvas.style.transition = `transform ${durationMs}ms cubic-bezier(0.1, 0.85, 0.1, 1)`;
+                canvas.style.transform = `rotate(${overshootRotation}deg)`;
+                
+                setTimeout(() => {
+                    // Stage 2: แรงหนืดดึงกลับ — เริ่มขยับพร้อม momentum เหลืออยู่นิดหน่อย
+                    // แล้วค่อยๆ ชะลอจนหยุดที่ผู้ชนะ (ease-out คือ ไม่มีการเร่งซ้ำ, ค่อยๆ ช้าลง)
+                    const returnDuration = 450;
+                    canvas.style.transition = `transform ${returnDuration}ms cubic-bezier(0.25, 0, 0.5, 1)`;
+                    canvas.style.transform = `rotate(${nextRotation}deg)`;
+                    currentRotation = nextRotation;
+                    setTimeout(resolve, returnDuration + 50);
+                }, durationMs);
+            }
         });
     }
 
