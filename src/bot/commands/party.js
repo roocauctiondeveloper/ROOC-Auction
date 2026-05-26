@@ -91,6 +91,9 @@ module.exports = {
       const nom1 = selectedMembers[0].id.toString();
       const nom2 = selectedMembers[1] ? selectedMembers[1].id.toString() : null;
 
+      // Clear all previous submissions from any member in this party
+      await db.deleteWheelEntriesByParty(callerParty.id);
+
       await db.addWheelEntry(callerId, nom1, nom2);
 
       const nomNames = selectedMembers.map(m => m.discord_user_id ? `<@${m.discord_user_id}>` : `**${m.discord_username}**`).join(' และ ');

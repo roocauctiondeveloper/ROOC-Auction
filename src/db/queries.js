@@ -598,6 +598,22 @@ async function getLatestWheelEntries() {
   return db.all('SELECT * FROM wheel_entries ORDER BY created_at DESC');
 }
 
+async function deleteWheelEntriesByParty(partyId) {
+  const rows = await db.all(`
+    SELECT w.discord_user_id 
+    FROM party_members pm
+    JOIN whitelist w ON pm.whitelist_id = w.id
+    WHERE pm.party_id = ? AND w.discord_user_id IS NOT NULL AND w.discord_user_id != ''
+  `, [partyId]);
+  
+  const userIds = rows.map(r => r.discord_user_id);
+  if (userIds.length > 0) {
+    // SQLite/Postgres dynamic placeholders
+    const placeholders = userIds.map((_, idx) => `$${idx + 1}`).join(',');
+    await db.pool.query(`DELETE FROM wheel_entries WHERE submitted_by IN (${placeholders})`, userIds);
+  }
+}
+
 
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
@@ -615,7 +631,7 @@ module.exports = {
 
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
-  getAllParties, addParty, updatePartyName, getPartyMembers, addMemberToParty, removeMemberFromParty, getPartyByDiscordUserId, addWheelEntry, getLatestWheelEntries,
+  getAllParties, addParty, updatePartyName, getPartyMembers, addMemberToParty, removeMemberFromParty, getPartyByDiscordUserId, addWheelEntry, getLatestWheelEntries, deleteWheelEntriesByParty,
   getAllBoardData,
   updateRoundQuota,
   autoAssignWhitelist,
