@@ -29,7 +29,10 @@
             <div style="background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1rem;">
                 <span style="font-weight: 600; font-size: 0.9rem;">Winner Count:</span>
                 <input type="number" id="lottery-count" value="1" min="1" max="<%= whitelist.length %>" style="width: 60px; border:none; background:transparent; font-weight: 700; color: var(--primary); font-size: 1.1rem;">
-                <button class="btn btn-primary" onclick="startLottery()" id="spin-btn" style="border-radius: 10px; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);">🔥 Spin!</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="fetchWheelEntries()" id="fetch-entries-btn" style="border-radius: 10px;">⬇️ ดึงรายชื่อจากปาร์ตี้</button>
+                    <button class="btn btn-primary" onclick="startLottery()" id="spin-btn" style="border-radius: 10px; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);">🔥 Spin!</button>
+                </div>
             </div>
         </div>
     </div>
@@ -216,8 +219,15 @@
     drawWheel();
 
     function updateWheelFromSelection() {
-        const checkboxes = document.querySelectorAll('.participant-checkbox:checked');
-        const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        const checkboxes = document.querySelectorAll('.participant-checkbox');
+        const checkedBoxes = Array.from(checkboxes).filter(cb => cb.checked);
+
+        const selectAllCb = document.getElementById('select-all');
+        if (selectAllCb) {
+            selectAllCb.checked = checkboxes.length > 0 && checkedBoxes.length === checkboxes.length;
+        }
+
+        const selectedIds = checkedBoxes.map(cb => parseInt(cb.value));
         selectedMembers = whitelistData.filter(m => selectedIds.includes(m.id));
         
         // อัปเดตตัวเลข Max ในช่อง Input
@@ -233,6 +243,34 @@
         const checkboxes = document.querySelectorAll('.participant-checkbox');
         checkboxes.forEach(c => c.checked = cb.checked);
         updateWheelFromSelection();
+    }
+
+    // Fetch Wheel Entries from Discord Command
+    async function fetchWheelEntries() {
+        const btn = document.getElementById('fetch-entries-btn');
+        btn.disabled = true;
+        btn.innerText = '⏳ กำลังดึง...';
+        try {
+            const res = await fetch('/whitelist/wheel-latest');
+            const data = await res.json();
+            if (data.ids) {
+                // Uncheck all first
+                const checkboxes = document.querySelectorAll('.participant-checkbox');
+                checkboxes.forEach(c => c.checked = false);
+                // Check those in data.ids
+                data.ids.forEach(id => {
+                    const cb = document.querySelector(`.participant-checkbox[value="${id}"]`);
+                    if (cb) cb.checked = true;
+                });
+                updateWheelFromSelection();
+                alert(`ดึงรายชื่อสำเร็จ (${data.ids.length} คน)`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('เกิดข้อผิดพลาดในการดึงรายชื่อ');
+        }
+        btn.disabled = false;
+        btn.innerText = '⬇️ ดึงรายชื่อจากปาร์ตี้';
     }
 
     async function startLottery() {

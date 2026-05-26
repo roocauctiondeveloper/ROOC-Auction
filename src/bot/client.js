@@ -37,12 +37,13 @@ client.on('interactionCreate', async interaction => {
   // ─── Whitelist & Reservations Auto-Sync Display Name ──────────────────────────────────
   try {
     const db = require('../db/queries');
+    const rawDb = require('../db/database');
     const userId = interaction.user.id;
     const currentDisplayName = interaction.member?.displayName ?? interaction.user.globalName ?? interaction.user.username;
 
     if (currentDisplayName) {
       // 1. Sync Whitelist display name
-      db.all('SELECT id, discord_username FROM whitelist WHERE discord_user_id = ?', [userId]).then(rows => {
+      rawDb.all('SELECT id, discord_username FROM whitelist WHERE discord_user_id = ?', [userId]).then(rows => {
         if (rows && rows.length > 0) {
           const whitelistMember = rows[0];
           if (currentDisplayName !== whitelistMember.discord_username) {

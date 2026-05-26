@@ -99,3 +99,26 @@ WITH (OIDS=FALSE);
 ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
 
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+
+-- 11. Party System
+CREATE TABLE IF NOT EXISTS parties (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS party_members (
+    id SERIAL PRIMARY KEY,
+    party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    whitelist_id INTEGER NOT NULL REFERENCES whitelist(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(party_id, whitelist_id)
+);
+
+CREATE TABLE IF NOT EXISTS wheel_entries (
+    id SERIAL PRIMARY KEY,
+    submitted_by TEXT NOT NULL,
+    nominated_1 TEXT,
+    nominated_2 TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

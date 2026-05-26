@@ -545,6 +545,52 @@ async function deletePreset(id) {
   return db.run('DELETE FROM item_presets WHERE id = ?', [id]);
 }
 
+// ─── Parties & Wheel ──────────────────────────────────────────────────────────
+
+async function getAllParties() {
+  return db.all('SELECT * FROM parties ORDER BY id ASC');
+}
+
+async function getPartyMembers() {
+  return db.all(`
+    SELECT pm.*, w.discord_username, w.discord_user_id, p.name as party_name
+    FROM party_members pm
+    JOIN whitelist w ON pm.whitelist_id = w.id
+    JOIN parties p ON pm.party_id = p.id
+  `);
+}
+
+async function addMemberToParty(partyId, whitelistId) {
+  return db.run('INSERT INTO party_members (party_id, whitelist_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [partyId, whitelistId]);
+}
+
+async function removeMemberFromParty(partyId, whitelistId) {
+  return db.run('DELETE FROM party_members WHERE party_id = ? AND whitelist_id = ?', [partyId, whitelistId]);
+}
+
+async function getPartyByDiscordUserId(discordUserId) {
+  return db.get(`
+    SELECT p.*, pm.whitelist_id 
+    FROM party_members pm
+    JOIN whitelist w ON pm.whitelist_id = w.id
+    JOIN parties p ON pm.party_id = p.id
+    WHERE w.discord_user_id = ?
+  `, [discordUserId]);
+}
+
+async function addWheelEntry(submittedBy, nom1, nom2) {
+  await db.run('DELETE FROM wheel_entries WHERE submitted_by = ?', [submittedBy]);
+  return db.run(
+    'INSERT INTO wheel_entries (submitted_by, nominated_1, nominated_2) VALUES (?, ?, ?)',
+    [submittedBy, nom1, nom2]
+  );
+}
+
+async function getLatestWheelEntries() {
+  return db.all('SELECT * FROM wheel_entries ORDER BY created_at DESC');
+}
+
+
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
@@ -561,6 +607,7 @@ module.exports = {
 
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
+  getAllParties, getPartyMembers, addMemberToParty, removeMemberFromParty, getPartyByDiscordUserId, addWheelEntry, getLatestWheelEntries,
   getAllBoardData,
   updateRoundQuota,
   autoAssignWhitelist,

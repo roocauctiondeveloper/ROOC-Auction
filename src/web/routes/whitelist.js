@@ -178,6 +178,23 @@ router.post('/lottery-apply', async (req, res) => {
 });
 
 
+// GET /whitelist/wheel-latest
+router.get('/wheel-latest', async (req, res) => {
+  try {
+    const entries = await db.getLatestWheelEntries();
+    // We expect nominated_1 and nominated_2 to be whitelist_ids stored as strings/numbers
+    const nominatedIds = new Set();
+    for (const entry of entries) {
+      if (entry.nominated_1) nominatedIds.add(parseInt(entry.nominated_1));
+      if (entry.nominated_2) nominatedIds.add(parseInt(entry.nominated_2));
+    }
+    res.json({ ids: Array.from(nominatedIds).filter(id => !isNaN(id)) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch wheel entries' });
+  }
+});
+
 // GET /whitelist/:id/history
 router.get('/:id/history', async (req, res) => {
   try {
