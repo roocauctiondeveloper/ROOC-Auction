@@ -1,4 +1,13 @@
-require('dotenv').config({ path: '.env.local' });
+const fs = require('fs');
+const path = require('path');
+const localEnv = path.resolve(__dirname, '../.env.local');
+if (fs.existsSync(localEnv) && process.env.DB_ENV !== 'production') {
+  require('dotenv').config({ path: localEnv });
+  console.log('📁 Loaded .env.local for database schema');
+} else {
+  require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+  console.log('📁 Loaded .env for database schema');
+}
 const db = require('../src/db/database');
 
 async function apply() {
