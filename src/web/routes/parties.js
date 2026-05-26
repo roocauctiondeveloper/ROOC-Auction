@@ -22,6 +22,9 @@ router.get('/', async (req, res) => {
       othersParty.name = newName; // update in memory
     }
 
+    // Sort parties naturally so "Party 10" comes after "Party 9"
+    parties.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
     const members = await db.getPartyMembers();
     const whitelist = await db.getAllWhitelist(); // get all members, not just active
 
