@@ -38,7 +38,7 @@ async function apply() {
     `);
     
     // Pre-populate parties if they don't exist
-    const partyNames = ['Party 1', 'Party 2', 'Party 3', 'Party 4', 'Party 5', 'Party 6', 'Party 7', 'Party 8', 'Others'];
+    const partyNames = ['Party 1', 'Party 2', 'Party 3', 'Party 4', 'Party 5', 'Party 6', 'Party 7', 'Party 8', 'Party 9'];
     for (const name of partyNames) {
       await db.run(`INSERT INTO parties (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`, [name]);
     }

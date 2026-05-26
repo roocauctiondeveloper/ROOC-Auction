@@ -3,6 +3,11 @@
         <h1 style="margin-bottom: 0.25rem;">Parties</h1>
         <p style="color: var(--text-light); margin: 0;">Manage whitelist members in parties.</p>
     </div>
+    <form action="/parties/add-new" method="POST" style="margin: 0;">
+        <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem;">
+            <span>➕</span> เพิ่มปาร์ตี้ (Add Party)
+        </button>
+    </form>
 </div>
 
 <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
@@ -10,12 +15,8 @@
         <div class="card" style="margin-bottom: 0;">
             <div class="flex space-between items-center" style="margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
                 <h2 style="margin: 0; font-size: 1.25rem;"><%= party.name %></h2>
-                <% 
-                   const isOthers = party.name.toLowerCase() === 'others' || party.name.toLowerCase() === 'อื่นๆ';
-                   const badgeClass = isOthers ? (partyMembers[party.id].length > 0 ? 'badge-blue' : 'badge-gray') : (partyMembers[party.id].length >= 5 ? 'badge-blue' : 'badge-gray');
-                %>
-                <span class="badge <%= badgeClass %>">
-                    <%= isOthers ? partyMembers[party.id].length : partyMembers[party.id].length + ' / 5' %>
+                <span class="badge <%= partyMembers[party.id].length >= 5 ? 'badge-blue' : 'badge-gray' %>">
+                    <%= partyMembers[party.id].length %> / 5
                 </span>
             </div>
 

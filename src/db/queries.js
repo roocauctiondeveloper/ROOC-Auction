@@ -551,6 +551,14 @@ async function getAllParties() {
   return db.all('SELECT * FROM parties ORDER BY id ASC');
 }
 
+async function addParty(name) {
+  return db.run('INSERT INTO parties (name) VALUES (?)', [name]);
+}
+
+async function updatePartyName(id, name) {
+  return db.run('UPDATE parties SET name = ? WHERE id = ?', [name, id]);
+}
+
 async function getPartyMembers() {
   return db.all(`
     SELECT pm.*, w.discord_username, w.discord_user_id, p.name as party_name
@@ -607,7 +615,7 @@ module.exports = {
 
   getAvailableItems, getMyReservations,
   getAllPresets, getPresetById, addPreset, updatePreset, deletePreset,
-  getAllParties, getPartyMembers, addMemberToParty, removeMemberFromParty, getPartyByDiscordUserId, addWheelEntry, getLatestWheelEntries,
+  getAllParties, addParty, updatePartyName, getPartyMembers, addMemberToParty, removeMemberFromParty, getPartyByDiscordUserId, addWheelEntry, getLatestWheelEntries,
   getAllBoardData,
   updateRoundQuota,
   autoAssignWhitelist,

@@ -8,7 +8,15 @@ router.use(ensureAuthenticated);
 // GET /parties
 router.get('/', async (req, res) => {
   try {
-    const parties = await db.getAllParties();
+    let parties = await db.getAllParties();
+    
+    // Check if there is an "Others" or "อื่นๆ" party and rename it to "Party 9"
+    const othersParty = parties.find(p => p.name.toLowerCase() === 'others' || p.name.toLowerCase() === 'อื่นๆ');
+    if (othersParty) {
+      await db.updatePartyName(othersParty.id, 'Party 9');
+      othersParty.name = 'Party 9'; // update in memory
+    }
+
     const members = await db.getPartyMembers();
     const whitelist = await db.getAllWhitelist(); // get all members, not just active
 
@@ -31,6 +39,33 @@ router.get('/', async (req, res) => {
     console.error(err);
     res.status(500).send('Error loading parties');
   }
+});
+
+// POST /parties/add-new
+router.post('/add-new', async (req, res) => {
+  try {
+    const parties = await db.getAllParties();
+    
+    // Find the next number to use, e.g. "Party X"
+    let nextNum = 1;
+    parties.forEach(p => {
+      const match = p.name.match(/^Party\s+(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num >= nextNum) {
+          nextNum = num + 1;
+        }
+      }
+    });
+
+    const newName = `Party ${nextNum}`;
+    await db.addParty(newName);
+    req.session.success_msg = `สร้าง ${newName} สำเร็จ`;
+  } catch (err) {
+    console.error(err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการสร้างปาร์ตี้';
+  }
+  res.redirect('/parties');
 });
 
 // POST /parties/:partyId/add
