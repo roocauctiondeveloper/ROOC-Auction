@@ -83,6 +83,13 @@ router.post('/', async (req, res) => {
   discord_user_id = discord_user_id.trim();
 
   try {
+    // Check if this discord_user_id already exists in the whitelist database
+    const allWhitelist = await db.getAllWhitelist();
+    const existing = allWhitelist.find(w => w.discord_user_id === discord_user_id);
+    if (existing) {
+      req.session.error_msg = `เลข ID Discord นี้มีอยู่ในระบบแล้ว (ภายใต้ชื่อ: ${existing.discord_username})`;
+      return res.redirect('/whitelist');
+    }
     // 1. ลองดึงข้อมูลจาก Server (Guild) ก่อนเพื่อให้ได้ Nickname
     let discord_username = 'Unknown';
     try {
