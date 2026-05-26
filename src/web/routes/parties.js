@@ -10,11 +10,16 @@ router.get('/', async (req, res) => {
   try {
     let parties = await db.getAllParties();
     
-    // Check if there is an "Others" or "อื่นๆ" party and rename it to "Party 9"
+    // Check if there is an "Others" or "อื่นๆ" party and rename it to the next available Party name
     const othersParty = parties.find(p => p.name.toLowerCase() === 'others' || p.name.toLowerCase() === 'อื่นๆ');
     if (othersParty) {
-      await db.updatePartyName(othersParty.id, 'Party 9');
-      othersParty.name = 'Party 9'; // update in memory
+      let nextNum = 9;
+      while (parties.some(p => p.name.toLowerCase() === `party ${nextNum}`)) {
+        nextNum++;
+      }
+      const newName = `Party ${nextNum}`;
+      await db.updatePartyName(othersParty.id, newName);
+      othersParty.name = newName; // update in memory
     }
 
     const members = await db.getPartyMembers();

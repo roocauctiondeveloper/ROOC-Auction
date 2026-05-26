@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS reservations (
 -- 6. Whitelist
 CREATE TABLE IF NOT EXISTS whitelist (
     id               SERIAL PRIMARY KEY,
-    discord_username TEXT NOT NULL UNIQUE,
+    discord_username TEXT NOT NULL,
     discord_user_id  TEXT,
     is_active        BOOLEAN DEFAULT true,
     win_count        INTEGER DEFAULT 0,
