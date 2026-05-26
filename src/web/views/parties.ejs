@@ -10,8 +10,12 @@
         <div class="card" style="margin-bottom: 0;">
             <div class="flex space-between items-center" style="margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
                 <h2 style="margin: 0; font-size: 1.25rem;"><%= party.name %></h2>
-                <span class="badge <%= partyMembers[party.id].length >= 5 ? 'badge-blue' : 'badge-gray' %>">
-                    <%= partyMembers[party.id].length %> / 5
+                <% 
+                   const isOthers = party.name.toLowerCase() === 'others' || party.name.toLowerCase() === 'อื่นๆ';
+                   const badgeClass = isOthers ? (partyMembers[party.id].length > 0 ? 'badge-blue' : 'badge-gray') : (partyMembers[party.id].length >= 5 ? 'badge-blue' : 'badge-gray');
+                %>
+                <span class="badge <%= badgeClass %>">
+                    <%= isOthers ? partyMembers[party.id].length : partyMembers[party.id].length + ' / 5' %>
                 </span>
             </div>
 
