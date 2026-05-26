@@ -69,6 +69,13 @@
 <div class="card">
   <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
     <h3 style="margin: 0;">Members Management (<%= whitelist.length %>)</h3>
+    <select id="sort-select" onchange="sortMembersTable()" style="padding: 0.5rem; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; cursor: pointer; font-family: 'Outfit', sans-serif;">
+      <option value="default">เรียงตามปกติ (Default)</option>
+      <option value="winrate-desc">% การชนะ (มากไปน้อย)</option>
+      <option value="winrate-asc">% การชนะ (น้อยไปมาก)</option>
+      <option value="spins-desc">จำนวนครั้งที่สุ่ม (มากไปน้อย)</option>
+      <option value="name-asc">ชื่อ (A-Z)</option>
+    </select>
   </div>
   
   <div class="table-responsive">
@@ -89,13 +96,14 @@
             <td colspan="6" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
           </tr>
         <% } else { %>
+          <% let rowIndex = 0; %>
           <% for(let user of whitelist) { 
              const winRate = user.spin_count > 0 ? Math.round((user.win_count / user.spin_count) * 100) : 0;
              let luckColor = 'var(--text-light)';
              if (winRate >= 50) luckColor = 'var(--success)';
              else if (winRate > 0 && winRate < 20) luckColor = 'var(--danger)';
           %>
-            <tr id="row-<%= user.id %>" style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %> transition: opacity 0.3s;">
+            <tr id="row-<%= user.id %>" class="sortable-row" data-original-index="<%= rowIndex++ %>" data-winrate="<%= winRate %>" data-spins="<%= user.spin_count %>" data-name="<%= user.discord_username %>" style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %> transition: opacity 0.3s;">
               <td>
                 <input type="checkbox" class="participant-checkbox" value="<%= user.id %>" data-username="<%= user.discord_username %>" checked onchange="updateWheelFromSelection()">
               </td>
@@ -519,7 +527,51 @@
             row.style.backgroundColor = '#f8fafc';
         }
     }
+
+    function sortMembersTable() {
+        const sortBy = document.getElementById('sort-select').value;
+        const tbody = document.querySelector('table tbody');
+        
+        // ถ้าไม่มีข้อมูลเลย (มีแค่แถว "No users found.") ไม่ต้องจัดเรียง
+        if (tbody.children.length === 1 && !tbody.children[0].classList.contains('sortable-row')) return;
+
+        const rows = Array.from(tbody.querySelectorAll('.sortable-row'));
+        
+        rows.sort((a, b) => {
+            if (sortBy === 'default') {
+                return parseInt(a.getAttribute('data-original-index')) - parseInt(b.getAttribute('data-original-index'));
+            }
+
+            if (sortBy === 'winrate-desc' || sortBy === 'winrate-asc') {
+                const aRate = parseFloat(a.getAttribute('data-winrate'));
+                const bRate = parseFloat(b.getAttribute('data-winrate'));
+                
+                // ถ้าเปอร์เซ็นต์เท่ากัน ให้เรียงตามจำนวนสุ่ม (สุ่มเยอะกว่าอยู่บน)
+                if (aRate === bRate) {
+                    const aSpins = parseInt(a.getAttribute('data-spins'));
+                    const bSpins = parseInt(b.getAttribute('data-spins'));
+                    return bSpins - aSpins;
+                }
+                
+                return sortBy === 'winrate-desc' ? bRate - aRate : aRate - bRate;
+            }
+
+            if (sortBy === 'spins-desc') {
+                const aSpins = parseInt(a.getAttribute('data-spins'));
+                const bSpins = parseInt(b.getAttribute('data-spins'));
+                return bSpins - aSpins;
+            }
+
+            if (sortBy === 'name-asc') {
+                const aName = a.getAttribute('data-name').toLowerCase();
+                const bName = b.getAttribute('data-name').toLowerCase();
+                return aName.localeCompare(bName);
+            }
+
+            return 0;
+        });
+
+        // ล้าง tbody และใส่ที่เรียงแล้วกลับเข้าไป
+        rows.forEach(row => tbody.appendChild(row));
+    }
 </script>
-
-
-
