@@ -69,13 +69,6 @@
 <div class="card">
   <div class="flex space-between items-center" style="margin-bottom: 1.5rem;">
     <h3 style="margin: 0;">Members Management (<%= whitelist.length %>)</h3>
-    <select id="sort-select" onchange="sortMembersTable()" style="padding: 0.5rem; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; cursor: pointer; font-family: 'Outfit', sans-serif;">
-      <option value="default">เรียงตามปกติ (Default)</option>
-      <option value="winrate-desc">% การชนะ (มากไปน้อย)</option>
-      <option value="winrate-asc">% การชนะ (น้อยไปมาก)</option>
-      <option value="spins-desc">จำนวนครั้งที่สุ่ม (มากไปน้อย)</option>
-      <option value="name-asc">ชื่อ (A-Z)</option>
-    </select>
   </div>
   
   <div class="table-responsive">
@@ -83,9 +76,9 @@
       <thead>
         <tr>
           <th style="width: 40px;"><input type="checkbox" id="select-all" checked onchange="toggleSelectAll(this)"></th>
-          <th>Status</th>
-          <th>User Info</th>
-          <th>Luck / Stats</th>
+          <th style="cursor: pointer; user-select: none;" onclick="sortTable('status')">Status <span id="sort-icon-status" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
+          <th style="cursor: pointer; user-select: none;" onclick="sortTable('name')">User Info <span id="sort-icon-name" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
+          <th style="cursor: pointer; user-select: none;" onclick="sortTable('winrate')">Luck / Stats <span id="sort-icon-winrate" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
           <th>Discord ID</th>
           <th style="text-align: right;">Actions</th>
         </tr>
@@ -528,50 +521,57 @@
         }
     }
 
-    function sortMembersTable() {
-        const sortBy = document.getElementById('sort-select').value;
+    let currentSortColumn = 'default';
+    let currentSortDirection = 'asc';
+
+    function sortTable(column) {
         const tbody = document.querySelector('table tbody');
-        
-        // ถ้าไม่มีข้อมูลเลย (มีแค่แถว "No users found.") ไม่ต้องจัดเรียง
         if (tbody.children.length === 1 && !tbody.children[0].classList.contains('sortable-row')) return;
 
-        const rows = Array.from(tbody.querySelectorAll('.sortable-row'));
+        if (currentSortColumn === column) {
+            currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortColumn = column;
+            currentSortDirection = column === 'name' ? 'asc' : 'desc'; // Default: name A-Z, others High-Low
+        }
         
-        rows.sort((a, b) => {
-            if (sortBy === 'default') {
-                return parseInt(a.getAttribute('data-original-index')) - parseInt(b.getAttribute('data-original-index'));
-            }
+        // Update icons
+        document.querySelectorAll('th span[id^="sort-icon-"]').forEach(icon => {
+            icon.innerText = '↕️';
+            icon.style.opacity = '0.3';
+        });
+        
+        const activeIcon = document.getElementById(`sort-icon-${column}`);
+        if (activeIcon) {
+            activeIcon.innerText = currentSortDirection === 'asc' ? '🔼' : '🔽';
+            activeIcon.style.opacity = '1';
+        }
 
-            if (sortBy === 'winrate-desc' || sortBy === 'winrate-asc') {
-                const aRate = parseFloat(a.getAttribute('data-winrate'));
-                const bRate = parseFloat(b.getAttribute('data-winrate'));
-                
-                // ถ้าเปอร์เซ็นต์เท่ากัน ให้เรียงตามจำนวนสุ่ม (สุ่มเยอะกว่าอยู่บน)
-                if (aRate === bRate) {
+        const rows = Array.from(tbody.querySelectorAll('.sortable-row'));
+
+        rows.sort((a, b) => {
+            let valA, valB;
+            if (column === 'name') {
+                valA = a.getAttribute('data-name').toLowerCase();
+                valB = b.getAttribute('data-name').toLowerCase();
+                return currentSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (column === 'winrate') {
+                valA = parseFloat(a.getAttribute('data-winrate'));
+                valB = parseFloat(b.getAttribute('data-winrate'));
+                if (valA === valB) {
                     const aSpins = parseInt(a.getAttribute('data-spins'));
                     const bSpins = parseInt(b.getAttribute('data-spins'));
-                    return bSpins - aSpins;
+                    return currentSortDirection === 'asc' ? aSpins - bSpins : bSpins - aSpins;
                 }
-                
-                return sortBy === 'winrate-desc' ? bRate - aRate : aRate - bRate;
+                return currentSortDirection === 'asc' ? valA - valB : valB - valA;
+            } else if (column === 'status') {
+                valA = a.querySelector('.badge').innerText.includes('ACTIVE') ? 1 : 0;
+                valB = b.querySelector('.badge').innerText.includes('ACTIVE') ? 1 : 0;
+                return currentSortDirection === 'asc' ? valA - valB : valB - valA;
             }
-
-            if (sortBy === 'spins-desc') {
-                const aSpins = parseInt(a.getAttribute('data-spins'));
-                const bSpins = parseInt(b.getAttribute('data-spins'));
-                return bSpins - aSpins;
-            }
-
-            if (sortBy === 'name-asc') {
-                const aName = a.getAttribute('data-name').toLowerCase();
-                const bName = b.getAttribute('data-name').toLowerCase();
-                return aName.localeCompare(bName);
-            }
-
             return 0;
         });
 
-        // ล้าง tbody และใส่ที่เรียงแล้วกลับเข้าไป
         rows.forEach(row => tbody.appendChild(row));
     }
 </script>
