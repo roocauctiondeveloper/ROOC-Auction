@@ -414,6 +414,11 @@ async function bulkUpdateWhitelistStatus(ids, isActive) {
   return db.run(`UPDATE whitelist SET is_active = ? WHERE id IN (${placeholders})`, [isActive, ...ids]);
 }
 
+async function setOnlyWhitelistActive(ids) {
+  const activeIds = [...new Set(ids.map(id => parseInt(id)).filter(id => !isNaN(id)))];
+  return db.run('UPDATE whitelist SET is_active = (id = ANY($1::int[]))', [activeIds]);
+}
+
 async function autoAssignWhitelist(roundId) {
   // 1. Get active whitelist members
   const activeWhitelist = await getAllWhitelist(true);
@@ -624,7 +629,7 @@ module.exports = {
   saveRoundBoardMessage, getRoundBoardMessage,
   getHistoryByRound, deleteRoundHistory, deleteAllHistory,
   saveRoundSnapshot, getRoundHistoryItems,
-  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus, recordLotteryResults, getMemberLotteryHistory, getWhitelistMemberById, updateWhitelistUsername, updateUserReservationsUsername,
+  getAllWhitelist, isWhitelisted, addToWhitelist, removeFromWhitelist, toggleWhitelistStatus, bulkUpdateWhitelistStatus, setOnlyWhitelistActive, recordLotteryResults, getMemberLotteryHistory, getWhitelistMemberById, updateWhitelistUsername, updateUserReservationsUsername,
   getAdminByDiscordId, getAllAdmins, addAdmin, removeAdmin,
 
 

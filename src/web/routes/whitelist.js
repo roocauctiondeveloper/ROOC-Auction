@@ -167,15 +167,11 @@ router.post('/lottery-apply', async (req, res) => {
       return res.status(400).json({ error: 'ไม่พบรายชื่อผู้เข้าร่วม' });
     }
     
-    const losersIds = participantIds.filter(id => !winnerIds.includes(id));
-
     // บันทึกสถิติ: เฉพาะคนที่มีชื่อในวงล้อจริงๆ เท่านั้น
     await db.recordLotteryResults(participantIds, winnerIds);
 
-    // บันทึกผลสถานะ: เฉพาะคนที่เข้าร่วมรอบนี้
-    // คนชนะเป็น Active คนที่เข้าวงล้อแต่แพ้เป็น Inactive
-    if (winnerIds.length > 0) await db.bulkUpdateWhitelistStatus(winnerIds, true);
-    if (losersIds.length > 0) await db.bulkUpdateWhitelistStatus(losersIds, false);
+    // บันทึกผลสถานะ: หลังยืนยัน ให้ Active เหลือเฉพาะผู้ชนะเท่านั้น
+    await db.setOnlyWhitelistActive(winnerIds);
 
     res.json({ success: true });
   } catch (err) {

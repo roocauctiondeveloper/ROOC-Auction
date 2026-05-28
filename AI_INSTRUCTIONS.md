@@ -4,6 +4,8 @@
 
 Read this before making code changes. This file captures the current architecture and behavior that should not be accidentally regressed.
 
+Also read `CODEX_HANDOFF.md` before making behavior changes. It captures project-owner alignment, current risky areas, and the rules that future Codex sessions should preserve.
+
 ## Core Architecture
 
 - **Entry point:** `src/index.js`
