@@ -7,7 +7,7 @@ module.exports = {
     .setDescription('Set your personal bot reply language')
     .addStringOption(option =>
       option
-        .setName('language')
+        .setName('set')
         .setDescription('Choose your language')
         .setRequired(true)
         .addChoices(
@@ -19,20 +19,20 @@ module.exports = {
         )),
 
   async execute(interaction) {
-    const selected = interaction.options.getString('language');
+    const selected = interaction.options.getString('set');
     const language = normalizeLanguage(selected);
 
     if (language !== selected) {
       return interaction.reply({
         content: translate(language, 'languageInvalid'),
-        flags: [MessageFlags.Ephemeral],
+        ephemeral: true,
       });
     }
 
     await setUserLanguage(interaction.user.id, language);
     return interaction.reply({
       content: translate(language, 'languageSet'),
-      flags: [MessageFlags.Ephemeral],
+      ephemeral: true,
     });
   },
 };

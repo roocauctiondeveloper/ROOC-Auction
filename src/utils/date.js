@@ -26,6 +26,16 @@ function formatThaiDate(date, options = {}) {
 }
 
 /**
+ * Formats a date in English with Bangkok timezone (for round names, liveboard etc.)
+ */
+function formatEnDate(date, options = {}) {
+  if (!date) return '';
+  const d = new Date(date);
+  const finalOptions = { timeZone: 'Asia/Bangkok', ...options };
+  return d.toLocaleString('en-GB', finalOptions);
+}
+
+/**
  * Formats a date string or object into a Thai locale time string with Bangkok timezone
  * @param {Date|string|number} date - The date to format
  * @returns {string} Formatted time string (HH:mm)
@@ -56,5 +66,6 @@ function getCurrentThaiDateTimeString() {
 module.exports = {
   formatThaiDate,
   formatThaiTime,
+  formatEnDate,
   getCurrentThaiDateTimeString
 };

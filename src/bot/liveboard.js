@@ -192,76 +192,116 @@ async function buildBoardButtons(round, guild = null) {
         allSubChunks.push(items.slice(i, i + bundleSize));
       }
     } else {
-      // Logic B: Quota >= 4 -> Page-First Grouping with Batch Splitting (4s first, then 2s)
+      // Logic B: Quota >= 4 -> Proportional Splitting with Strict Order
+      // 1. Group items by page
       const itemsByPage = {};
       items.forEach(item => {
         if (!itemsByPage[item.page_name]) itemsByPage[item.page_name] = [];
         itemsByPage[item.page_name].push(item);
       });
 
-      // Calculate ideal sub-chunks for this quota (e.g., 6 -> [4, 2], so targetSize = 2)
+      const sortedPageNames = Object.keys(itemsByPage).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+      // 2. Count total items and pages to determine ratios
       const idealSizes = [];
       let rem = bundleSize;
       while (rem > 0) {
         if (rem >= 4) { idealSizes.push(4); rem -= 4; }
         else { idealSizes.push(rem); rem = 0; }
       }
+      
+      const fullCountTarget = idealSizes.filter(s => s === 4).length;
+      const partialCountTarget = idealSizes.filter(s => s < 4).length;
+      const totalButtonsTarget = fullCountTarget + partialCountTarget;
+      const maxPartialRatio = partialCountTarget / totalButtonsTarget;
       const targetSize = idealSizes.length > 1 ? idealSizes[idealSizes.length - 1] : 4;
 
-      const sortedPageNames = Object.keys(itemsByPage).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      
-      const fullPages = sortedPageNames.filter(name => itemsByPage[name].length === 4);
-      
-      let looseItemsCount = 0;
-      for (const pageName of sortedPageNames) {
-        if (itemsByPage[pageName].length < 4) {
-          looseItemsCount += itemsByPage[pageName].length;
-        }
-      }
-
-      let numKeep = fullPages.length;
-      if (targetSize < 4) {
-        // We want: (Keep count) >= (Total items in pool) / targetSize
-        // Keep >= (Split * 4 + looseItemsCount) / targetSize
-        // Keep * targetSize >= (FullPages - Keep) * 4 + looseItemsCount
-        // Keep * (targetSize + 4) >= FullPages * 4 + looseItemsCount
-        const requiredKeep = Math.ceil((fullPages.length * 4 + looseItemsCount) / (targetSize + 4));
-        numKeep = Math.min(fullPages.length, requiredKeep);
-      }
-      const numSplit = fullPages.length - numKeep;
-
-      const pool = [];
-      let keptCount = 0;
-
-      const flushPool = () => {
-        if (pool.length === 0) return;
-        for (let i = 0; i < pool.length; i += targetSize) {
-          allSubChunks.push(pool.slice(i, i + targetSize));
-        }
-        pool.length = 0;
-      };
+      // 3. Separate pages into potential Full Pages (exactly 4 items) and Partial Pages (< 4 items)
+      const potentialFullPages = [];
+      const actualPartialPages = [];
 
       for (const pageName of sortedPageNames) {
-        const pageItems = itemsByPage[pageName];
-        if (pageItems.length === 4 && keptCount < numKeep) {
-          flushPool();
-          allSubChunks.push(pageItems);
-          keptCount++;
+        const pageItems = itemsByPage[pageName].sort((a, b) => a.position - b.position);
+        if (pageItems.length === 4) {
+          potentialFullPages.push(pageItems);
         } else {
-          pool.push(...pageItems);
+          actualPartialPages.push(pageItems);
         }
       }
-      flushPool();
+
+      // Calculate how many full pages we can afford to split to keep our ratio below maxPartialRatio
+      let allowedSplits = 0;
+      if (targetSize < 4) {
+        // Target: (Partials + splits * Math.ceil(4/targetSize)) / (Total + splits * (Math.ceil(4/targetSize) - 1)) <= maxPartialRatio
+        // We can solve this step-by-step or simulate by incrementing allowed splits
+        let currentPartials = actualPartialPages.length; // assuming each unsplit partial page is 1 button if not split further
+        let currentTotal = potentialFullPages.length + currentPartials;
+
+        // If target size splits partial pages further:
+        let totalPartialsFromActual = 0;
+        actualPartialPages.forEach(p => {
+          totalPartialsFromActual += Math.ceil(p.length / targetSize);
+        });
+        currentPartials = totalPartialsFromActual;
+        currentTotal = potentialFullPages.length + currentPartials;
+
+        const splitCostPartials = Math.ceil(4 / targetSize);
+        const splitCostTotal = splitCostPartials - 1; // replaces 1 full page button with N partial buttons
+
+        while (allowedSplits < potentialFullPages.length) {
+          const nextPartials = currentPartials + splitCostPartials;
+          const nextTotal = currentTotal + splitCostTotal;
+          if (nextPartials / nextTotal > maxPartialRatio) {
+            break; // Exceeded allowed ratio of partials, stop splitting
+          }
+          currentPartials = nextPartials;
+          currentTotal = nextTotal;
+          allowedSplits++;
+        }
+      }
+
+      // We split the allowed splits from the end of the full pages list
+      const splitThresholdIndex = potentialFullPages.length - allowedSplits;
+      
+      const fullChunks = potentialFullPages.slice(0, splitThresholdIndex);
+      const toSplitFullPages = potentialFullPages.slice(splitThresholdIndex);
+
+      const partialChunks = [];
+
+      // Sort full pages by page number ascending
+      fullChunks.sort((a, b) => a[0].page_name.localeCompare(b[0].page_name, undefined, { numeric: true }));
+
+      if (targetSize < 4) {
+        // Sequential cross-page bundling:
+        // Merge toSplitFullPages + actualPartialPages, sort by page number,
+        // flatten all items into one sequential array, then chunk by targetSize.
+        // This ensures leftover items (e.g. P.24[4]) are combined with the
+        // beginning of the next page (e.g. P.25[1,2]) into a single button
+        // instead of floating to the end as orphaned x1 buttons.
+        const allRemainingPages = [...toSplitFullPages, ...actualPartialPages];
+        allRemainingPages.sort((a, b) => a[0].page_name.localeCompare(b[0].page_name, undefined, { numeric: true }));
+
+        const remainingItems = [];
+        for (const pageItems of allRemainingPages) {
+          remainingItems.push(...pageItems);
+        }
+
+        for (let i = 0; i < remainingItems.length; i += targetSize) {
+          partialChunks.push(remainingItems.slice(i, i + targetSize));
+        }
+      } else {
+        // targetSize >= 4: no splitting of full pages needed.
+        // Only push actual partial pages (pages with < 4 items) as-is.
+        for (const pageItems of actualPartialPages) {
+          partialChunks.push(pageItems);
+        }
+        partialChunks.sort((a, b) => a[0].page_name.localeCompare(b[0].page_name, undefined, { numeric: true }));
+      }
+
+      allSubChunks.push(...fullChunks, ...partialChunks);
     }
 
-    // Sort sub-chunks:
-    // Priority: 1. Page Name (Asc), 2. Position (Asc)
-    allSubChunks.sort((a, b) => {
-      if (a[0].page_name !== b[0].page_name) {
-        return a[0].page_name.localeCompare(b[0].page_name, undefined, { numeric: true });
-      }
-      return a[0].position - b[0].position;
-    });
+    // Note: Removed sorting by page_name to keep the "Full pages first, then Partial/Split pages" layout.
 
     const allRows = [];
     let currentRow = new ActionRowBuilder();
@@ -291,8 +331,7 @@ async function buildBoardButtons(round, guild = null) {
         partialCount++;
       }
 
-      const maxChunkSize = Math.min(bundleSize, 4);
-      const isMain = vacantItems.length === maxChunkSize;
+      const isMain = setSlice.length === 4;
       const finalStyle = isMain ? btnStyle : (type === 'ld' ? ButtonStyle.Primary : ButtonStyle.Danger);
 
       const label = formatSetLabel(vacantItems);
@@ -320,6 +359,18 @@ async function buildBoardButtons(round, guild = null) {
     for (let i = 0; i < allRows.length; i += 5) {
       messages.push(allRows.slice(i, i + 5));
     }
+
+    // Detailed debug log to inspect final generated button structure
+    console.log(`[Board Debug - ${type.toUpperCase()}] Generated Buttons:`);
+    const debugButtonList = allSubChunks.map((chunk, index) => {
+      const vacantItems = chunk.filter(item => !item.reserved_by);
+      const isMain = chunk.length === 4;
+      const finalStyle = isMain ? btnStyle : (type === 'ld' ? ButtonStyle.Primary : ButtonStyle.Danger);
+      const label = formatSetLabel(vacantItems);
+      return `  Btn ${index + 1}: Label "${label}" | Style: ${finalStyle} | Items Count: ${chunk.length}`;
+    });
+    console.log(debugButtonList.join('\n'));
+
     return messages;
   };
 
@@ -517,7 +568,8 @@ async function closeLiveBoard(client, round) {
 
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
-      const closedEmbed = EmbedBuilder.from(embeds[i]).setTitle(`🛑 Reservations Closed — ${round.name}`).setColor(0xEF4444);
+      let closedEmbed = EmbedBuilder.from(embeds[i]).setColor(0xEF4444);
+      if (i === 0) closedEmbed = closedEmbed.setTitle(`🛑 Reservations Closed — ${round.name}`);
       editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [closedEmbed] }).catch(() => null));
     }
 

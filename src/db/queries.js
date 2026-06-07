@@ -1,5 +1,5 @@
 const db = require('./database');
-const { formatThaiDate } = require('../utils/date');
+const { formatThaiDate, formatEnDate } = require('../utils/date');
 
 
 // ─── Initialization ──────────────────────────────────────────────────────────
@@ -147,8 +147,8 @@ async function getCurrentReservations() {
         ELSE 'Page-Based'
       END as display_type,
       CASE 
-        WHEN MAX(i.item_type) IN ('Album', 'Illution Box') THEN MAX(i.item_type) || ' ชิ้นที่ ' || MAX(i.position)
-        ELSE 'ยกหน้า (' || COUNT(r.id) || ' ชิ้น)'
+        WHEN MAX(i.item_type) IN ('Album', 'Illution Box') THEN MAX(i.item_type) || ' item #' || MAX(i.position)
+        ELSE 'Full page (' || COUNT(r.id) || ' items)'
       END as item_display_name
     FROM reservations r
     JOIN items i ON r.item_id = i.id
@@ -267,7 +267,7 @@ async function getCurrentRound() {
 async function getOrCreateCurrentRound() {
   let round = await db.get('SELECT * FROM rounds ORDER BY id DESC LIMIT 1');
   if (!round || round.status === 'closed') {
-    const name = `รอบประมูล ${formatThaiDate(new Date(), {
+    const name = `Auction Round ${formatEnDate(new Date(), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
