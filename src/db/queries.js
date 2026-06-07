@@ -6,6 +6,7 @@ const { formatThaiDate } = require('../utils/date');
 (async () => {
   try {
     await db.run('CREATE TABLE IF NOT EXISTS user_dashboards (user_id TEXT PRIMARY KEY, thread_id TEXT, message_id TEXT)');
+    await db.run("CREATE TABLE IF NOT EXISTS user_preferences (user_id TEXT PRIMARY KEY, language TEXT NOT NULL DEFAULT 'en')");
 
     // Migrations
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota INTEGER DEFAULT 1');
@@ -414,6 +415,19 @@ async function bulkUpdateWhitelistStatus(ids, isActive) {
   return db.run(`UPDATE whitelist SET is_active = ? WHERE id IN (${placeholders})`, [isActive, ...ids]);
 }
 
+async function getUserPreference(userId) {
+  return db.get('SELECT * FROM user_preferences WHERE user_id = ?', [userId]);
+}
+
+async function saveUserLanguage(userId, language) {
+  return db.run(`
+    INSERT INTO user_preferences (user_id, language)
+    VALUES (?, ?)
+    ON CONFLICT (user_id) DO UPDATE SET
+      language = EXCLUDED.language
+  `, [userId, language]);
+}
+
 async function setOnlyWhitelistActive(ids) {
   const activeIds = [...new Set(ids.map(id => parseInt(id)).filter(id => !isNaN(id)))];
   return db.run('UPDATE whitelist SET is_active = (id = ANY($1::int[]))', [activeIds]);
@@ -642,4 +656,6 @@ module.exports = {
   autoAssignWhitelist,
   getUserDashboard,
   saveUserDashboard,
+  getUserPreference,
+  saveUserLanguage,
 };

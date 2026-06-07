@@ -12,6 +12,28 @@ const { version } = require('../../package.json');
 
 const app = express();
 
+// Health check endpoint for UptimeRobot (Must be before session middleware)
+app.get('/health', async (req, res) => {
+  const discordClient = require('../bot/client');
+  const db = require('../db/queries');
+  
+  let dbStatus = 'ok';
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
+    await Promise.race([db.getCurrentRound(), timeout]);
+  } catch (err) {
+    dbStatus = err.message === 'timeout' ? 'timeout' : 'error';
+  }
+
+  res.json({
+    status: 'ok',
+    version: version,
+    uptime: process.uptime(),
+    discord_bot: discordClient.isReady() ? 'online' : 'offline',
+    database: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
 // Passport setup
 passport.serializeUser((user, done) => {
   done(null, user.discord_user_id);
@@ -165,27 +187,6 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Health check endpoint for UptimeRobot
-app.get('/health', async (req, res) => {
-  const discordClient = require('../bot/client');
-  const db = require('../db/queries');
-  
-  let dbStatus = 'ok';
-  try {
-    await db.getCurrentRound();
-  } catch (err) {
-    dbStatus = 'error';
-  }
-
-  res.json({
-    status: 'ok',
-    version: version,
-    uptime: process.uptime(),
-    discord_bot: discordClient.isReady() ? 'online' : 'offline',
-    database: dbStatus,
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Routes (will define shortly)
 app.use('/', require('./routes/auth'));

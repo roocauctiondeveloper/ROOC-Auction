@@ -1,20 +1,25 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } = require('discord.js');
 const db = require('../../db/queries');
-const { BRANDING, FEATHER_TYPES, ICONS } = require('../../utils/constants');
+const { BRANDING, FEATHER_TYPES, ICONS, ITEM_TYPES } = require('../../utils/constants');
 const { updateLiveBoard } = require('../liveboard');
+const { getInteractionLanguage, translate } = require('../i18n');
 const BOOK_TYPES = ['Album', 'Illution Box', 'album', 'illution-box'];
 
 const activeLocks = new Set();
 
-/** ตรวจสอบความพร้อมของรอบ */
+const displayItemType = (type) => ITEM_TYPES[type]?.label || type;
+
+/** Check whether the current round can accept reservations. */
 async function checkEligibility(interaction) {
+  const language = await getInteractionLanguage(interaction);
   const round = await db.getOrCreateCurrentRound();
-  if (!round || round.status !== 'open') return { ok: false, msg: '❌ รอบการจองปิดอยู่ครับ' };
+  if (!round || round.status !== 'open') return { ok: false, msg: translate(language, 'reservationsClosed') };
   return { ok: true, round };
 }
 
-/** แสดงผลสถานะการจองทั้งหมด (Dashboard สรุปยอด - สำหรับ /mystuff) */
+/** Render the user's reservation status summary for /mystuff. */
 async function renderUserStatus(interaction, discordUserId, round, successMsg = null) {
+  const language = await getInteractionLanguage(interaction);
   const myReservations = await db.getMyReservations(discordUserId, round.id);
 
   const ldUsage = myReservations.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
@@ -22,13 +27,13 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
   const albumItemsCount = myReservations.filter(r => BOOK_TYPES.map(x => x.toLowerCase()).includes(r.item_type.toLowerCase())).length;
 
   if (myReservations.length === 0) {
-    const content = (successMsg ? `${successMsg}\n\n` : '') + '✅ You have no active reservations.';
+    const content = (successMsg ? `${successMsg}\n\n` : '') + translate(language, 'noActiveReservations');
     if (!interaction.deferred && !interaction.replied) return interaction.reply({ content, flags: [MessageFlags.Ephemeral] });
     return interaction.editReply({ content, components: [] });
   }
 
   const currentList = myReservations.map(r => {
-    return `• **Page ${r.page_name}** - ${r.item_type} #${r.position}`;
+    return `• **Page ${r.page_name}** - ${displayItemType(r.item_type)} #${r.position}`;
   }).join('\n');
 
   let rows = [];
@@ -51,8 +56,7 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
     const btnStyle = ButtonStyle.Danger;
     
     // Prefix with original emoji for clarity if desired, but red button implies cancel.
-    // The user requested: "ให้ปุ่มยกเลิกคล้ายๆ เดิม ... ให้มันเป็นกรุ๊ป แบบเดียวกับตอนกดจองเข้ามา"
-    // "คล้ายๆ เดิม" means Red with "❌ P.X"
+    // Keep cancellation buttons grouped like reservation buttons.
     // To distinguish LD/TS, we can include the emoji.
     const typeEmoji = (g.type.toLowerCase() === 'light-dark' || g.type.toLowerCase() === 'ขนนกดำ') ? '🤍 ' : ((g.type.toLowerCase() === 'time-space' || g.type.toLowerCase() === 'ขนนกขาว') ? '❤️ ' : '');
 
@@ -67,7 +71,7 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
 
   // Only add 'cancel all' if there is at least one cancellable item
   if (Object.keys(groups).length > 0) {
-    const cancelAllBtn = new ButtonBuilder().setCustomId('unreserve_me').setLabel('❌ ยกเลิกทั้งหมด').setStyle(ButtonStyle.Danger);
+    const cancelAllBtn = new ButtonBuilder().setCustomId('unreserve_me').setLabel(translate(language, 'cancelAll')).setStyle(ButtonStyle.Danger);
     if (currentRow.components.length === 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
     currentRow.addComponents(cancelAllBtn);
   }
@@ -77,7 +81,7 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
   }
 
   const finalContent = (successMsg ? `${successMsg}\n\n` : '') +
-    `🎒 Your Reservations:\n` +
+    `${translate(language, 'yourReservations')}\n` +
     `🤍 LD: ${ldUsage}/${round.quota_ld >= 999 ? '∞' : round.quota_ld}\n` +
     `❤️ TS: ${tsUsage}/${round.quota_ts >= 999 ? '∞' : round.quota_ts}\n` +
     `${albumItemsCount > 0 ? '📒 Book: 1/1\n' : ''}\n` +
@@ -88,10 +92,11 @@ async function renderUserStatus(interaction, discordUserId, round, successMsg = 
 }
 
 async function reserveFeatherBundle(interaction, category, specificIds = null) {
+  const language = await getInteractionLanguage(interaction);
   const discordUserId = interaction.user.id;
   const discordUsername = interaction.member?.displayName ?? interaction.user.username;
   const lockKey = `bundle_${discordUserId}_${category}`;
-  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ Processing...', flags: [MessageFlags.Ephemeral] }).catch(() => { });
+  if (activeLocks.has(lockKey)) return interaction.reply({ content: translate(language, 'processing'), flags: [MessageFlags.Ephemeral] }).catch(() => { });
   activeLocks.add(lockKey);
 
   let toReserve = [];
@@ -108,7 +113,7 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
 
     const currentUsage = myRes.filter(r => r.item_type.toLowerCase() === itemType.toLowerCase()).length;
     if (currentUsage >= quota) {
-      return interaction.reply({ content: `❌ Your ${itemType} quota is already full (${currentUsage}/${quota})`, flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: translate(language, 'quotaFull', { itemType, currentUsage, quota }), flags: [MessageFlags.Ephemeral] });
     }
 
     // Check Click Quota (Global across all feathers)
@@ -117,7 +122,7 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
     const clickQuota = round.quota || 1;
 
     if (distinctClicks >= clickQuota) {
-      return interaction.reply({ content: `❌ You have reached your button click limit (${distinctClicks}/${clickQuota}). Please wait for the admin to increase the limit.`, flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: translate(language, 'clickLimit', { distinctClicks, clickQuota }), flags: [MessageFlags.Ephemeral] });
     }
 
     const needed = quota - currentUsage;
@@ -128,7 +133,7 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
       // Find all available items from this bundle
       const availableInBundle = allAvailable.filter(i => specificIds.includes(i.id));
       if (availableInBundle.length === 0) {
-        return interaction.reply({ content: '❌ All items in this set are already reserved.', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: translate(language, 'setReserved'), flags: [MessageFlags.Ephemeral] });
       }
 
       // Strict adherence: Do not allow them to slice a FULL 4-item page bundle if there are still other fragmented pages available.
@@ -143,7 +148,7 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
         });
         const hasFragmented = Object.values(itemsByPage).some(count => count > 0 && count < 4);
         if (hasFragmented) {
-          return interaction.reply({ content: `❌ คุณเหลือโควต้าจองได้อีกแค่ ${needed} ชิ้น (${itemType}) ซึ่งไม่เพียงพอสำหรับยกหน้า (4 ชิ้น)\nโปรดเลือกกดจองจากหน้าที่มีเศษเหลือว่างอยู่ก่อนครับ เพื่อความเป็นระเบียบเรียบร้อยของบอร์ด`, flags: [MessageFlags.Ephemeral] });
+          return interaction.reply({ content: translate(language, 'quotaTooSmall', { needed, itemType }), flags: [MessageFlags.Ephemeral] });
         }
       }
 
@@ -152,7 +157,7 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
     } else {
       const categoryAvailable = allAvailable.filter(i => i.item_type.toLowerCase() === itemType.toLowerCase());
       if (categoryAvailable.length === 0) {
-        return interaction.reply({ content: `❌ No more ${itemType} available.`, flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: translate(language, 'noMoreType', { itemType }), flags: [MessageFlags.Ephemeral] });
       }
       toReserve = categoryAvailable.slice(0, needed);
     }
@@ -167,7 +172,7 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
     const tsQuota = round.quota_ts || 1;
     const ldLeft = ldQuota >= 999 ? '∞' : Math.max(0, ldQuota - ldUsage);
     const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
-    const quotaStr = `\n📊 **โควต้าคงเหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+    const quotaStr = translate(language, 'remainingQuota', { ldLeft, tsLeft });
 
     const pages = {};
     toReserve.forEach(i => {
@@ -181,14 +186,14 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`c_b_${toReserve.map(i => i.id).join('_')}`)
-        .setLabel('❌ ยกเลิกการจองนี้')
+        .setLabel(translate(language, 'cancelThis'))
         .setStyle(ButtonStyle.Danger)
     );
 
     console.log(`[Reserve] User ${discordUsername} reserved ${toReserve.length} ${itemType} items. IDs: ${toReserve.map(i => i.id).join(', ')}`);
 
     return interaction.reply({
-      content: `✅ จองสำเร็จ **${toReserve.length}** ชิ้น (${itemType})!\n📍 ${detailList}${quotaStr}`,
+      content: translate(language, 'reservedBundle', { count: toReserve.length, itemType, detailList, quotaStr }),
       components: [row],
       flags: [MessageFlags.Ephemeral]
     });
@@ -198,19 +203,20 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
       const attemptedIds = (specificIds && specificIds.length > 0) ? specificIds : toReserve.map(i => i.id);
       console.log(`[Reserve Race] User ${discordUsername} tried to reserve already reserved items: [${attemptedIds.join(', ')}]`);
       if (!interaction.replied) {
-        return interaction.reply({ content: '❌ มีคนอื่นจองรายการนี้ตัดหน้าไปก่อนแล้วครับ! กรุณาเลือกรายการอื่น', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: translate(language, 'race'), flags: [MessageFlags.Ephemeral] });
       }
     }
     console.error('[Reserve Error]', err);
-    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการจอง กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] }).catch(() => { });
+    if (!interaction.replied) interaction.reply({ content: translate(language, 'reserveFailed'), flags: [MessageFlags.Ephemeral] }).catch(() => { });
   } finally {
     activeLocks.delete(lockKey);
   }
 }
 
 async function reserveBookItem(interaction, itemId) {
+  const language = await getInteractionLanguage(interaction);
   const lockKey = `item_${itemId}`;
-  if (activeLocks.has(lockKey)) return interaction.reply({ content: '❌ กำลังดำเนินการ...', flags: [MessageFlags.Ephemeral] }).catch(() => { });
+  if (activeLocks.has(lockKey)) return interaction.reply({ content: translate(language, 'processing'), flags: [MessageFlags.Ephemeral] }).catch(() => { });
   activeLocks.add(lockKey);
 
   try {
@@ -221,19 +227,19 @@ async function reserveBookItem(interaction, itemId) {
     const { round } = check;
 
     const myRes = await db.getMyReservations(discordUserId, round.id);
-    // เช็คว่าเคยจองสมุด/กล่อง ไปหรือยัง (ขนนกไม่นับรวมโควต้าไอเทมจำกัด)
+    // Books/boxes are limited to one per user; feathers use their own quotas.
     const hasAlbum = myRes.some(r => BOOK_TYPES.map(x => x.toLowerCase()).includes(r.item_type.toLowerCase()));
-    if (hasAlbum) return interaction.reply({ content: '❌ คุณจองสมุด/กล่องไปแล้วครับ (จำกัด 1 อย่างต่อคน)', flags: [MessageFlags.Ephemeral] });
+    if (hasAlbum) return interaction.reply({ content: translate(language, 'bookLimit'), flags: [MessageFlags.Ephemeral] });
 
     const ok = await db.isWhitelisted(discordUserId);
-    if (!ok) return interaction.reply({ content: '❌ เฉพาะ Whitelist เท่านั้นครับ', flags: [MessageFlags.Ephemeral] });
+    if (!ok) return interaction.reply({ content: translate(language, 'whitelistOnly'), flags: [MessageFlags.Ephemeral] });
 
     const item = await db.getItemById(itemId);
-    if (!item) return interaction.reply({ content: '❌ ไม่พบสินค้า', flags: [MessageFlags.Ephemeral] });
+    if (!item) return interaction.reply({ content: translate(language, 'itemNotFound'), flags: [MessageFlags.Ephemeral] });
 
     if (await db.isItemReserved(round.id, itemId)) {
       updateLiveBoard(interaction.client, round.id).catch(err => console.error('❌ Board update error:', err));
-      return interaction.reply({ content: '❌ ถูกจองไปแล้วครับ', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: translate(language, 'alreadyReserved'), flags: [MessageFlags.Ephemeral] });
     }
 
     await db.addReservation(round.id, itemId, discordUserId, discordUsername);
@@ -241,27 +247,28 @@ async function reserveBookItem(interaction, itemId) {
 
     // Success - Minimal Response
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`c_i_${itemId}`).setLabel(`❌ ยกเลิกหน้า ${item.page_name} #${item.position}`).setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`c_i_${itemId}`).setLabel(translate(language, 'cancelPage', { pageName: item.page_name, position: item.position })).setStyle(ButtonStyle.Danger)
     );
-    return interaction.reply({ content: `✅ จองสำเร็จ! **หน้า ${item.page_name} - ${item.item_type} #${item.position}**`, components: [row], flags: [MessageFlags.Ephemeral] });
+    return interaction.reply({ content: translate(language, 'reservedSingle', { pageName: item.page_name, itemType: displayItemType(item.item_type), position: item.position }), components: [row], flags: [MessageFlags.Ephemeral] });
 
   } catch (err) {
     if (err.code === '23505' || err.message?.includes('UNIQUE constraint failed') || err.code === 'SQLITE_CONSTRAINT') {
       console.log(`[Reserve] Race condition: User ${discordUsername} tried to reserve already reserved item ID: ${itemId}.`);
       if (!interaction.replied) {
-        return interaction.reply({ content: '❌ มีคนอื่นจองรายการนี้ตัดหน้าไปก่อนแล้วครับ! กรุณาเลือกรายการอื่น', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: translate(language, 'race'), flags: [MessageFlags.Ephemeral] });
       }
     }
     console.error('[Book Reserve Error]', err);
-    if (!interaction.replied) interaction.reply({ content: '❌ เกิดข้อผิดพลาด', flags: [MessageFlags.Ephemeral] }).catch(() => { });
+    if (!interaction.replied) interaction.reply({ content: translate(language, 'genericError'), flags: [MessageFlags.Ephemeral] }).catch(() => { });
   } finally {
     activeLocks.delete(lockKey);
   }
 }
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('available').setDescription('ตรวจสอบสินค้าที่ว่างและทำการจอง'),
+  data: new SlashCommandBuilder().setName('available').setDescription('View available items and make a reservation'),
   async execute(interaction) {
+    const language = await getInteractionLanguage(interaction);
     const check = await checkEligibility(interaction);
     if (!check.ok) return interaction.reply({ content: check.msg, flags: [MessageFlags.Ephemeral] });
     const { round } = check;
@@ -270,12 +277,12 @@ module.exports = {
     const ldItems = allAvailable.filter(i => i.item_type.toLowerCase() === 'light-dark');
     const tsItems = allAvailable.filter(i => i.item_type.toLowerCase() === 'time-space');
 
-    if (ldItems.length === 0 && tsItems.length === 0) return interaction.reply({ content: '📭 No feathers available.', flags: [MessageFlags.Ephemeral] });
+    if (ldItems.length === 0 && tsItems.length === 0) return interaction.reply({ content: translate(language, 'noFeathers'), flags: [MessageFlags.Ephemeral] });
 
     const embed = new EmbedBuilder()
-      .setTitle('📦 Available Feathers')
+      .setTitle(translate(language, 'availableTitle'))
       .setColor(0x00FF00)
-      .setDescription('Click a button to reserve a bundle based on the current quota.')
+      .setDescription(translate(language, 'availableHelp'))
       .setFooter({ text: `Round: ${round.name}` });
 
     const row = new ActionRowBuilder();

@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord
 const fs = require('fs');
 const path = require('path');
 const availableCmd = require('./commands/available');
+const { getInteractionLanguage, translate } = require('./i18n');
 
 const client = new Client({
   intents: [
@@ -66,29 +67,31 @@ client.on('interactionCreate', async interaction => {
     console.error('[Sync-Bot] Sync error:', syncErr.message);
   }
 
-  // Handle Unreserve Button (จากข้อความจองสำเร็จ)
+  // Handle the My Stuff button from the live board.
   if (interaction.isButton() && interaction.customId === 'lb_mystuff') {
     try {
       const { renderMyStuff } = require('./commands/mystuff');
       return renderMyStuff(interaction, false, null);
     } catch (err) {
+      const language = await getInteractionLanguage(interaction);
       console.error('[client] lb_mystuff error:', err);
-      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการดึงข้อมูลกระเป๋า', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: translate(language, 'loadBagFailed'), flags: [MessageFlags.Ephemeral] });
     }
   }
 
   if (interaction.isButton() && interaction.customId === 'unreserve_me') {
     try {
+      const language = await getInteractionLanguage(interaction);
       const db = require('../db/queries');
       const { updateLiveBoard } = require('./liveboard');
 
       const currentRound = await db.getCurrentRound();
       
       if (!currentRound || currentRound.status !== 'open') {
-        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: translate(language, 'cancelClosed'), flags: [MessageFlags.Ephemeral] });
       }
 
-      // Acknowledge ทันที (ปุ่มจะหยุดหมุน) แต่ไม่ขึ้น "Thinking..."
+      // Acknowledge immediately so the button stops spinning without showing "Thinking..."
       await interaction.deferUpdate();
 
       await db.deleteAllUserReservationsInRound(currentRound.id, interaction.user.id);
@@ -97,35 +100,37 @@ client.on('interactionCreate', async interaction => {
 
       if (interaction.message.embeds && interaction.message.embeds.length > 0) {
         const { renderMyStuff } = require('./commands/mystuff');
-        return renderMyStuff(interaction, true, 'ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ');
+        return renderMyStuff(interaction, true, translate(language, 'allCanceled'));
       } else {
         const ldQuota = currentRound.quota_ld || 1;
         const tsQuota = currentRound.quota_ts || 1;
         const ldLeft = ldQuota >= 999 ? '∞' : ldQuota;
         const tsLeft = tsQuota >= 999 ? '∞' : tsQuota;
-        const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+        const quotaStr = translate(language, 'remainingQuota', { ldLeft, tsLeft });
 
-        // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
-        return interaction.editReply({ content: `✅ ยกเลิกรายการทั้งหมดของคุณเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
+        // Show a short success message.
+        return interaction.editReply({ content: translate(language, 'allCanceledReply', { quotaStr }), components: [] });
       }
     } catch (err) {
+      const language = await getInteractionLanguage(interaction);
       console.error('[client] unreserve button error:', err);
       if (interaction.deferred || interaction.replied) {
-        return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
+        return interaction.followUp({ content: translate(language, 'cancelFailedRetry'), flags: [MessageFlags.Ephemeral] });
       }
-      return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: translate(language, 'cancelFailedRetry'), flags: [MessageFlags.Ephemeral] });
     }
   }
 
   // Handle Individual and Bulk Cancel Buttons (from /mystuff or success message)
   if (interaction.isButton() && (interaction.customId.startsWith('c_p_') || interaction.customId.startsWith('c_i_') || interaction.customId.startsWith('c_b_'))) {
     try {
+      const language = await getInteractionLanguage(interaction);
       const db = require('../db/queries');
       const { updateLiveBoard } = require('./liveboard');
       const currentRound = await db.getCurrentRound();
 
       if (!currentRound || currentRound.status !== 'open') {
-        return interaction.reply({ content: '❌ ไม่สามารถยกเลิกได้ เนื่องจากรอบปิดไปแล้วครับ', flags: [MessageFlags.Ephemeral] });
+        return interaction.reply({ content: translate(language, 'cancelClosed'), flags: [MessageFlags.Ephemeral] });
       }
 
       await interaction.deferUpdate();
@@ -152,7 +157,7 @@ client.on('interactionCreate', async interaction => {
 
       if (interaction.message.embeds && interaction.message.embeds.length > 0) {
         const { renderMyStuff } = require('./commands/mystuff');
-        return renderMyStuff(interaction, true, 'ยกเลิกรายการเรียบร้อยแล้วครับ');
+        return renderMyStuff(interaction, true, translate(language, 'oneCanceled'));
       } else {
         const updatedRes = await db.getMyReservations(interaction.user.id, currentRound.id);
         const ldUsage = updatedRes.filter(r => r.item_type.toLowerCase() === 'light-dark').length;
@@ -161,18 +166,19 @@ client.on('interactionCreate', async interaction => {
         const tsQuota = currentRound.quota_ts || 1;
         const ldLeft = ldQuota >= 999 ? '∞' : Math.max(0, ldQuota - ldUsage);
         const tsLeft = tsQuota >= 999 ? '∞' : Math.max(0, tsQuota - tsUsage);
-        const quotaStr = `\n📊 **โควต้าที่เหลือ**: 🤍 LD (${ldLeft}), ❤️ TS (${tsLeft})`;
+        const quotaStr = translate(language, 'remainingQuota', { ldLeft, tsLeft });
 
-        // แสดงแค่ข้อความสั้นๆ ว่าสำเร็จ
-        return interaction.editReply({ content: `✅ ยกเลิกรายการเรียบร้อยแล้วครับ${quotaStr}`, components: [] });
+        // Show a short success message.
+        return interaction.editReply({ content: translate(language, 'oneCanceledReply', { quotaStr }), components: [] });
       }
     } catch (err) {
+      const language = await getInteractionLanguage(interaction);
       console.error('[client] individual cancel error:', err);
-      return interaction.followUp({ content: '❌ เกิดข้อผิดพลาดในการยกเลิก', flags: [MessageFlags.Ephemeral] });
+      return interaction.followUp({ content: translate(language, 'cancelFailed'), flags: [MessageFlags.Ephemeral] });
     }
   }
 
-  // Handle Buttons จาก /available
+  // Handle buttons from /available.
   if (interaction.isButton()) {
     const id = interaction.customId;
     const { LB_FEATHER_PREFIX, LB_BOOK_PREFIX } = require('./liveboard');
@@ -186,23 +192,25 @@ client.on('interactionCreate', async interaction => {
       try {
         await availableCmd.handleButton(interaction);
       } catch (error) {
+        const language = await getInteractionLanguage(interaction);
         console.error('[available button] error:', error);
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: 'เกิดข้อผิดพลาด กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
+          await interaction.reply({ content: translate(language, 'tryAgain'), flags: [MessageFlags.Ephemeral] });
         }
       }
     }
     return;
   }
 
-  // Handle Select Menu fallback จาก /available (กรณี items > 25)
+  // Handle select menu fallback from /available when there are more than 25 items.
   if (interaction.isStringSelectMenu()) {
     try {
       await availableCmd.handleSelect(interaction);
     } catch (error) {
+      const language = await getInteractionLanguage(interaction);
       console.error('[available select] error:', error);
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'เกิดข้อผิดพลาด กรุณาลองใหม่', flags: [MessageFlags.Ephemeral] });
+        await interaction.reply({ content: translate(language, 'tryAgain'), flags: [MessageFlags.Ephemeral] });
       }
     }
     return;
@@ -220,11 +228,12 @@ client.on('interactionCreate', async interaction => {
   try {
     await command.execute(interaction);
   } catch (error) {
+    const language = await getInteractionLanguage(interaction);
     console.error(error);
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ content: translate(language, 'commandError'), flags: [MessageFlags.Ephemeral] });
     } else {
-      await interaction.reply({ content: 'There was an error while executing this command!', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: translate(language, 'commandError'), flags: [MessageFlags.Ephemeral] });
     }
   }
 });

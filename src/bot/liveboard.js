@@ -1,7 +1,7 @@
 /**
  * Live Reservation Board
- * ส่ง embed grid แสดงสถานะ items ทุก page พร้อม buttons จองได้เลย
- * และ edit message นั้นทุกครั้งที่มีการจอง
+ * Send an embed grid showing every page's item status with reservation buttons.
+ * Edit the board messages whenever reservations change.
  */
 
 const {
@@ -14,7 +14,7 @@ const db = require('../db/queries');
 const { ICONS, ITEM_TYPES, BRANDING } = require('../utils/constants');
 const { resolveEmoji } = require('./utils/emoji');
 
-// Helper สำหรับหาข้อมูลแบบ Case-insensitive
+// Case-insensitive item metadata lookup.
 const getItemData = (t) => {
   if (!t) return null;
   const key = Object.keys(ITEM_TYPES).find(k => k.toLowerCase() === t.toLowerCase());
@@ -30,12 +30,12 @@ const getEmoji = (t, guild = null) => {
 const FEATHER_TYPES = ['Light-Dark', 'Time-Space', 'light-dark', 'time-space'];
 const BOOK_TYPES = ['Album', 'Illution Box', 'album', 'illution-box'];
 
-// Button prefix สำหรับ live board (แยกจาก /available)
+// Live board button prefixes, kept separate from /available.
 const LB_FEATHER_PREFIX = 'lb_f_';
 const LB_BOOK_PREFIX = 'lb_b_';
 
 /**
- * แยก Message IDs แบบมีโครงสร้าง
+ * Parse structured message IDs.
  */
 function parseBoardIds(idStr) {
   if (!idStr) return { emb: [], alb: [], ld: [], ts: [], brd: [] };
@@ -65,7 +65,7 @@ function parseBoardIds(idStr) {
 }
 
 /**
- * สร้าง embeds แสดง grid
+ * Build board embeds.
  */
 async function buildBoardEmbed(round, guild = null) {
   const allData = await db.getAllBoardData(round.id);
@@ -74,7 +74,7 @@ async function buildBoardEmbed(round, guild = null) {
     const embed = new EmbedBuilder()
       .setTitle(`📋 Live Board — ${round.name}`)
       .setColor(0x57F287)
-      .setDescription('ยังไม่มีสินค้าในระบบ')
+      .setDescription('No items have been added yet.')
       .setTimestamp();
     return { embeds: [embed], totalItems: 0, reservedCount: 0 };
   }
@@ -108,7 +108,7 @@ async function buildBoardEmbed(round, guild = null) {
       };
 
       const lines = page.items.map(i => {
-        // 🚨 FIX: เช็คให้ละเอียดทั้งชื่อและ ID
+        // Check both the reserved name and Discord user ID.
         if (i.reserved_by !== null && i.reserved_by !== undefined && i.reserved_by !== '') {
           reservedCount++;
           const nameDisplay = i.discord_user_id ? `<@${i.discord_user_id}>` : `**${i.reserved_by}**`;
@@ -118,7 +118,7 @@ async function buildBoardEmbed(round, guild = null) {
       });
 
       embed.addFields({
-        name: `${pageEmojis} หน้า ${page.name}`,
+        name: `${pageEmojis} Page ${page.name}`,
         value: lines.join('\n') || '-',
         inline: true,
       });
@@ -132,7 +132,7 @@ async function buildBoardEmbed(round, guild = null) {
   }
 
   const remaining = totalItems - reservedCount;
-  const description = `**${reservedCount}/${totalItems}** จองแล้ว • **${remaining}** ว่างอยู่\nพิมพ์ \`/available\` เพื่อดูรายการว่างและจองได้เลย!`;
+  const description = `**${reservedCount}/${totalItems}** reserved • **${remaining}** available\nUse \`/available\` to view available items and reserve them.`;
 
   if (embeds.length > 0) {
     embeds[0].setDescription(description);
@@ -146,7 +146,7 @@ async function buildBoardEmbed(round, guild = null) {
 }
 
 /**
- * สร้าง buttons สำหรับ items ที่ยังว่าง
+ * Build buttons for available items.
  */
 async function buildBoardButtons(round, guild = null) {
   const allData = await db.getAllBoardData(round.id);
@@ -373,15 +373,15 @@ async function sendLiveBoard(client, channelId, round) {
     };
 
     await new Promise(r => setTimeout(r, 1500));
-    await sendGroup(ldBundles, ldIds, '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ');
+    await sendGroup(ldBundles, ldIds, '**[ 🤍 Feathers (Light-Dark) ]** Sold out / no items available');
     
     await new Promise(r => setTimeout(r, 1500));
-    await sendGroup(tsBundles, tsIds, '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ');
+    await sendGroup(tsBundles, tsIds, '**[ ❤️ Feathers (Time-Space) ]** Sold out / no items available');
 
     await new Promise(r => setTimeout(r, 1500));
     const myStuffBtn = new ButtonBuilder()
       .setCustomId('lb_mystuff')
-      .setLabel('🎒 กระเป๋า & โควตาของฉัน (My Stuff)')
+      .setLabel('🎒 My Stuff & Quota')
       .setStyle(ButtonStyle.Primary);
 
     const brandingBtn = new ButtonBuilder()
@@ -469,7 +469,7 @@ async function _performUpdate(client, roundId) {
           if (messageCache.get(msgId) !== newJson) {
             messageCache.set(msgId, newJson);
             editPromises.push(
-              channel.messages.edit(msgId, { content: `**[ ${label} ]** หมดแล้ว / ไม่มีรายการ`, components: [] })
+              channel.messages.edit(msgId, { content: label, components: [] })
                 .catch(err => console.error(`❌ Failed to clear ${label} Bundle:`, err.message))
             );
           }
@@ -486,8 +486,8 @@ async function _performUpdate(client, roundId) {
       }
     };
 
-    updateBundleGroup(ldBundles, ids.ld, '**[ 🤍 ขนนก (Light-Dark) ]** หมดแล้ว / ไม่มีรายการ');
-    updateBundleGroup(tsBundles, ids.ts, '**[ ❤️ ขนนก (Time-Space) ]** หมดแล้ว / ไม่มีรายการ');
+    updateBundleGroup(ldBundles, ids.ld, '**[ 🤍 Feathers (Light-Dark) ]** Sold out / no items available');
+    updateBundleGroup(tsBundles, ids.ts, '**[ ❤️ Feathers (Time-Space) ]** Sold out / no items available');
 
 
 
@@ -517,7 +517,7 @@ async function closeLiveBoard(client, round) {
 
     const editPromises = [];
     for (let i = 0; i < Math.min(embeds.length, ids.emb.length); i++) {
-      const closedEmbed = EmbedBuilder.from(embeds[i]).setTitle(`🛑 ปิดรับจองแล้ว — ${round.name}`).setColor(0xEF4444);
+      const closedEmbed = EmbedBuilder.from(embeds[i]).setTitle(`🛑 Reservations Closed — ${round.name}`).setColor(0xEF4444);
       editPromises.push(channel.messages.edit(ids.emb[i], { embeds: [closedEmbed] }).catch(() => null));
     }
 

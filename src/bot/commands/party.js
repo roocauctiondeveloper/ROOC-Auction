@@ -1,16 +1,18 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const db = require('../../db/queries');
+const { getInteractionLanguage, translate } = require('../i18n');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('party')
-    .setDescription('ส่งรายชื่อเพื่อนในปาร์ตี้เข้าวงล้อสุ่ม (สูงสุด 2 คน โดยเว้นวรรค)')
+    .setDescription('Submit party members to the lottery wheel, up to 2 names separated by spaces')
     .addStringOption(option => 
       option.setName('names')
-        .setDescription('ระบุชื่อเพื่อน (เช่น @ชื่อ1 @ชื่อ2 หรือ ชื่อ1 ชื่อ2) สูงสุด 2 คน')
+        .setDescription('Enter up to 2 members, such as @user1 @user2 or name1 name2')
         .setRequired(true)),
 
   async execute(interaction) {
+    const language = await getInteractionLanguage(interaction);
     const callerId = interaction.user.id;
     const inputNames = interaction.options.getString('names');
 
@@ -19,7 +21,7 @@ module.exports = {
       const callerParty = await db.getPartyByDiscordUserId(callerId);
       if (!callerParty) {
         return interaction.reply({ 
-          content: '❌ คุณไม่ได้อยู่ในปาร์ตี้ใดๆ จึงไม่สามารถใช้คำสั่งนี้ได้', 
+          content: translate(language, 'notInParty'),
           flags: [MessageFlags.Ephemeral] 
         });
       }
@@ -39,7 +41,7 @@ module.exports = {
             selectedMembers.push(member);
           } else {
             return interaction.reply({
-              content: `❌ ผู้ใช้ <@${discordId}> ไม่ได้อยู่ใน Whitelist`,
+              content: translate(language, 'userNotWhitelist', { discordId }),
               flags: [MessageFlags.Ephemeral]
             });
           }
@@ -54,7 +56,7 @@ module.exports = {
             selectedMembers.push(member);
           } else {
             return interaction.reply({
-              content: `❌ ไม่พบผู้ใช้ชื่อ **${name}** ใน Whitelist`,
+              content: translate(language, 'nameNotWhitelist', { name }),
               flags: [MessageFlags.Ephemeral]
             });
           }
@@ -63,14 +65,14 @@ module.exports = {
 
       if (selectedMembers.length === 0) {
         return interaction.reply({
-          content: '❌ กรุณาระบุชื่อผู้ใช้หรือ Tag สมาชิกที่ต้องการส่งชื่อ',
+          content: translate(language, 'enterNames'),
           flags: [MessageFlags.Ephemeral]
         });
       }
 
       if (selectedMembers.length > 2) {
         return interaction.reply({
-          content: '❌ สามารถส่งชื่อได้สูงสุด 2 คนเท่านั้นครับ',
+          content: translate(language, 'maxTwo'),
           flags: [MessageFlags.Ephemeral]
         });
       }
@@ -81,7 +83,7 @@ module.exports = {
         const isInParty = partyMembers.some(pm => pm.party_id === callerParty.id && pm.whitelist_id === member.id);
         if (!isInParty) {
           return interaction.reply({
-            content: `❌ **${member.discord_username}** ไม่ได้อยู่ในปาร์ตี้เดียวกับคุณ (${callerParty.name})`,
+            content: translate(language, 'notSameParty', { username: member.discord_username, partyName: callerParty.name }),
             flags: [MessageFlags.Ephemeral]
           });
         }
@@ -96,17 +98,17 @@ module.exports = {
 
       await db.addWheelEntry(callerId, nom1, nom2);
 
-      const nomNames = selectedMembers.map(m => m.discord_user_id ? `<@${m.discord_user_id}>` : `**${m.discord_username}**`).join(' และ ');
+      const nomNames = selectedMembers.map(m => m.discord_user_id ? `<@${m.discord_user_id}>` : `**${m.discord_username}**`).join(' and ');
       
       // Public reply so everyone can see the names submitted
       return interaction.reply({ 
-        content: `✅ <@${callerId}> ได้ส่งชื่อ ${nomNames} เข้าวงล้อสำเร็จ!\n(ส่งจาก **${callerParty.name}**)`, 
+        content: `✅ <@${callerId}> submitted ${nomNames} to the lottery wheel.\n(Submitted from **${callerParty.name}**)`,
       });
 
     } catch (err) {
       console.error(err);
       return interaction.reply({ 
-        content: '❌ เกิดข้อผิดพลาดในการส่งรายชื่อ โปรดลองใหม่', 
+        content: translate(language, 'partyFailed'),
         flags: [MessageFlags.Ephemeral] 
       });
     }

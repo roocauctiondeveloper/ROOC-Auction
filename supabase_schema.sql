@@ -122,3 +122,9 @@ CREATE TABLE IF NOT EXISTS wheel_entries (
     nominated_2 TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 12. User Preferences
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id  TEXT PRIMARY KEY,
+    language TEXT NOT NULL DEFAULT 'en'
+);
