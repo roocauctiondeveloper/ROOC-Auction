@@ -17,12 +17,17 @@ app.get('/health', async (req, res) => {
   const discordClient = require('../bot/client');
   const db = require('../db/queries');
   
-  let dbStatus = 'ok';
-  try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
-    await Promise.race([db.getCurrentRound(), timeout]);
-  } catch (err) {
-    dbStatus = err.message === 'timeout' ? 'timeout' : 'error';
+  let dbStatus = 'skipped';
+  
+  // Only check database if explicitly requested via query parameter
+  if (req.query.check_db === 'true') {
+    try {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
+      await Promise.race([db.getCurrentRound(), timeout]);
+      dbStatus = 'ok';
+    } catch (err) {
+      dbStatus = err.message === 'timeout' ? 'timeout' : 'error';
+    }
   }
 
   res.json({
