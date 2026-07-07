@@ -14,6 +14,20 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota_ts INTEGER DEFAULT 1');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_channel_id TEXT');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_message_id TEXT');
+
+    await db.exec('ALTER TABLE whitelist ADD COLUMN IF NOT EXISTS job TEXT');
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS job_change_logs (
+        id               SERIAL PRIMARY KEY,
+        discord_user_id  TEXT NOT NULL,
+        discord_username TEXT NOT NULL,
+        old_job          TEXT,
+        new_job          TEXT,
+        changed_by       TEXT NOT NULL,
+        changed_by_name  TEXT NOT NULL,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
   } catch (err) {
     console.error('❌ Failed to initialize database tables:', err);
   }
@@ -633,6 +647,55 @@ async function deleteWheelEntriesByParty(partyId) {
   }
 }
 
+async function getAllWhitelistWithParty() {
+  return db.all(`
+    SELECT w.*, p.name AS party_name 
+    FROM whitelist w
+    LEFT JOIN party_members pm ON pm.whitelist_id = w.id
+    LEFT JOIN parties p ON pm.party_id = p.id
+    ORDER BY w.is_active DESC, w.id ASC
+  `);
+}
+
+async function saveUserJob(discordUserId, discordUsername, job) {
+  const existing = await db.get('SELECT job FROM whitelist WHERE discord_user_id = ?', [discordUserId]);
+  const oldJob = existing ? existing.job : null;
+
+  await db.run(`
+    INSERT INTO whitelist (discord_username, discord_user_id, job, is_active)
+    VALUES (?, ?, ?, true)
+    ON CONFLICT (discord_user_id) DO UPDATE SET
+      job = EXCLUDED.job,
+      discord_username = EXCLUDED.discord_username
+  `, [discordUsername, discordUserId, job]);
+
+  if (!existing || oldJob !== job) {
+    await db.run(`
+      INSERT INTO job_change_logs (discord_user_id, discord_username, old_job, new_job, changed_by, changed_by_name)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [discordUserId, discordUsername, oldJob, job, discordUserId, discordUsername]);
+  }
+}
+
+async function updateWhitelistJob(id, job, adminUserId, adminUsername) {
+  const member = await db.get('SELECT discord_user_id, discord_username, job FROM whitelist WHERE id = ?', [id]);
+  if (!member) throw new Error('Member not found');
+  const oldJob = member.job;
+
+  await db.run('UPDATE whitelist SET job = ? WHERE id = ?', [job, id]);
+
+  if (oldJob !== job) {
+    await db.run(`
+      INSERT INTO job_change_logs (discord_user_id, discord_username, old_job, new_job, changed_by, changed_by_name)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [member.discord_user_id, member.discord_username, oldJob, job, adminUserId, adminUsername]);
+  }
+}
+
+async function getJobChangeLogs() {
+  return db.all('SELECT * FROM job_change_logs ORDER BY created_at DESC LIMIT 100');
+}
+
 
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
@@ -658,4 +721,8 @@ module.exports = {
   saveUserDashboard,
   getUserPreference,
   saveUserLanguage,
+  getAllWhitelistWithParty,
+  saveUserJob,
+  updateWhitelistJob,
+  getJobChangeLogs,
 };

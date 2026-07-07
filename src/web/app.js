@@ -202,6 +202,7 @@ app.use('/history', require('./routes/history'));
 app.use('/whitelist', require('./routes/whitelist'));
 app.use('/presets', require('./routes/presets'));
 app.use('/parties', require('./routes/parties'));
+app.use('/jobs', require('./routes/jobs'));
 
 // Catch-all 404
 app.use((req, res) => {

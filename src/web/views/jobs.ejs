@@ -1,0 +1,433 @@
+<div class="flex space-between items-center" style="margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="margin: 0; font-family: 'Outfit'; display: flex; align-items: center; gap: 0.5rem;">
+      💼 <span>Jobs & Classes Management</span>
+    </h1>
+    <p style="color: var(--text-light); margin: 0.25rem 0 0 0; font-size: 0.95rem;">จัดการอาชีพในเกมและดูรายงานจัดกลุ่มสมาชิกปาร์ตี้ / อาชีพทั้งหมด</p>
+  </div>
+</div>
+
+<!-- 🎛️ Control Panel Card -->
+<div class="card" style="border-left: 4px solid var(--primary); padding: 1.5rem;">
+  <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
+    
+    <!-- View modes -->
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+      <button onclick="setViewMode('list')" id="btn-view-list" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 20px;">
+        📋 List View
+      </button>
+      <button onclick="setViewMode('job')" id="btn-view-job" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 20px;">
+        🛡️ Group by Job
+      </button>
+      <button onclick="setViewMode('party')" id="btn-view-party" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 20px;">
+        ⚔️ Group by Party
+      </button>
+    </div>
+
+    <!-- Sorting & Search -->
+    <div style="display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; flex-grow: 1; justify-content: flex-end;">
+      <!-- Search Input -->
+      <div style="position: relative; min-width: 240px; flex-grow: 1; max-width: 320px;">
+        <input type="text" id="search-input" oninput="filterData()" placeholder="ค้นหาชื่อ หรือ Discord ID..." style="padding: 0.5rem 0.75rem 0.5rem 2.25rem; font-size: 0.9rem; border-radius: 20px;">
+        <span style="position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%); color: var(--text-light); pointer-events: none; font-size: 0.9rem;">🔍</span>
+      </div>
+
+      <!-- Sorting Select (Only relevant in List View) -->
+      <div id="sort-control" style="display: flex; align-items: center; gap: 0.5rem;">
+        <label for="sort-select" style="margin: 0; font-size: 0.85rem; color: var(--text-light); font-weight: 500;">Sort:</label>
+        <select id="sort-select" onchange="sortData()" style="padding: 0.4rem 2rem 0.4rem 0.75rem; font-size: 0.85rem; width: auto; border-radius: 20px;">
+          <option value="default">Default Order</option>
+          <option value="name">Name (A-Z)</option>
+        </select>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 📦 Main Content Sections -->
+<div id="content-container">
+
+  <!-- 1. 📋 LIST VIEW -->
+  <div id="view-list" class="card" style="margin-bottom: 2rem;">
+    <h3 style="margin-bottom: 1rem; font-family: 'Outfit';">Member List (<%= whitelist.length %>)</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Discord Username</th>
+            <th>Party</th>
+            <th>Discord ID</th>
+            <th>In-game Job</th>
+          </tr>
+        </thead>
+        <tbody id="list-tbody">
+          <% if (whitelist.length === 0) { %>
+            <tr class="no-data-row">
+              <td colspan="5" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
+            </tr>
+          <% } else { %>
+            <% whitelist.forEach(function(member) { %>
+              <tr class="member-row" data-id="<%= member.id %>" data-name="<%= member.discord_username.toLowerCase() %>" data-discord-id="<%= member.discord_user_id %>" data-party="<%= (member.party_name || '').toLowerCase() %>" data-job="<%= (member.job || '').toLowerCase() %>">
+                <td>
+                  <span class="badge <%= member.is_active ? 'badge-success' : 'badge-gray' %>">
+                    <%= member.is_active ? '● ACTIVE' : '○ STANDBY' %>
+                  </span>
+                </td>
+                <td>
+                  <strong><%= member.discord_username %></strong>
+                </td>
+                <td>
+                  <% if (member.party_name) { %>
+                    <span style="font-weight: 600; color: #4f46e5; background: #e0e7ff; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
+                      🛡️ <%= member.party_name %>
+                    </span>
+                  <% } else { %>
+                    <span style="color: var(--text-light); font-size: 0.85rem; font-style: italic;">ไม่มีปาร์ตี้</span>
+                  <% } %>
+                </td>
+                <td>
+                  <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= member.discord_user_id %></code>
+                </td>
+                <td>
+                  <form action="/jobs/update" method="POST" style="margin: 0; display: inline-flex; align-items: center; gap: 0.5rem; width: 100%;">
+                    <input type="hidden" name="id" value="<%= member.id %>">
+                    <select name="job" onchange="this.form.submit()" style="padding: 0.4rem 0.5rem; font-size: 0.85rem; border-radius: 6px; border-color: #cbd5e1; max-width: 200px;">
+                      <option value="">-- ไม่ระบุอาชีพ --</option>
+                      <% ragnarokClasses.forEach(function(cls) { %>
+                        <option value="<%= cls %>" <%= member.job === cls ? 'selected' : '' %>><%= cls %></option>
+                      <% }); %>
+                    </select>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 2. 🛡️ GROUP BY JOB VIEW -->
+  <div id="view-job" style="display: none; margin-bottom: 2rem;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;" id="job-grid">
+      <!-- Generated via JS -->
+    </div>
+  </div>
+
+  <!-- 3. ⚔️ GROUP BY PARTY VIEW -->
+  <div id="view-party" style="display: none; margin-bottom: 2rem;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;" id="party-grid">
+      <!-- Generated via JS -->
+    </div>
+  </div>
+
+</div>
+
+<!-- 🕰️ Activity Logs Section -->
+<div class="card" style="background: #ffffff; border-top: 4px solid var(--warning);">
+  <h3 style="margin-bottom: 1.5rem; font-family: 'Outfit'; display: flex; align-items: center; gap: 0.5rem;">
+    <span>🕰️ Job Change Logs</span>
+    <span style="font-size: 0.8rem; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">ล่าสุด 100 รายการ</span>
+  </h3>
+  
+  <div style="max-height: 350px; overflow-y: auto; padding-right: 0.5rem;">
+    <% if (logs.length === 0) { %>
+      <p style="text-align: center; color: var(--text-light); padding: 2rem 0; font-style: italic;">ไม่มีประวัติการบันทึกการเปลี่ยนแปลงอาชีพในระบบ</p>
+    <% } else { %>
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <% logs.forEach(function(log) { 
+           const isSelf = log.changed_by === log.discord_user_id;
+        %>
+          <div style="background: #f8fafc; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem; transition: transform 0.2s; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <div>
+              <span style="font-weight: 700; color: #1e293b;"><%= log.discord_username %></span>
+              <% if (isSelf) { %>
+                <span style="color: #64748b;">ได้เปลี่ยนอาชีพของตนเองเป็น</span>
+                <span style="font-weight: 700; color: #4f46e5; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;"><%= log.new_job || 'ไม่ระบุ' %></span>
+              <% } else { %>
+                <span style="color: #64748b;">ถูกเปลี่ยนจาก</span>
+                <span style="font-weight: 600; text-decoration: line-through; color: #ef4444;"><%= log.old_job || 'ไม่ระบุ' %></span>
+                <span style="color: #64748b;">เป็น</span>
+                <span style="font-weight: 700; color: #059669; background: #d1fae5; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;"><%= log.new_job || 'ไม่ระบุ' %></span>
+              <% } %>
+            </div>
+            
+            <div style="text-align: right; font-size: 0.8rem; color: var(--text-light); display: flex; flex-direction: column; align-items: flex-end;">
+              <div><%= formatDate(log.created_at) %> <%= formatTime(log.created_at) %></div>
+              <div style="margin-top: 2px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 0.2rem;">
+                <% if (isSelf) { %>
+                  <span style="background: #e2e8f0; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">🤖 /job command</span>
+                <% } else { %>
+                  <span style="background: #ffedd5; color: #c2410c; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">🛡️ Admin: <%= log.changed_by_name %></span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script>
+  // Whitelist data injected from server
+  const members = <%- JSON.stringify(whitelist) %>;
+  const classesList = <%- JSON.stringify(ragnarokClasses) %>;
+  
+  let currentViewMode = 'list'; // 'list', 'job', 'party'
+  let currentSearchQuery = '';
+  let currentSortMode = 'default'; // 'default', 'name'
+
+  function setViewMode(mode) {
+    currentViewMode = mode;
+    
+    // Update active tab styles
+    ['list', 'job', 'party'].forEach(m => {
+      const btn = document.getElementById(`btn-view-${m}`);
+      if (m === mode) {
+        btn.className = 'btn btn-primary';
+      } else {
+        btn.className = 'btn btn-secondary';
+      }
+    });
+
+    // Toggle DOM elements
+    document.getElementById('view-list').style.display = mode === 'list' ? 'block' : 'none';
+    document.getElementById('view-job').style.display = mode === 'job' ? 'block' : 'none';
+    document.getElementById('view-party').style.display = mode === 'party' ? 'block' : 'none';
+    
+    // Hide sort control if not in list view
+    document.getElementById('sort-control').style.display = mode === 'list' ? 'flex' : 'none';
+
+    // Rerender grouping grids if selected
+    if (mode === 'job') {
+      renderJobGroups();
+    } else if (mode === 'party') {
+      renderPartyGroups();
+    }
+  }
+
+  function filterData() {
+    const search = document.getElementById('search-input').value.toLowerCase().trim();
+    currentSearchQuery = search;
+
+    if (currentViewMode === 'list') {
+      const rows = document.querySelectorAll('.member-row');
+      let foundAny = false;
+      
+      rows.forEach(row => {
+        const name = row.getAttribute('data-name');
+        const discordId = row.getAttribute('data-discord-id');
+        const party = row.getAttribute('data-party');
+        const job = row.getAttribute('data-job');
+        
+        const matches = name.includes(search) || 
+                        discordId.includes(search) || 
+                        party.includes(search) || 
+                        job.includes(search);
+        
+        if (matches) {
+          row.style.display = '';
+          foundAny = true;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      // Handle no results
+      let noDataRow = document.querySelector('.no-data-row');
+      if (!foundAny) {
+        if (!noDataRow) {
+          const tbody = document.getElementById('list-tbody');
+          const tr = document.createElement('tr');
+          tr.className = 'no-data-row';
+          tr.innerHTML = `<td colspan="5" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">ไม่พบผลลัพธ์การค้นหา</td>`;
+          tbody.appendChild(tr);
+        } else {
+          noDataRow.style.display = '';
+        }
+      } else if (noDataRow) {
+        noDataRow.style.display = 'none';
+      }
+
+    } else if (currentViewMode === 'job') {
+      renderJobGroups();
+    } else if (currentViewMode === 'party') {
+      renderPartyGroups();
+    }
+  }
+
+  function sortData() {
+    const select = document.getElementById('sort-select');
+    currentSortMode = select.value;
+    
+    const tbody = document.getElementById('list-tbody');
+    const rows = Array.from(tbody.querySelectorAll('.member-row'));
+    
+    if (currentSortMode === 'name') {
+      rows.sort((a, b) => a.getAttribute('data-name').localeCompare(b.getAttribute('data-name')));
+    } else {
+      // Sort by original order (data-id)
+      rows.sort((a, b) => parseInt(a.getAttribute('data-id')) - parseInt(b.getAttribute('data-id')));
+    }
+    
+    // Clear and append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+  }
+
+  // Renders the Group by Job View
+  function renderJobGroups() {
+    const grid = document.getElementById('job-grid');
+    grid.innerHTML = '';
+    
+    // Group members by job
+    const grouped = {};
+    classesList.forEach(cls => grouped[cls] = []);
+    grouped['Unassigned'] = [];
+
+    // Filter members based on search first
+    const filtered = members.filter(m => {
+      const q = currentSearchQuery;
+      if (!q) return true;
+      return m.discord_username.toLowerCase().includes(q) || 
+             m.discord_user_id.includes(q) || 
+             (m.party_name && m.party_name.toLowerCase().includes(q));
+    });
+
+    filtered.forEach(m => {
+      const j = m.job || 'Unassigned';
+      if (grouped[j]) {
+        grouped[j].push(m);
+      } else {
+        grouped['Unassigned'].push(m);
+      }
+    });
+
+    // Generate Card HTML for each job group
+    Object.keys(grouped).forEach(jobName => {
+      const list = grouped[jobName];
+      // Skip empty classes unless it's Unassigned or we have no search query
+      if (list.length === 0 && currentSearchQuery) return;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = `
+        padding: 1.5rem; 
+        border-top: 4px solid ${jobName === 'Unassigned' ? '#94a3b8' : 'var(--primary)'};
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      `;
+      
+      // Card header
+      let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem;">
+          <h4 style="margin:0; font-family:'Outfit'; font-size:1.1rem; color:#1e293b;">⚡ ${jobName}</h4>
+          <span style="background: #e2e8f0; color:#475569; padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:700;">${list.length} คน</span>
+        </div>
+        <div style="flex-grow:1; display:flex; flex-direction:column; gap:0.5rem; max-height: 250px; overflow-y: auto; padding-right: 2px;">
+      `;
+
+      if (list.length === 0) {
+        html += `<p style="color: var(--text-light); font-size:0.85rem; font-style:italic; text-align:center; padding:1.5rem 0; margin:0;">ไม่มีผู้ใช้งานในอาชีพนี้</p>`;
+      } else {
+        list.forEach(m => {
+          html += `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border: 1px solid #f1f5f9;">
+              <div>
+                <strong style="color:#0f172a;">${m.discord_username}</strong>
+                ${m.party_name ? `<span style="font-size:0.75rem; color:#4f46e5; background:#e0e7ff; padding: 1px 4px; border-radius:4px; margin-left:0.25rem;">${m.party_name}</span>` : ''}
+              </div>
+              <span class="badge ${m.is_active ? 'badge-success' : 'badge-gray'}" style="transform: scale(0.85);">
+                ${m.is_active ? 'ACTIVE' : 'STANDBY'}
+              </span>
+            </div>
+          `;
+        });
+      }
+
+      html += `</div>`;
+      card.innerHTML = html;
+      grid.appendChild(card);
+    });
+  }
+
+  // Renders the Group by Party View
+  function renderPartyGroups() {
+    const grid = document.getElementById('party-grid');
+    grid.innerHTML = '';
+
+    // Group members by party
+    const grouped = {};
+    grouped['No Party'] = [];
+
+    // Filter members based on search first
+    const filtered = members.filter(m => {
+      const q = currentSearchQuery;
+      if (!q) return true;
+      return m.discord_username.toLowerCase().includes(q) || 
+             m.discord_user_id.includes(q) || 
+             (m.job && m.job.toLowerCase().includes(q));
+    });
+
+    filtered.forEach(m => {
+      const p = m.party_name || 'No Party';
+      if (!grouped[p]) {
+        grouped[p] = [];
+      }
+      grouped[p].push(m);
+    });
+
+    // Generate Card HTML for each party group
+    Object.keys(grouped).sort().forEach(partyName => {
+      const list = grouped[partyName];
+      if (list.length === 0 && currentSearchQuery) return;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = `
+        padding: 1.5rem; 
+        border-top: 4px solid ${partyName === 'No Party' ? '#94a3b8' : '#10b981'};
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      `;
+      
+      let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem;">
+          <h4 style="margin:0; font-family:'Outfit'; font-size:1.1rem; color:#1e293b;">🛡️ ${partyName}</h4>
+          <span style="background: #e2e8f0; color:#475569; padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:700;">${list.length} คน</span>
+        </div>
+        <div style="flex-grow:1; display:flex; flex-direction:column; gap:0.5rem; max-height: 250px; overflow-y: auto; padding-right: 2px;">
+      `;
+
+      if (list.length === 0) {
+        html += `<p style="color: var(--text-light); font-size:0.85rem; font-style:italic; text-align:center; padding:1.5rem 0; margin:0;">ไม่มีผู้ใช้งานในปาร์ตี้นี้</p>`;
+      } else {
+        list.forEach(m => {
+          html += `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border: 1px solid #f1f5f9;">
+              <div>
+                <strong style="color:#0f172a;">${m.discord_username}</strong>
+                ${m.job ? `<span style="font-size:0.75rem; color:#059669; background:#d1fae5; padding: 1px 4px; border-radius:4px; margin-left:0.25rem;">⚔️ ${m.job}</span>` : '<span style="font-size:0.75rem; color:#64748b; background:#f1f5f9; padding:1px 4px; border-radius:4px; margin-left:0.25rem; font-style:italic;">ไม่ระบุอาชีพ</span>'}
+              </div>
+              <span class="badge ${m.is_active ? 'badge-success' : 'badge-gray'}" style="transform: scale(0.85);">
+                ${m.is_active ? 'ACTIVE' : 'STANDBY'}
+              </span>
+            </div>
+          `;
+        });
+      }
+
+      html += `</div>`;
+      card.innerHTML = html;
+      grid.appendChild(card);
+    });
+  }
+</script>

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS whitelist (
     is_active        BOOLEAN DEFAULT true,
     win_count        INTEGER DEFAULT 0,
     spin_count       INTEGER DEFAULT 0,
+    job              TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -127,4 +128,16 @@ CREATE TABLE IF NOT EXISTS wheel_entries (
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id  TEXT PRIMARY KEY,
     language TEXT NOT NULL DEFAULT 'en'
+);
+
+-- 13. Job Change Logs
+CREATE TABLE IF NOT EXISTS job_change_logs (
+    id               SERIAL PRIMARY KEY,
+    discord_user_id  TEXT NOT NULL,
+    discord_username TEXT NOT NULL,
+    old_job          TEXT,
+    new_job          TEXT,
+    changed_by       TEXT NOT NULL,
+    changed_by_name  TEXT NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
