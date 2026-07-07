@@ -16,6 +16,7 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_message_id TEXT');
 
     await db.exec('ALTER TABLE whitelist ADD COLUMN IF NOT EXISTS job TEXT');
+    await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS whitelist_discord_user_id_key ON whitelist (discord_user_id)');
     await db.run(`
       CREATE TABLE IF NOT EXISTS job_change_logs (
         id               SERIAL PRIMARY KEY,
