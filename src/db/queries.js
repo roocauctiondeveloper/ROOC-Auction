@@ -674,7 +674,7 @@ async function saveUserJob(discordUserId, discordUsername, job) {
     await db.run(`
       INSERT INTO job_change_logs (discord_user_id, discord_username, old_job, new_job, changed_by, changed_by_name)
       VALUES (?, ?, ?, ?, ?, ?)
-    `, [discordUserId, discordUsername, oldJob, job, discordUserId, discordUsername]);
+    `, [discordUserId, discordUsername, oldJob, job, 'discord', discordUsername]);
   }
 }
 
