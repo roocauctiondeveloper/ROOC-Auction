@@ -1,28 +1,37 @@
 const fc = require('fast-check');
-const Database = require('better-sqlite3');
+const createMockDb = require('../mock-db');
+
+let mockActiveDb;
+jest.mock('../../src/db/database', () => ({
+  all: (...args) => mockActiveDb.all(...args),
+  get: (...args) => mockActiveDb.get(...args),
+  run: (...args) => mockActiveDb.run(...args),
+  exec: (...args) => mockActiveDb.exec(...args),
+  pool: {
+    query: (...args) => mockActiveDb.pool.query(...args)
+  }
+}));
 
 describe('Item Type Properties', () => {
-    let mockDb;
     let queries;
 
     beforeEach(() => {
-        mockDb = new Database(':memory:');
-        mockDb.exec(`
+        mockActiveDb = createMockDb();
+        mockActiveDb.sqlite.exec(`
           CREATE TABLE pages (id INTEGER PRIMARY KEY, name TEXT);
-          CREATE TABLE items (id INTEGER PRIMARY KEY, page_id INTEGER, name TEXT, item_type TEXT CHECK (item_type IN ('สมุดการ์ด', 'ขนนกขาว', 'ขนนกดำ')), position INTEGER);
+          CREATE TABLE items (id INTEGER PRIMARY KEY, page_id INTEGER, item_type TEXT CHECK (item_type IN ('Album', 'Illution Box', 'Light-Dark', 'Time-Space')), position INTEGER);
         `);
         jest.resetModules();
-        jest.mock('../../src/db/database', () => mockDb);
         queries = require('../../src/db/queries');
-        mockDb.exec("INSERT INTO pages (name) VALUES ('Page 1')");
+        mockActiveDb.sqlite.exec("INSERT INTO pages (id, name) VALUES (1, 'Page 1')");
     });
 
-    afterEach(() => mockDb.close());
-
-    test('Property 9: invalid item_type value rejected by DB constraint', () => {
-        fc.assert(
-            fc.property(fc.string().filter(s => !['สมุดการ์ด', 'ขนนกขาว', 'ขนนกดำ'].includes(s)), (invalidType) => {
-                expect(() => queries.addItem(1, 'TestItem', invalidType, 1)).toThrow(/CHECK constraint failed/);
+    test('Property 9: invalid item_type value rejected by DB constraint', async () => {
+        await fc.assert(
+            fc.asyncProperty(fc.string().filter(s => !['Album', 'Illution Box', 'Light-Dark', 'Time-Space'].includes(s)), async (invalidType) => {
+                await expect(async () => {
+                    await queries.addItem(1, invalidType, 1);
+                }).rejects.toThrow(/CHECK constraint failed/);
             }),
             { numRuns: 100 }
         );

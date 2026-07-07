@@ -1,29 +1,36 @@
-const Database = require('better-sqlite3');
+const createMockDb = require('../mock-db');
+
+let mockActiveDb;
+jest.mock('../../src/db/database', () => ({
+  all: (...args) => mockActiveDb.all(...args),
+  get: (...args) => mockActiveDb.get(...args),
+  run: (...args) => mockActiveDb.run(...args),
+  exec: (...args) => mockActiveDb.exec(...args),
+  pool: {
+    query: (...args) => mockActiveDb.pool.query(...args)
+  }
+}));
 
 describe('Query Properties', () => {
-    let mockDb;
     let queries;
 
     beforeEach(() => {
-        mockDb = new Database(':memory:');
-        mockDb.exec(`
-          CREATE TABLE rounds (id INTEGER PRIMARY KEY, name TEXT, created_at TEXT);
+        mockActiveDb = createMockDb();
+        mockActiveDb.sqlite.exec(`
+          CREATE TABLE rounds (id INTEGER PRIMARY KEY, name TEXT, status TEXT DEFAULT 'preparing', created_at TEXT);
           CREATE TABLE pages (id INTEGER PRIMARY KEY, name TEXT, created_at TEXT);
-          CREATE TABLE items (id INTEGER PRIMARY KEY, page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE, name TEXT, item_type TEXT, position INTEGER, created_at TEXT, UNIQUE(page_id, position));
+          CREATE TABLE items (id INTEGER PRIMARY KEY, page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE, item_type TEXT, position INTEGER, created_at TEXT, UNIQUE(page_id, position));
           CREATE TABLE reservations (id INTEGER PRIMARY KEY, round_id INTEGER, item_id INTEGER REFERENCES items(id) ON DELETE CASCADE, discord_user_id TEXT, discord_username TEXT, reserved_at TEXT);
         `);
         jest.resetModules();
-        jest.mock('../../src/db/database', () => mockDb);
         queries = require('../../src/db/queries');
     });
 
-    afterEach(() => mockDb.close());
-
-    test('Property 24: query filtering returns exact matches', () => {
-        mockDb.exec("INSERT INTO pages (name) VALUES ('P1'); INSERT INTO rounds (name) VALUES ('R1'); INSERT INTO items (page_id, name, item_type, position) VALUES (1, 'I1', 'ขนนกขาว', 1);");
-        queries.addReservation(1, 1, 'user1', 'User 1');
+    test('Property 24: query filtering returns exact matches', async () => {
+        mockActiveDb.sqlite.exec("INSERT INTO pages (id, name) VALUES (1, 'P1'); INSERT INTO rounds (id, name, status) VALUES (1, 'R1', 'open'); INSERT INTO items (id, page_id, item_type, position) VALUES (1, 1, 'Light-Dark', 1);");
+        await queries.addReservation(1, 1, 'user1', 'User 1');
         
-        const currentReservations = queries.getCurrentReservations(1);
+        const currentReservations = await queries.getCurrentReservations();
         expect(currentReservations.length).toBe(1);
         expect(currentReservations[0].discord_username).toBe('User 1');
     });

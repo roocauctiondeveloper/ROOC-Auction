@@ -2,7 +2,10 @@ const { ensureAuthenticated } = require('../../src/web/middleware/auth');
 
 describe('Auth Validation', () => {
   test('Property 20: protected routes redirect to /login without session', () => {
-    const req = { session: {} };
+    const req = { 
+      isAuthenticated: jest.fn(() => false),
+      session: {} 
+    };
     const res = { redirect: jest.fn() };
     const next = jest.fn();
 
@@ -13,7 +16,11 @@ describe('Auth Validation', () => {
   });
 
   test('Property 21: valid session accesses routes', () => {
-    const req = { session: { user: { id: 1 } } };
+    const req = { 
+      isAuthenticated: jest.fn(() => true),
+      user: { id: 1, isAdmin: true },
+      session: { user: { id: 1 } } 
+    };
     const res = { redirect: jest.fn() };
     const next = jest.fn();
 
