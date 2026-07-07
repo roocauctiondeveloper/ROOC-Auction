@@ -25,7 +25,8 @@ router.get('/', async (req, res) => {
       'Stalker',
       'Whitesmith',
       'Creator',
-      'Gunslinger'
+      'Gunslinger',
+      'Rebellion'
     ];
 
     res.render('jobs', { whitelist, logs, ragnarokClasses });
