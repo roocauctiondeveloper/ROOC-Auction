@@ -1,3 +1,6 @@
+<!-- 📌 Toast Notification Container -->
+<div id="toast-container" style="position: fixed; top: 1rem; right: 1rem; z-index: 10000; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;"></div>
+
 <div class="flex space-between items-center" style="margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
   <div>
     <h1 style="margin: 0; font-family: 'Outfit'; display: flex; align-items: center; gap: 0.5rem;">
@@ -87,15 +90,12 @@
                   <code style="background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85rem;"><%= member.discord_user_id %></code>
                 </td>
                 <td>
-                  <form action="/jobs/update" method="POST" style="margin: 0; display: inline-flex; align-items: center; gap: 0.5rem; width: 100%;">
-                    <input type="hidden" name="id" value="<%= member.id %>">
-                    <select name="job" onchange="this.form.submit()" style="padding: 0.4rem 0.5rem; font-size: 0.85rem; border-radius: 6px; border-color: #cbd5e1; max-width: 200px;">
-                      <option value="">-- ไม่ระบุอาชีพ --</option>
-                      <% ragnarokClasses.forEach(function(cls) { %>
-                        <option value="<%= cls %>" <%= member.job === cls ? 'selected' : '' %>><%= cls %></option>
-                      <% }); %>
-                    </select>
-                  </form>
+                  <select name="job" onchange="updateJob('<%= member.id %>', this)" style="padding: 0.4rem 0.5rem; font-size: 0.85rem; border-radius: 6px; border-color: #cbd5e1; max-width: 200px;">
+                    <option value="">-- ไม่ระบุอาชีพ --</option>
+                    <% ragnarokClasses.forEach(function(cls) { %>
+                      <option value="<%= cls %>" <%= member.job === cls ? 'selected' : '' %>><%= cls %></option>
+                    <% }); %>
+                  </select>
                 </td>
               </tr>
             <% }); %>
@@ -128,7 +128,7 @@
     <span style="font-size: 0.8rem; background: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 600;">ล่าสุด 100 รายการ</span>
   </h3>
   
-  <div style="max-height: 350px; overflow-y: auto; padding-right: 0.5rem;">
+  <div id="global-logs-wrapper" style="max-height: 350px; overflow-y: auto; padding-right: 0.5rem;">
     <% if (logs.length === 0) { %>
       <p style="text-align: center; color: var(--text-light); padding: 2rem 0; font-style: italic;">ไม่มีประวัติการบันทึกการเปลี่ยนแปลงอาชีพในระบบ</p>
     <% } else { %>
@@ -507,5 +507,158 @@
       card.innerHTML = html;
       grid.appendChild(card);
     });
+  }
+
+  // 📝 Update Member Job via AJAX Fetch (No Page Reload)
+  async function updateJob(memberId, selectElement) {
+    const job = selectElement.value;
+    selectElement.disabled = true;
+
+    try {
+      const response = await fetch('/jobs/update-api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id: memberId, job })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        showToast('อัปเดตอาชีพสำเร็จ!', 'success');
+
+        // Update local members array
+        const member = members.find(m => m.id == memberId);
+        if (member) {
+          member.job = job;
+          
+          // Also update data attribute of the table row for live search
+          const row = document.querySelector(`.member-row[data-id="${memberId}"]`);
+          if (row) {
+            row.setAttribute('data-job', job.toLowerCase());
+          }
+        }
+
+        // Add new log to local logs list
+        if (result.log) {
+          allLogs.unshift(result.log);
+          renderGlobalLogsList();
+        }
+
+        // Rerender grouping views if they are currently open
+        if (currentViewMode === 'job') {
+          renderJobGroups();
+        } else if (currentViewMode === 'party') {
+          renderPartyGroups();
+        }
+      } else {
+        showToast(result.error || 'เกิดข้อผิดพลาดในการอัปเดตอาชีพ', 'error');
+      }
+    } catch (err) {
+      console.error('[AJAX Job Update] error:', err);
+      showToast('เชื่อมต่อกับเซิร์ฟเวอร์ล้มเหลว', 'error');
+    } finally {
+      selectElement.disabled = false;
+    }
+  }
+
+  // 🕰️ Render Global Logs List dynamically (No Page Reload)
+  function renderGlobalLogsList() {
+    const wrapper = document.getElementById('global-logs-wrapper');
+    if (!wrapper) return;
+
+    if (allLogs.length === 0) {
+      wrapper.innerHTML = `<p style="text-align: center; color: var(--text-light); padding: 2rem 0; font-style: italic;">ไม่มีประวัติการบันทึกการเปลี่ยนแปลงอาชีพในระบบ</p>`;
+      return;
+    }
+
+    let html = `<div style="display: flex; flex-direction: column; gap: 0.75rem;">`;
+
+    allLogs.slice(0, 100).forEach(log => {
+      const isSelf = log.changed_by === 'discord';
+      const logDate = new Date(log.created_at);
+
+      const formattedDate = logDate.toLocaleDateString('th-TH', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+      const formattedTime = logDate.toLocaleTimeString('th-TH', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      let detailHtml = '';
+      if (isSelf) {
+        detailHtml = `
+          <span style="font-weight: 700; color: #1e293b;">${log.discord_username}</span>
+          <span style="color: #64748b;">ได้เปลี่ยนอาชีพของตนเองเป็น</span>
+          <span style="font-weight: 700; color: #4f46e5; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">${log.new_job || 'ไม่ระบุ'}</span>
+        `;
+      } else {
+        detailHtml = `
+          <span style="font-weight: 700; color: #1e293b;">${log.discord_username}</span>
+          <span style="color: #64748b;">ถูกเปลี่ยนจาก</span>
+          <span style="font-weight: 600; text-decoration: line-through; color: #ef4444;">${log.old_job || 'ไม่ระบุ'}</span>
+          <span style="color: #64748b;">เป็น</span>
+          <span style="font-weight: 700; color: #059669; background: #d1fae5; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">${log.new_job || 'ไม่ระบุ'}</span>
+        `;
+      }
+
+      html += `
+        <div style="background: #f8fafc; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem; transition: transform 0.2s; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+          <div>${detailHtml}</div>
+          <div style="text-align: right; font-size: 0.8rem; color: var(--text-light); display: flex; flex-direction: column; align-items: flex-end;">
+            <div>${formattedDate} ${formattedTime}</div>
+            <div style="margin-top: 2px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 0.2rem;">
+              ${isSelf ? `
+                <span style="background: #e2e8f0; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">🤖 /job command</span>
+              ` : `
+                <span style="background: #ffedd5; color: #c2410c; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">🛡️ Admin: ${log.changed_by_name}</span>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+    wrapper.innerHTML = html;
+  }
+
+  // 🔔 Show Toast Notification
+  function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      background: ${type === 'success' ? '#10b981' : '#ef4444'};
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: auto;
+      font-family: 'Outfit', sans-serif;
+    `;
+    toast.innerText = message;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+    }, 10);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-20px)';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
   }
 </script>

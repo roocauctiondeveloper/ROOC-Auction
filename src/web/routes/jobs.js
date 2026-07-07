@@ -57,4 +57,27 @@ router.post('/update', async (req, res) => {
   res.redirect('/jobs');
 });
 
+// POST /jobs/update-api
+router.post('/update-api', async (req, res) => {
+  const { id, job } = req.body;
+  if (!id) {
+    return res.status(400).json({ success: false, error: 'ข้อมูลไม่ครบถ้วน' });
+  }
+
+  try {
+    const adminUserId = req.user.discord_user_id;
+    const adminUsername = req.user.server_name || req.user.discord_username || 'Admin';
+
+    await db.updateWhitelistJob(parseInt(id), job || null, adminUserId, adminUsername);
+    
+    // Get the newly created log entry
+    const newLog = await db.get('SELECT * FROM job_change_logs ORDER BY id DESC LIMIT 1');
+    
+    res.json({ success: true, log: newLog });
+  } catch (err) {
+    console.error('[Jobs Route Update API] error:', err);
+    res.status(500).json({ success: false, error: 'เกิดข้อผิดพลาดในการอัปเดตอาชีพ' });
+  }
+});
+
 module.exports = router;
