@@ -55,7 +55,6 @@
       <table>
         <thead>
           <tr>
-            <th>Status</th>
             <th>Discord Username</th>
             <th>Party</th>
             <th>Discord ID</th>
@@ -65,16 +64,11 @@
         <tbody id="list-tbody">
           <% if (whitelist.length === 0) { %>
             <tr class="no-data-row">
-              <td colspan="5" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
+              <td colspan="4" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
             </tr>
           <% } else { %>
             <% whitelist.forEach(function(member) { %>
               <tr class="member-row" data-id="<%= member.id %>" data-name="<%= member.discord_username.toLowerCase() %>" data-discord-id="<%= member.discord_user_id %>" data-party="<%= (member.party_name || '').toLowerCase() %>" data-job="<%= (member.job || '').toLowerCase() %>">
-                <td>
-                  <span class="badge <%= member.is_active ? 'badge-success' : 'badge-gray' %>">
-                    <%= member.is_active ? '● ACTIVE' : '○ STANDBY' %>
-                  </span>
-                </td>
                 <td>
                   <strong><%= member.discord_username %></strong>
                 </td>
@@ -342,9 +336,6 @@
                 <strong style="color:#0f172a;">${m.discord_username}</strong>
                 ${m.party_name ? `<span style="font-size:0.75rem; color:#4f46e5; background:#e0e7ff; padding: 1px 4px; border-radius:4px; margin-left:0.25rem;">${m.party_name}</span>` : ''}
               </div>
-              <span class="badge ${m.is_active ? 'badge-success' : 'badge-gray'}" style="transform: scale(0.85);">
-                ${m.is_active ? 'ACTIVE' : 'STANDBY'}
-              </span>
             </div>
           `;
         });
@@ -417,9 +408,6 @@
                 <strong style="color:#0f172a;">${m.discord_username}</strong>
                 ${m.job ? `<span style="font-size:0.75rem; color:#059669; background:#d1fae5; padding: 1px 4px; border-radius:4px; margin-left:0.25rem;">⚔️ ${m.job}</span>` : '<span style="font-size:0.75rem; color:#64748b; background:#f1f5f9; padding:1px 4px; border-radius:4px; margin-left:0.25rem; font-style:italic;">ไม่ระบุอาชีพ</span>'}
               </div>
-              <span class="badge ${m.is_active ? 'badge-success' : 'badge-gray'}" style="transform: scale(0.85);">
-                ${m.is_active ? 'ACTIVE' : 'STANDBY'}
-              </span>
             </div>
           `;
         });
