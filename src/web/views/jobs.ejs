@@ -70,7 +70,9 @@
             <% whitelist.forEach(function(member) { %>
               <tr class="member-row" data-id="<%= member.id %>" data-name="<%= member.discord_username.toLowerCase() %>" data-discord-id="<%= member.discord_user_id %>" data-party="<%= (member.party_name || '').toLowerCase() %>" data-job="<%= (member.job || '').toLowerCase() %>">
                 <td>
-                  <strong><%= member.discord_username %></strong>
+                  <a href="javascript:void(0)" onclick="showUserLogs('<%= member.discord_user_id %>', '<%= member.discord_username.replace(/'/g, `\\'`) %>')" style="color: var(--primary); text-decoration: none; border-bottom: 1px dashed var(--primary); font-weight: 700;" title="คลิกเพื่อดูประวัติการเปลี่ยนอาชีพ">
+                    <%= member.discord_username %>
+                  </a>
                 </td>
                 <td>
                   <% if (member.party_name) { %>
@@ -165,14 +167,100 @@
   </div>
 </div>
 
+<!-- 📌 Logs Modal Dialog -->
+<div id="logs-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); align-items: center; justify-content: center; animation: fadeIn 0.2s ease;">
+  <div class="card" style="background-color: white; width: 90%; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; padding: 2rem; position: relative; border-radius: var(--radius); box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin: 0; border: 1px solid rgba(0,0,0,0.1); animation: slideUp 0.3s ease;">
+    <span onclick="closeLogsModal()" style="position: absolute; right: 1.5rem; top: 1.5rem; font-size: 1.5rem; font-weight: 700; cursor: pointer; color: var(--text-light); transition: color 0.2s;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-light)'">&times;</span>
+    <h2 id="modal-title" style="margin-bottom: 1.5rem; font-family: 'Outfit'; border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; color: #1e293b;">🕰... Job Change Logs</h2>
+    <div id="modal-logs-container" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 0.75rem; padding-right: 0.5rem; max-height: 50vh;">
+      <!-- Logs inserted dynamically -->
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+</style>
+
 <script>
   // Whitelist data injected from server
   const members = <%- JSON.stringify(whitelist) %>;
   const classesList = <%- JSON.stringify(ragnarokClasses) %>;
+  const allLogs = <%- JSON.stringify(logs) %>;
   
   let currentViewMode = 'list'; // 'list', 'job', 'party'
   let currentSearchQuery = '';
   let currentSortMode = 'default'; // 'default', 'name'
+
+  function showUserLogs(discordUserId, username) {
+    const userLogs = allLogs.filter(log => log.discord_user_id === discordUserId);
+    const container = document.getElementById('modal-logs-container');
+    document.getElementById('modal-title').innerHTML = `🕰️ ประวัติการเปลี่ยนอาชีพของ <span style="color: var(--primary);">${username}</span>`;
+    
+    container.innerHTML = '';
+    
+    if (userLogs.length === 0) {
+      container.innerHTML = `<p style="text-align: center; color: var(--text-light); padding: 2rem 0; font-style: italic;">ไม่มีประวัติการเปลี่ยนอาชีพสำหรับคนนี้</p>`;
+    } else {
+      userLogs.forEach(log => {
+        const isSelf = log.changed_by === log.discord_user_id;
+        const logDate = new Date(log.created_at);
+        
+        const formattedDate = logDate.toLocaleDateString('th-TH', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        }) + ' ' + logDate.toLocaleTimeString('th-TH', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+
+        let detailHtml = '';
+        if (isSelf) {
+          detailHtml = `เปลี่ยนอาชีพตนเองเป็น <strong style="color: #4f46e5; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">${log.new_job || 'ไม่ระบุ'}</strong>`;
+        } else {
+          detailHtml = `ถูกเปลี่ยนจาก <span style="text-decoration: line-through; color: #ef4444;">${log.old_job || 'ไม่ระบุ'}</span> เป็น <strong style="color: #059669; background: #d1fae5; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">${log.new_job || 'ไม่ระบุ'}</strong>`;
+        }
+
+        const logItem = document.createElement('div');
+        logItem.style.cssText = 'background: #f8fafc; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.9rem;';
+        
+        logItem.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; flex-wrap: wrap;">
+            <div>${detailHtml}</div>
+            <span style="font-size: 0.75rem; background: ${isSelf ? '#e2e8f0' : '#ffedd5'}; color: ${isSelf ? '#475569' : '#c2410c'}; padding: 1px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap;">
+              ${isSelf ? '🤖 /job command' : `🛡️ Admin: ${log.changed_by_name}`}
+            </span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-light); margin-top: 4px;">
+            ${formattedDate}
+          </div>
+        `;
+        container.appendChild(logItem);
+      });
+    }
+    
+    document.getElementById('logs-modal').style.display = 'flex';
+  }
+  
+  function closeLogsModal() {
+    document.getElementById('logs-modal').style.display = 'none';
+  }
+
+  // Close modal when clicking outside
+  window.onclick = function(event) {
+    const modal = document.getElementById('logs-modal');
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  }
 
   function setViewMode(mode) {
     currentViewMode = mode;
@@ -330,10 +418,11 @@
         html += `<p style="color: var(--text-light); font-size:0.85rem; font-style:italic; text-align:center; padding:1.5rem 0; margin:0;">ไม่มีผู้ใช้งานในอาชีพนี้</p>`;
       } else {
         list.forEach(m => {
+          const escName = m.discord_username.replace(/'/g, "\\'");
           html += `
             <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border: 1px solid #f1f5f9;">
               <div>
-                <strong style="color:#0f172a;">${m.discord_username}</strong>
+                <a href="javascript:void(0)" onclick="showUserLogs('${m.discord_user_id}', '${escName}')" style="color: var(--primary); text-decoration: none; border-bottom: 1px dashed var(--primary); font-weight: 700;" title="คลิกเพื่อดูประวัติการเปลี่ยนอาชีพ">${m.discord_username}</a>
                 ${m.party_name ? `<span style="font-size:0.75rem; color:#4f46e5; background:#e0e7ff; padding: 1px 4px; border-radius:4px; margin-left:0.25rem;">${m.party_name}</span>` : ''}
               </div>
             </div>
@@ -402,10 +491,11 @@
         html += `<p style="color: var(--text-light); font-size:0.85rem; font-style:italic; text-align:center; padding:1.5rem 0; margin:0;">ไม่มีผู้ใช้งานในปาร์ตี้นี้</p>`;
       } else {
         list.forEach(m => {
+          const escName = m.discord_username.replace(/'/g, "\\'");
           html += `
             <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border: 1px solid #f1f5f9;">
               <div>
-                <strong style="color:#0f172a;">${m.discord_username}</strong>
+                <a href="javascript:void(0)" onclick="showUserLogs('${m.discord_user_id}', '${escName}')" style="color: var(--primary); text-decoration: none; border-bottom: 1px dashed var(--primary); font-weight: 700;" title="คลิกเพื่อดูประวัติการเปลี่ยนอาชีพ">${m.discord_username}</a>
                 ${m.job ? `<span style="font-size:0.75rem; color:#059669; background:#d1fae5; padding: 1px 4px; border-radius:4px; margin-left:0.25rem;">⚔️ ${m.job}</span>` : '<span style="font-size:0.75rem; color:#64748b; background:#f1f5f9; padding:1px 4px; border-radius:4px; margin-left:0.25rem; font-style:italic;">ไม่ระบุอาชีพ</span>'}
               </div>
             </div>
