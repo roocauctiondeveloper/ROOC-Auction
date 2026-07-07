@@ -71,7 +71,8 @@ router.post('/update-api', async (req, res) => {
     await db.updateWhitelistJob(parseInt(id), job || null, adminUserId, adminUsername);
     
     // Get the newly created log entry
-    const newLog = await db.get('SELECT * FROM job_change_logs ORDER BY id DESC LIMIT 1');
+    const logs = await db.getJobChangeLogs();
+    const newLog = logs[0];
     
     res.json({ success: true, log: newLog });
   } catch (err) {
