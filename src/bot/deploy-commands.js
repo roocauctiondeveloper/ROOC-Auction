@@ -1,7 +1,13 @@
-require('dotenv').config();
-const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const localEnv = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(localEnv)) {
+  require('dotenv').config({ path: localEnv });
+  console.log('📁 Loaded .env.local for deploying commands');
+} else {
+  require('dotenv').config();
+}
+const { REST, Routes } = require('discord.js');
 const config = require('../config');
 
 // 1. ตรวจสอบ Config ก่อนเริ่มทำงาน
