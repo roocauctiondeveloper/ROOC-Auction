@@ -8,14 +8,14 @@ const jobChoices = [
   { name: 'High Priest (ไฮพรีส)', value: 'High Priest' },
   { name: 'Champion (แชมเปี้ยน)', value: 'Champion' },
   { name: 'High Wizard (ไฮวิซาร์ด)', value: 'High Wizard' },
-  { name: 'Scholar (สกอลาร์)', value: 'Scholar' },
+  { name: 'Professor (โปรเฟสเซอร์)', value: 'Professor' },
   { name: 'Sniper (สไนเปอร์)', value: 'Sniper' },
-  { name: 'Clown (คลาวน์)', value: 'Clown' },
+  { name: 'Minstrel (มินสเตรล)', value: 'Minstrel' },
   { name: 'Gypsy (ยิปซี)', value: 'Gypsy' },
   { name: 'Assassin Cross (แอสซาซินครอส)', value: 'Assassin Cross' },
   { name: 'Stalker (สตอล์กเกอร์)', value: 'Stalker' },
-  { name: 'Whitesmith (ไวท์สมิธ)', value: 'Whitesmith' },
-  { name: 'Creator (ครีเอเตอร์)', value: 'Creator' },
+  { name: 'Mastersmith (มาสเตอร์สมิธ)', value: 'Mastersmith' },
+  { name: 'Biochemist (ไบโอเคมิสท์)', value: 'Biochemist' },
   { name: 'Summoner (ซัมมอนเนอร์)', value: 'Summoner' },
   { name: 'Rebellion (รีเบลเลียน)', value: 'Rebellion' }
 ];

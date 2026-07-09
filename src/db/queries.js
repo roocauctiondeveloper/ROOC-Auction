@@ -29,6 +29,22 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
         created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+
+    // Migrate existing job names to ROOC names
+    await db.run("UPDATE whitelist SET job = 'Professor' WHERE job = 'Scholar'");
+    await db.run("UPDATE whitelist SET job = 'Minstrel' WHERE job = 'Clown'");
+    await db.run("UPDATE whitelist SET job = 'Mastersmith' WHERE job = 'Whitesmith'");
+    await db.run("UPDATE whitelist SET job = 'Biochemist' WHERE job = 'Creator'");
+
+    await db.run("UPDATE job_change_logs SET new_job = 'Professor' WHERE new_job = 'Scholar'");
+    await db.run("UPDATE job_change_logs SET new_job = 'Minstrel' WHERE new_job = 'Clown'");
+    await db.run("UPDATE job_change_logs SET new_job = 'Mastersmith' WHERE new_job = 'Whitesmith'");
+    await db.run("UPDATE job_change_logs SET new_job = 'Biochemist' WHERE new_job = 'Creator'");
+
+    await db.run("UPDATE job_change_logs SET old_job = 'Professor' WHERE old_job = 'Scholar'");
+    await db.run("UPDATE job_change_logs SET old_job = 'Minstrel' WHERE old_job = 'Clown'");
+    await db.run("UPDATE job_change_logs SET old_job = 'Mastersmith' WHERE old_job = 'Whitesmith'");
+    await db.run("UPDATE job_change_logs SET old_job = 'Biochemist' WHERE old_job = 'Creator'");
   } catch (err) {
     console.error('❌ Failed to initialize database tables:', err);
   }

@@ -17,14 +17,14 @@ router.get('/', async (req, res) => {
       'High Priest',
       'Champion',
       'High Wizard',
-      'Scholar',
+      'Professor',
       'Sniper',
-      'Clown',
+      'Minstrel',
       'Gypsy',
       'Assassin Cross',
       'Stalker',
-      'Whitesmith',
-      'Creator',
+      'Mastersmith',
+      'Biochemist',
       'Summoner',
       'Rebellion'
     ];
