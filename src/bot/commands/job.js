@@ -17,7 +17,7 @@ const jobChoices = [
   { name: 'Whitesmith (ไวท์สมิธ)', value: 'Whitesmith' },
   { name: 'Creator (ครีเอเตอร์)', value: 'Creator' },
   { name: 'Summoner (ซัมมอนเนอร์)', value: 'Summoner' },
-  { name: 'Gunslinger (กันสลิงเกอร์)', value: 'Gunslinger' }
+  { name: 'Rebellion (รีเบลเลียน)', value: 'Rebellion' }
 ];
 
 module.exports = {
