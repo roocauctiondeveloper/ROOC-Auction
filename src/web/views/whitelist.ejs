@@ -31,6 +31,7 @@
                 <input type="number" id="lottery-count" value="1" min="1" max="<%= whitelist.length %>" style="width: 60px; border:none; background:transparent; font-weight: 700; color: var(--primary); font-size: 1.1rem;">
                 <div style="display: flex; gap: 0.5rem;">
                     <button class="btn btn-secondary" onclick="fetchWheelEntries()" id="fetch-entries-btn" style="border-radius: 10px;">⬇️ ดึงรายชื่อจากปาร์ตี้</button>
+                    <button class="btn btn-secondary" onclick="showCurrentWheelGroups()" id="show-groups-btn" style="border-radius: 10px;">📋 ดูตี้ในวงล้อ</button>
                     <button class="btn btn-primary" onclick="startLottery()" id="spin-btn" style="border-radius: 10px; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);">🔥 Spin!</button>
                 </div>
             </div>
@@ -574,4 +575,106 @@
 
         rows.forEach(row => tbody.appendChild(row));
     }
+
+    window.showCurrentWheelGroups = function() {
+        const checkboxes = document.querySelectorAll('.participant-checkbox');
+        const checkedIds = Array.from(checkboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value));
+        
+        // กรองหาคนที่อยู่ในวงล้อ (ที่มี checkedIds)
+        const participants = whitelistData.filter(m => checkedIds.includes(m.id));
+        
+        // แยกกลุ่มตาม party_name
+        const groups = {};
+        const otherGroup = [];
+        
+        participants.forEach(p => {
+            if (p.party_name) {
+                if (!groups[p.party_name]) {
+                    groups[p.party_name] = [];
+                }
+                groups[p.party_name].push(p);
+            } else {
+                otherGroup.push(p);
+            }
+        });
+        
+        const container = document.getElementById('modal-groups-container');
+        container.innerHTML = '';
+        
+        // วาดแต่ละปาร์ตี้
+        const sortedParties = Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        
+        if (sortedParties.length === 0 && otherGroup.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: #94a3b8; margin: 3rem 0;">ไม่มีรายชื่อผู้เข้าชิงในวงล้อ</div>';
+        } else {
+            // แสดงปาร์ตี้ต่างๆ
+            sortedParties.forEach(partyName => {
+                const membersList = groups[partyName];
+                const section = document.createElement('div');
+                section.style.background = '#f8fafc';
+                section.style.padding = '1rem';
+                section.style.borderRadius = '10px';
+                section.style.borderLeft = '4px solid var(--primary)';
+                section.style.marginBottom = '1rem';
+                
+                section.innerHTML = `
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--primary); font-family: 'Outfit'; font-weight: 600;">🛡️ ${partyName} (${membersList.length} คน)</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        ${membersList.map(m => `
+                            <span style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 0.25rem;">
+                                👤 ${m.discord_username}
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(section);
+            });
+            
+            // แสดงกลุ่มที่ไม่มีตี้ (Other)
+            if (otherGroup.length > 0) {
+                const section = document.createElement('div');
+                section.style.background = '#f8fafc';
+                section.style.padding = '1rem';
+                section.style.borderRadius = '10px';
+                section.style.borderLeft = '4px solid #64748b';
+                
+                section.innerHTML = `
+                    <h4 style="margin: 0 0 0.5rem 0; color: #64748b; font-family: 'Outfit'; font-weight: 600;">🌐 อื่นๆ (ไม่มีปาร์ตี้) (${otherGroup.length} คน)</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        ${otherGroup.map(m => `
+                            <span style="background: #ffffff; border: 1px solid #e2e8f0; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 0.25rem;">
+                                👤 ${m.discord_username}
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(section);
+            }
+        }
+        
+        document.getElementById('groups-modal').style.display = 'flex';
+    };
+    
+    window.closeGroupsModal = function() {
+        document.getElementById('groups-modal').style.display = 'none';
+    };
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('groups-modal');
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
 </script>
+
+<!-- 📌 Wheel Groups Modal Dialog -->
+<div id="groups-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); align-items: center; justify-content: center; animation: fadeIn 0.2s ease;">
+    <div style="background-color: #ffffff; padding: 2rem; border-radius: var(--radius); width: 90%; max-width: 500px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative; max-height: 80vh; display: flex; flex-direction: column;">
+        <span onclick="closeGroupsModal()" style="position: absolute; right: 1.5rem; top: 1.5rem; font-size: 1.5rem; font-weight: 700; cursor: pointer; color: var(--text-light); transition: color 0.2s;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-light)'">&times;</span>
+        <h2 style="margin-bottom: 1.5rem; font-family: 'Outfit'; border-bottom: 2px solid var(--primary); padding-bottom: 0.5rem; color: #1e293b; display: flex; align-items: center; gap: 0.5rem;">📋 ผู้เข้าชิงในวงล้อแยกตามตี้</h2>
+        <div id="modal-groups-container" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; padding-right: 0.5rem;">
+            <!-- Groups will be rendered here dynamically -->
+        </div>
+    </div>
+</div>

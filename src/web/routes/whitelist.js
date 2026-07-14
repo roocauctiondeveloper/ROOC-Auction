@@ -61,7 +61,7 @@ async function syncWhitelistUsernames(whitelist) {
 // GET /whitelist
 router.get('/', async (req, res) => {
   try {
-    const whitelist = await db.getAllWhitelist();
+    const whitelist = await db.getAllWhitelistWithParty();
     res.render('whitelist', { whitelist });
     
     // ดำเนินการซิงก์ชื่อ Discord ล่าสุดใน Background โดยไม่หน่วงเวลาการโหลดหน้าเว็บ
