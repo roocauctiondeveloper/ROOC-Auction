@@ -180,18 +180,43 @@ router.post('/lottery-apply', async (req, res) => {
   }
 });
 
-
 // GET /whitelist/wheel-latest
 router.get('/wheel-latest', async (req, res) => {
   try {
+    // 1. ตั้งค่าทุกคนใน Whitelist ให้เป็น Standby (is_active = false)
+    await db.resetAllWhitelistStandby();
+
+    // 2. ดึงข้อมูลประวัติการเสนอชื่อและสมาชิกปาร์ตี้ปัจจุบัน
     const entries = await db.getLatestWheelEntries();
-    // We expect nominated_1 and nominated_2 to be whitelist_ids stored as strings/numbers
+    const parties = await db.getAllParties();
+    const partyMembers = await db.getPartyMembers();
+
     const nominatedIds = new Set();
-    for (const entry of entries) {
-      if (entry.nominated_1) nominatedIds.add(parseInt(entry.nominated_1));
-      if (entry.nominated_2) nominatedIds.add(parseInt(entry.nominated_2));
+
+    for (const party of parties) {
+      // ค้นหาสมาชิกตี้ปัจจุบัน
+      const currentMembers = partyMembers.filter(pm => pm.party_id === party.id);
+      const currentDiscordIds = currentMembers.map(m => m.discord_user_id).filter(id => id);
+      const currentWhitelistIds = new Set(currentMembers.map(m => m.whitelist_id));
+
+      // หาการส่งชื่อล่าสุดของปาร์ตี้นี้
+      const latestPartyEntry = entries.find(entry => currentDiscordIds.includes(entry.submitted_by));
+
+      if (latestPartyEntry) {
+        const nom1 = parseInt(latestPartyEntry.nominated_1);
+        const nom2 = parseInt(latestPartyEntry.nominated_2);
+
+        // เอาเฉพาะคนสะกดชื่อที่ยังอยู่ในตี้
+        if (!isNaN(nom1) && currentWhitelistIds.has(nom1)) {
+          nominatedIds.add(nom1);
+        }
+        if (!isNaN(nom2) && currentWhitelistIds.has(nom2)) {
+          nominatedIds.add(nom2);
+        }
+      }
     }
-    res.json({ ids: Array.from(nominatedIds).filter(id => !isNaN(id)) });
+
+    res.json({ ids: Array.from(nominatedIds) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch wheel entries' });
@@ -213,4 +238,3 @@ router.get('/:id/history', async (req, res) => {
 });
 
 module.exports = router;
-
