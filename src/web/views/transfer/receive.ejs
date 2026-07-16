@@ -140,6 +140,11 @@
               <canvas id="promptpay-qr-canvas"></canvas>
               <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #000; margin-top: 0.5rem; font-size: 1.1rem;">PROMPT PAY</div>
             </div>
+            <div style="margin-top: 0.75rem;">
+              <button type="button" onclick="downloadPromptPayQR()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; display: inline-flex; width: auto; align-items: center; gap: 4px;">
+                💾 บันทึกรูปภาพ QR
+              </button>
+            </div>
             <p style="color: var(--text-light); font-size: 0.8rem; margin-top: 0.5rem;">
               *สแกนจ่ายเงินผ่านแอปธนาคารได้ทันที ยอดเงินตรงตามที่คุณกรอก*
             </p>
@@ -500,6 +505,15 @@
     }).catch(err => {
       console.error('Failed to copy:', err);
     });
+  }
+
+  function downloadPromptPayQR() {
+    const canvas = document.getElementById('promptpay-qr-canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `promptpay-qr-${activeTransfer ? activeTransfer.id : 'temp'}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   }
 
   // Submit button loading state
