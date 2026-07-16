@@ -83,7 +83,7 @@
             <!-- Card Footer: Action Button -->
             <div style="padding: 0 1.25rem 1.25rem 1.25rem;">
               <button class="btn btn-primary" style="width: 100%; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.6rem;" onclick="showClaimDetails(<%= JSON.stringify(transfer) %>)">
-                💸 จ่ายเงิน & รับของสิทธิ์นี้
+                💸 จ่ายเงิน & รับสิทธิ์นี้
               </button>
             </div>
           </div>
@@ -186,7 +186,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">
-              ✅ ฉันโอนเงินแล้วและยืนยันรับของ
+              ✅ ฉันโอนเงินแล้วและยืนยันรับสิทธิ์
             </button>
           </form>
         </div>
@@ -224,7 +224,7 @@
               <tr>
                 <td>
                   <span class="badge <%= isSent ? 'badge-danger' : 'badge-success' %>" style="background-color: <%= isSent ? '#fef2f2' : '#ecfdf5' %>; color: <%= isSent ? '#991b1b' : '#065f46' %>">
-                    <%= isSent ? '📤 ส่งของ' : '📥 รับของ' %>
+                    <%= isSent ? '📤 โอนสิทธิ์' : '📥 รับสิทธิ์' %>
                   </span>
                 </td>
                 <td style="font-weight: 600;"><%= isSent ? log.recipient_name : log.sender_name %></td>

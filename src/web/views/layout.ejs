@@ -213,8 +213,8 @@
         <a href="/jobs">Jobs</a>
         <a href="/whitelist">Whitelist</a>
       <% } %>
-      <a href="/transfer/send" class="<%= req.originalUrl === '/transfer/send' ? 'active' : '' %>">โอนของ</a>
-      <a href="/transfer/receive" class="<%= req.originalUrl === '/transfer/receive' ? 'active' : '' %>">รับของ</a>
+      <a href="/transfer/send" class="<%= req.originalUrl === '/transfer/send' ? 'active' : '' %>">โอนสิทธิ์</a>
+      <a href="/transfer/receive" class="<%= req.originalUrl === '/transfer/receive' ? 'active' : '' %>">รับสิทธิ์</a>
       <form action="/logout" method="POST" style="margin: 0;">
         <button type="submit" class="btn btn-secondary" style="background: none; color: #94a3b8; border: none; padding: 0.5rem 1rem; cursor: pointer;">Logout</button>
       </form>
