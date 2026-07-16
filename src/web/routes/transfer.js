@@ -9,6 +9,30 @@ const { ensureMemberAuthenticated } = require('../middleware/auth');
 const discordClient = require('../../bot/client');
 const config = require('../../config');
 
+function formatItemsList(items) {
+  const groups = {};
+  for (const item of items) {
+    const key = `${item.page_name}||${item.item_type}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+
+  const result = [];
+  for (const key of Object.keys(groups)) {
+    const [pageName, itemType] = key.split('||');
+    const groupItems = groups[key];
+    groupItems.sort((a, b) => a.position - b.position);
+    if (groupItems.length === 4) {
+      result.push(`[${pageName}] ${itemType} (ทั้งหน้า)`);
+    } else {
+      for (const item of groupItems) {
+        result.push(`[${item.page_name}] ${item.item_type} #${item.position}`);
+      }
+    }
+  }
+  return result.join(', ');
+}
+
 // Require the member check middleware for all transfer routes
 router.use(ensureMemberAuthenticated);
 
@@ -257,14 +281,14 @@ router.post('/send', uploadDisk.single('payment_qr'), async (req, res) => {
           if (recipientUser) {
             const senderName = req.user.server_name || req.user.discord_username;
             
-            const itemNamesList = [];
+            const selectedItems = [];
             for (const id of itemIds) {
               const item = await db.getItemById(id);
               if (item) {
-                itemNamesList.push(`[${item.page_name}] ${item.item_type} #${item.position}`);
+                selectedItems.push(item);
               }
             }
-            const itemsStr = itemNamesList.join(', ');
+            const itemsStr = formatItemsList(selectedItems);
             const baseUrl = req.protocol + '://' + req.get('host');
             
             await recipientUser.send(
@@ -388,7 +412,7 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
           
           const finalItemIds = selectedItemIds && selectedItemIds.length > 0 ? selectedItemIds : JSON.parse(transfer.item_ids || '[]');
           const selectedItems = transfer.items.filter(item => finalItemIds.includes(item.id));
-          const itemsStr = selectedItems.map(item => `[${item.page_name}] ${item.item_type} #${item.position}`).join(', ');
+          const itemsStr = formatItemsList(selectedItems);
 
           const msgContent = 
             `🎉 **ยืนยันการชำระเงินและรับโอนไอเทมสำเร็จ!**\n` +
