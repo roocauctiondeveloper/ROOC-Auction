@@ -27,7 +27,8 @@ describe('History Properties', () => {
               item_pos         INTEGER NOT NULL,
               discord_user_id  TEXT,
               discord_username TEXT,
-              reserved_at      TEXT
+              reserved_at      TEXT,
+              transferred_from_name TEXT
           );
         `);
         jest.resetModules();

@@ -1,3 +1,52 @@
+<style>
+  /* Premium Tooltip Styling */
+  .custom-tooltip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+  }
+  .custom-tooltip .tooltip-text {
+    visibility: hidden;
+    width: auto;
+    min-width: 90px;
+    white-space: nowrap;
+    background-color: #0f172a;
+    color: #38bdf8;
+    text-align: center;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 6px 12px;
+    position: absolute;
+    z-index: 999;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  }
+  .custom-tooltip .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #0f172a transparent transparent transparent;
+  }
+  .custom-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
+</style>
+
 <div class="flex space-between items-center" style="margin-bottom: 2rem;">
   <div>
     <a href="/history" style="color: var(--text-light); text-decoration: none; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
@@ -43,7 +92,15 @@
             
             <% if (i.discord_user_id) { %>
               <div style="margin-top: 2px; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 4px;">
-                <span style="font-size: 0.85rem;">👤</span> <%= i.discord_username %>
+                <span style="font-size: 0.85rem;">👤</span>
+                <% if (i.transferred_from_name) { %>
+                  <span class="custom-tooltip" style="color: #0284c7; font-weight: 700;">
+                    <%= i.discord_username %> <span style="font-size: 0.7rem; font-weight: normal; margin-left: 2px;">(🔄)</span>
+                    <span class="tooltip-text"><%= i.transferred_from_name %></span>
+                  </span>
+                <% } else { %>
+                  <%= i.discord_username %>
+                <% } %>
               </div>
               <div style="font-size: 0.65rem; color: #93c5fd; font-family: monospace; margin-left: 1.1rem;">ID: <%= i.discord_user_id %></div>
             <% } else { %>

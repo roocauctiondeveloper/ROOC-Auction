@@ -17,6 +17,7 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
     await db.exec('ALTER TABLE reservations ADD COLUMN IF NOT EXISTS transferred_from_name TEXT');
     await db.exec('ALTER TABLE reservations ADD COLUMN IF NOT EXISTS transferred_to_id TEXT');
     await db.exec('ALTER TABLE reservations ADD COLUMN IF NOT EXISTS transferred_to_name TEXT');
+    await db.exec('ALTER TABLE round_history_items ADD COLUMN IF NOT EXISTS transferred_from_name TEXT');
 
     await db.exec('ALTER TABLE whitelist ADD COLUMN IF NOT EXISTS job TEXT');
     await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS whitelist_discord_user_id_key ON whitelist (discord_user_id)');
@@ -257,6 +258,7 @@ async function getCurrentReservations() {
       COALESCE(r.transferred_to_id, r.discord_user_id) as discord_user_id, 
       COALESCE(r.transferred_to_name, r.discord_username) as discord_username,
       MIN(r.reserved_at) as reserved_at,
+      MIN(CASE WHEN r.transferred_to_name IS NOT NULL THEN r.discord_username ELSE NULL END) as transferred_from_name,
       CASE 
         WHEN MAX(i.item_type) IN ('Album', 'Illution Box') THEN MAX(i.item_type)
         ELSE 'Page-Based'
@@ -453,7 +455,10 @@ async function deleteAllHistory() {
 async function saveRoundSnapshot(roundId) {
   const items = await db.all(`
     SELECT i.item_type, i.position AS item_pos, p.name AS page_name,
-           r.discord_user_id, r.discord_username, r.reserved_at
+           COALESCE(r.transferred_to_id, r.discord_user_id) AS discord_user_id,
+           COALESCE(r.transferred_to_name, r.discord_username) AS discord_username,
+           r.reserved_at,
+           CASE WHEN r.transferred_to_name IS NOT NULL THEN r.discord_username ELSE NULL END AS transferred_from_name
     FROM items i
     JOIN pages p ON i.page_id = p.id
     LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = ?
@@ -462,10 +467,10 @@ async function saveRoundSnapshot(roundId) {
   for (const item of items) {
     await db.run(`
       INSERT INTO round_history_items
-        (round_id, page_name, item_type, item_pos, discord_user_id, discord_username, reserved_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+        (round_id, page_name, item_type, item_pos, discord_user_id, discord_username, reserved_at, transferred_from_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [roundId, item.page_name, item.item_type, item.item_pos,
-      item.discord_user_id, item.discord_username, item.reserved_at]);
+      item.discord_user_id, item.discord_username, item.reserved_at, item.transferred_from_name]);
   }
 }
 
