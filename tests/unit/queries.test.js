@@ -7,7 +7,8 @@ jest.mock('../../src/db/database', () => ({
   run: (...args) => mockActiveDb.run(...args),
   exec: (...args) => mockActiveDb.exec(...args),
   pool: {
-    query: (...args) => mockActiveDb.pool.query(...args)
+    query: (...args) => mockActiveDb.pool.query(...args),
+    connect: (...args) => mockActiveDb.pool.connect(...args)
   }
 }));
 
@@ -53,6 +54,9 @@ describe('Database Queries', () => {
           discord_user_id  TEXT NOT NULL,
           discord_username TEXT NOT NULL,
           reserved_at      TEXT NOT NULL DEFAULT (datetime('now')),
+          transferred_from_name TEXT,
+          transferred_to_id TEXT,
+          transferred_to_name TEXT,
           UNIQUE (round_id, item_id)
       );
       CREATE TABLE IF NOT EXISTS whitelist (
@@ -64,6 +68,35 @@ describe('Database Queries', () => {
           spin_count       INTEGER DEFAULT 0,
           job              TEXT,
           created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS transfers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          round_id INTEGER NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+          item_ids TEXT NOT NULL,
+          sender_id TEXT NOT NULL,
+          sender_name TEXT NOT NULL,
+          recipient_id TEXT NOT NULL,
+          recipient_name TEXT NOT NULL,
+          bank_name TEXT,
+          bank_account_number TEXT,
+          bank_account_name TEXT,
+          payment_qr_url TEXT,
+          promptpay_id TEXT,
+          promptpay_name TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS transfer_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          round_id INTEGER NOT NULL,
+          sender_id TEXT NOT NULL,
+          sender_name TEXT NOT NULL,
+          recipient_id TEXT NOT NULL,
+          recipient_name TEXT NOT NULL,
+          item_names TEXT NOT NULL,
+          amount NUMERIC NOT NULL,
+          slip_url TEXT,
+          completed_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
     jest.resetModules();
@@ -99,9 +132,87 @@ describe('Database Queries', () => {
     expect(await queries.isWhitelisted('111222')).toBe(true);
     expect(await queries.isWhitelisted('unknownUser')).toBe(false);
 
+    const wlMember = await queries.getWhitelistMemberByDiscordId('111222');
+    expect(wlMember).toBeDefined();
+    expect(wlMember.discord_username).toBe('userX');
+    expect(await queries.getWhitelistMemberByDiscordId('unknownUser')).toBeUndefined();
+
     // UNIQUE constraint check
     await expect(async () => {
       await queries.addToWhitelist('userY', '111222');
     }).rejects.toThrow(/UNIQUE constraint failed/);
+  });
+
+  test('should handle item transfers and payment logging', async () => {
+    // 1. Setup round, page, item
+    const round = await queries.getOrCreateCurrentRound();
+    const roundId = round.id;
+    const pageId = await queries.addPage('Transfer Page');
+    const itemId = await queries.addItem(pageId, 'Light-Dark', 1);
+    
+    // Add User A reservation
+    await queries.addReservation(roundId, itemId, 'sender_id_123', 'SenderUsername');
+    
+    // Check item is reserved
+    const reservedBefore = await queries.isItemReserved(roundId, itemId);
+    expect(reservedBefore).toBe(true);
+
+    // 2. Create a transfer request for multiple items
+    const transferId = await queries.createTransfer(
+      roundId,
+      [itemId], // array of itemIds
+      'sender_id_123',
+      'SenderUsername',
+      'recipient_id_456',
+      'RecipientUsername',
+      'KBank',
+      '111-2-22222-2',
+      'Sender Account Name',
+      null,
+      '0812345678',
+      'Sender PP Name'
+    );
+    expect(transferId).toBeDefined();
+
+    // 3. Get pending transfers for recipient
+    const pendingTransfers = await queries.getPendingTransfersForRecipient('recipient_id_456');
+    expect(pendingTransfers.length).toBe(1);
+    expect(pendingTransfers[0].id).toBe(transferId);
+    expect(pendingTransfers[0].bank_name).toBe('KBank');
+    expect(pendingTransfers[0].promptpay_id).toBe('0812345678');
+    expect(pendingTransfers[0].items.length).toBe(1);
+    expect(pendingTransfers[0].items[0].id).toBe(itemId);
+
+    // 4. Complete the transfer
+    const success = await queries.completeTransfer(
+      transferId,
+      'recipient_id_456',
+      'RecipientUsername',
+      150.00,
+      'http://discord.cdn/slip.png'
+    );
+    expect(success).toBe(true);
+
+    // Check reservation transferred state
+    const resvs = await queries.getReservationsByRound(roundId);
+    const targetResv = resvs.find(r => r.item_id === itemId);
+    expect(targetResv).toBeDefined();
+    
+    const reservation = await queries.getReservationById(targetResv.id);
+    expect(reservation.discord_user_id).toBe('sender_id_123'); // Original owner remains
+    expect(reservation.discord_username).toBe('SenderUsername');
+    expect(reservation.transferred_to_id).toBe('recipient_id_456'); // Transferred recipient overlay set
+    expect(reservation.transferred_to_name).toBe('RecipientUsername');
+
+    // Check status of transfer is completed
+    const completedTransfer = await queries.getTransferById(transferId);
+    expect(completedTransfer.status).toBe('completed');
+
+    // Check history logs
+    const history = await queries.getTransferHistoryForUser('recipient_id_456');
+    expect(history.length).toBe(1);
+    expect(history[0].amount).toBe(150);
+    expect(history[0].slip_url).toBe('http://discord.cdn/slip.png');
+    expect(history[0].item_names).toContain('Light-Dark');
   });
 });

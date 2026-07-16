@@ -78,7 +78,7 @@
       <input type="text" id="discord_user_id" name="discord_user_id" list="whitelist-users" required placeholder="Type name or ID...">
       <datalist id="whitelist-users">
         <% for(let u of whitelist) { %>
-          <option value="<%= u.discord_user_id %>"><%= u.discord_username %></option>
+          <option value="<%= u.discord_username %> (<%= u.discord_user_id %>)"></option>
         <% } %>
       </datalist>
     </div>

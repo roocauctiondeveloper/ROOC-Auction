@@ -21,7 +21,7 @@ describe('Reservation Properties', () => {
           CREATE TABLE rounds (id INTEGER PRIMARY KEY, name TEXT, created_at TEXT);
           CREATE TABLE pages (id INTEGER PRIMARY KEY, name TEXT);
           CREATE TABLE items (id INTEGER PRIMARY KEY, page_id INTEGER, item_type TEXT, position INTEGER);
-          CREATE TABLE reservations (id INTEGER PRIMARY KEY, round_id INTEGER, item_id INTEGER, discord_user_id TEXT, discord_username TEXT, reserved_at TEXT, UNIQUE(round_id, item_id));
+          CREATE TABLE reservations (id INTEGER PRIMARY KEY, round_id INTEGER, item_id INTEGER, discord_user_id TEXT, discord_username TEXT, reserved_at TEXT, transferred_from_name TEXT, transferred_to_id TEXT, transferred_to_name TEXT, UNIQUE(round_id, item_id));
         `);
         jest.resetModules();
         queries = require('../../src/db/queries');

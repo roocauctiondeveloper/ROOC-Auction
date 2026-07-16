@@ -65,6 +65,14 @@ function createMockDb() {
       }
     },
     pool: {
+      async connect() {
+        return {
+          query: async (sql, params = []) => {
+            return dbWrapper.pool.query(sql, params);
+          },
+          release: () => {}
+        };
+      },
       async query(sql, params = []) {
         const sqlNormalized = sql
           .replace(/\$([0-9]+)/g, '?')

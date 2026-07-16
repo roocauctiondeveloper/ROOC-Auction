@@ -18,7 +18,7 @@ describe('History Properties', () => {
         mockActiveDb = createMockDb();
         mockActiveDb.sqlite.exec(`
           CREATE TABLE rounds (id INTEGER PRIMARY KEY, name TEXT, status TEXT DEFAULT 'preparing', created_at TEXT);
-          CREATE TABLE reservations (id INTEGER PRIMARY KEY, round_id INTEGER, item_id INTEGER, discord_user_id TEXT, discord_username TEXT, reserved_at TEXT);
+          CREATE TABLE reservations (id INTEGER PRIMARY KEY, round_id INTEGER, item_id INTEGER, discord_user_id TEXT, discord_username TEXT, reserved_at TEXT, transferred_from_name TEXT, transferred_to_id TEXT, transferred_to_name TEXT);
           CREATE TABLE round_history_items (
               id               INTEGER PRIMARY KEY AUTOINCREMENT,
               round_id         INTEGER NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,

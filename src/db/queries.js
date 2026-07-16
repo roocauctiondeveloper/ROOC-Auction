@@ -14,6 +14,9 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS quota_ts INTEGER DEFAULT 1');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_channel_id TEXT');
     await db.exec('ALTER TABLE rounds ADD COLUMN IF NOT EXISTS board_message_id TEXT');
+    await db.exec('ALTER TABLE reservations ADD COLUMN IF NOT EXISTS transferred_from_name TEXT');
+    await db.exec('ALTER TABLE reservations ADD COLUMN IF NOT EXISTS transferred_to_id TEXT');
+    await db.exec('ALTER TABLE reservations ADD COLUMN IF NOT EXISTS transferred_to_name TEXT');
 
     await db.exec('ALTER TABLE whitelist ADD COLUMN IF NOT EXISTS job TEXT');
     await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS whitelist_discord_user_id_key ON whitelist (discord_user_id)');
@@ -45,6 +48,85 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
     await db.run("UPDATE job_change_logs SET old_job = 'Minstrel' WHERE old_job = 'Clown'");
     await db.run("UPDATE job_change_logs SET old_job = 'Mastersmith' WHERE old_job = 'Whitesmith'");
     await db.run("UPDATE job_change_logs SET old_job = 'Biochemist' WHERE old_job = 'Creator'");
+
+    // Check if transfers table needs schema upgrade to support multiple items
+    try {
+      await db.run('SELECT item_ids FROM transfers LIMIT 1');
+    } catch (e) {
+      console.warn('⚠️ Old schema detected for transfers. Recreating tables for multi-item transfers...');
+      await db.run('DROP TABLE IF EXISTS transfers');
+      await db.run('DROP TABLE IF EXISTS transfer_logs');
+    }
+
+    // Transfers and transfer_logs tables
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS transfers (
+        id SERIAL PRIMARY KEY,
+        round_id INTEGER NOT NULL,
+        item_ids TEXT NOT NULL,
+        sender_id TEXT NOT NULL,
+        sender_name TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        bank_name TEXT,
+        bank_account_number TEXT,
+        bank_account_name TEXT,
+        payment_qr_url TEXT,
+        promptpay_id TEXT,
+        promptpay_name TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS transfer_logs (
+        id SERIAL PRIMARY KEY,
+        round_id INTEGER NOT NULL,
+        sender_id TEXT NOT NULL,
+        sender_name TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        item_names TEXT NOT NULL,
+        amount NUMERIC NOT NULL,
+        slip_url TEXT,
+        completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Retroactively sync transferred columns for old completed transfers
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        const completedTransfers = await db.all("SELECT round_id, item_ids, sender_id, sender_name, recipient_id, recipient_name FROM transfers WHERE status = 'completed'");
+        if (completedTransfers && completedTransfers.length > 0) {
+          console.log(`⏳ Retroactively syncing ${completedTransfers.length} completed transfers (restoring original owner & setting transferred_to overlay)...`);
+          for (const t of completedTransfers) {
+            let itemIds = [];
+            try {
+              itemIds = JSON.parse(t.item_ids || '[]');
+            } catch (e) {
+              if (t.item_ids) itemIds = [parseInt(t.item_ids)];
+            }
+            for (const itemId of itemIds) {
+              if (itemId) {
+                await db.run(
+                  `UPDATE reservations 
+                   SET discord_user_id = ?, 
+                       discord_username = ?, 
+                       transferred_to_id = ?, 
+                       transferred_to_name = ?
+                   WHERE round_id = ? AND item_id = ?`,
+                  [t.sender_id, t.sender_name, t.recipient_id, t.recipient_name, t.round_id, itemId]
+                );
+              }
+            }
+          }
+          console.log('✅ Retroactive sync of transferred_to columns complete.');
+        }
+      } catch (syncErr) {
+        console.warn('⚠️ Could not retroactively sync transferred columns:', syncErr.message);
+      }
+    }
   } catch (err) {
     console.error('❌ Failed to initialize database tables:', err);
   }
@@ -87,8 +169,8 @@ async function getAllBoardData(roundId) {
       i.id AS item_id,
       i.item_type,
       i.position,
-      r.discord_username AS reserved_by,
-      r.discord_user_id
+      COALESCE(r.transferred_to_name, r.discord_username) AS reserved_by,
+      COALESCE(r.transferred_to_id, r.discord_user_id) AS discord_user_id
     FROM pages p
     JOIN items i ON i.page_id = p.id
     LEFT JOIN reservations r ON r.item_id = i.id AND r.round_id = $1
@@ -120,15 +202,17 @@ async function getItemsForPage(pageId, roundId = null) {
 
   return db.all(`
     SELECT i.*, p.name AS page_name,
-           (SELECT discord_username FROM reservations r
+           (SELECT COALESCE(r.transferred_to_name, r.discord_username) FROM reservations r
             WHERE r.item_id = i.id AND r.round_id = ?) AS reserved_by,
-           (SELECT discord_user_id FROM reservations r
-            WHERE r.item_id = i.id AND r.round_id = ?) AS discord_user_id
+           (SELECT COALESCE(r.transferred_to_id, r.discord_user_id) FROM reservations r
+            WHERE r.item_id = i.id AND r.round_id = ?) AS discord_user_id,
+           (SELECT CASE WHEN r.transferred_to_name IS NOT NULL THEN r.discord_username ELSE NULL END FROM reservations r
+            WHERE r.item_id = i.id AND r.round_id = ?) AS transferred_from_name
     FROM items i
     JOIN pages p ON i.page_id = p.id
     WHERE i.page_id = ?
     ORDER BY i.position ASC
-  `, [targetRoundId, targetRoundId, pageId]);
+  `, [targetRoundId, targetRoundId, targetRoundId, pageId]);
 }
 
 
@@ -170,8 +254,8 @@ async function getCurrentReservations() {
       r.round_id, 
       i.page_id, 
       p.name as page_name,
-      r.discord_user_id, 
-      r.discord_username,
+      COALESCE(r.transferred_to_id, r.discord_user_id) as discord_user_id, 
+      COALESCE(r.transferred_to_name, r.discord_username) as discord_username,
       MIN(r.reserved_at) as reserved_at,
       CASE 
         WHEN MAX(i.item_type) IN ('Album', 'Illution Box') THEN MAX(i.item_type)
@@ -189,8 +273,8 @@ async function getCurrentReservations() {
       r.round_id, 
       i.page_id, 
       p.name, 
-      r.discord_user_id, 
-      r.discord_username,
+      COALESCE(r.transferred_to_id, r.discord_user_id), 
+      COALESCE(r.transferred_to_name, r.discord_username),
       (CASE WHEN i.item_type IN ('Album', 'Illution Box') THEN i.id ELSE 0 END)
     ORDER BY reserved_at DESC
   `, [round.id]);
@@ -438,6 +522,10 @@ async function getMemberLotteryHistory(whitelistId) {
 
 async function getWhitelistMemberById(id) {
   return db.get('SELECT * FROM whitelist WHERE id = ?', [id]);
+}
+
+async function getWhitelistMemberByDiscordId(discordUserId) {
+  return db.get('SELECT * FROM whitelist WHERE discord_user_id = ?', [discordUserId]);
 }
 
 async function bulkUpdateWhitelistStatus(ids, isActive) {
@@ -718,6 +806,217 @@ async function getJobChangeLogs() {
   return db.all('SELECT * FROM job_change_logs ORDER BY created_at DESC LIMIT 100');
 }
 
+// ─── Transfers & Payment ──────────────────────────────────────────────────────
+
+// Helper to enrich transfers with item details from items table
+async function enrichTransfers(transfers) {
+  if (!transfers) return null;
+  const isArray = Array.isArray(transfers);
+  const rows = isArray ? transfers : [transfers];
+  
+  for (const t of rows) {
+    const itemIds = JSON.parse(t.item_ids || '[]');
+    t.items = [];
+    
+    for (const itemId of itemIds) {
+      const item = await getItemById(itemId);
+      if (item) {
+        t.items.push(item);
+      }
+    }
+
+    // Sort items by page name and position ascending
+    t.items.sort((a, b) => {
+      const pageCompare = (a.page_name || '').localeCompare(b.page_name || '', undefined, { numeric: true, sensitivity: 'base' });
+      if (pageCompare !== 0) return pageCompare;
+      return (a.position || 0) - (b.position || 0);
+    });
+
+    // Generate compactSummary
+    const summaryList = [];
+    if (t.items.length > 0) {
+      // Group items by page_id
+      const pageGroups = {};
+      t.items.forEach(item => {
+        if (!pageGroups[item.page_id]) {
+          pageGroups[item.page_id] = {
+            page_name: item.page_name,
+            items: []
+          };
+        }
+        pageGroups[item.page_id].items.push(item);
+      });
+
+      const getCompactItemTypeDesc = (type) => {
+        if (type === 'Light-Dark') return '🤍 Light-Dark';
+        if (type === 'Time-Space') return '❤️ Time-Space';
+        if (type === 'Album') return '📒 Album';
+        if (type === 'Illution Box') return '🧩 Box';
+        if (type === 'Feather') return '🪶 Feather';
+        if (type === 'Card') return '🎴 Card';
+        if (type === 'Book') return '📖 Book';
+        return type;
+      };
+
+      for (const pageId of Object.keys(pageGroups)) {
+        const group = pageGroups[pageId];
+        // Query total items on this page
+        const countRes = await db.get('SELECT COUNT(*) as count FROM items WHERE page_id = ?', [pageId]);
+        const totalItemsOnPage = countRes ? parseInt(countRes.count) : 0;
+
+        const itemType = group.items[0] ? group.items[0].item_type : '';
+        const typeDesc = getCompactItemTypeDesc(itemType);
+
+        if (group.items.length === totalItemsOnPage && totalItemsOnPage > 0) {
+          summaryList.push(`${typeDesc} 📄 ${group.page_name} (ทั้งหน้า)`);
+        } else {
+          const positionsStr = group.items.map(i => `#${i.position}`).join(', ');
+          summaryList.push(`${typeDesc} 📄 ${group.page_name} (${positionsStr})`);
+        }
+      }
+    }
+    t.compactSummary = summaryList;
+    
+    // For EJS compatibility
+    if (t.items.length > 0) {
+      t.page_name = t.items.map(i => i.page_name).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+      t.item_type = t.items[0].item_type; // Fallback to first item type
+    } else {
+      t.page_name = 'Unknown';
+      t.item_type = 'General';
+    }
+  }
+  
+  return isArray ? rows : rows[0];
+}
+
+async function createTransfer(roundId, itemIds, senderId, senderName, recipientId, recipientName, bankName, bankAccNum, bankAccName, qrUrl, promptPayId, promptPayName) {
+  const itemIdsStr = JSON.stringify(itemIds);
+  const r = await db.run(`
+    INSERT INTO transfers (
+      round_id, item_ids, sender_id, sender_name, recipient_id, recipient_name,
+      bank_name, bank_account_number, bank_account_name, payment_qr_url, promptpay_id, promptpay_name, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending') RETURNING id
+  `, [
+    roundId, itemIdsStr, senderId, senderName, recipientId, recipientName,
+    bankName || null, bankAccNum || null, bankAccName || null, qrUrl || null, promptPayId || null, promptPayName || null
+  ]);
+  return r.lastInsertRowid;
+}
+
+async function getPendingTransfersForRecipient(recipientId) {
+  const transfers = await db.all(`
+    SELECT * FROM transfers
+    WHERE recipient_id = ? AND status = 'pending'
+    ORDER BY created_at DESC
+  `, [recipientId]);
+  return enrichTransfers(transfers);
+}
+
+async function getPendingTransfersForSender(senderId) {
+  const transfers = await db.all(`
+    SELECT * FROM transfers
+    WHERE sender_id = ? AND status = 'pending'
+    ORDER BY created_at DESC
+  `, [senderId]);
+  return enrichTransfers(transfers);
+}
+
+async function getTransferById(transferId) {
+  const transfer = await db.get(`
+    SELECT * FROM transfers WHERE id = ?
+  `, [transferId]);
+  return enrichTransfers(transfer);
+}
+
+async function cancelTransfer(transferId, senderId) {
+  return db.run(`
+    UPDATE transfers SET status = 'cancelled'
+    WHERE id = ? AND sender_id = ? AND status = 'pending'
+  `, [transferId, senderId]);
+}
+
+async function completeTransfer(transferId, recipientId, recipientName, amount, slipUrl, selectedItemIds = null) {
+  const transfer = await getTransferById(transferId);
+  if (!transfer) throw new Error('Transfer not found');
+  if (transfer.status !== 'pending') throw new Error('Transfer is not pending');
+
+  const allItemIds = JSON.parse(transfer.item_ids || '[]');
+  const finalItemIds = selectedItemIds && selectedItemIds.length > 0 ? selectedItemIds : allItemIds;
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Update transfer status
+    await client.query(
+      `UPDATE transfers SET status = 'completed' WHERE id = $1`,
+      [transferId]
+    );
+
+    // 2. Transfer selected reservations in transaction
+    for (const itemId of finalItemIds) {
+      const res = await client.query(
+        'SELECT id FROM reservations WHERE round_id = $1 AND item_id = $2',
+        [transfer.round_id, itemId]
+      );
+
+      if (res.rows.length === 0) {
+        throw new Error(`Reservation not found for item ${itemId}`);
+      }
+
+      await client.query(
+        `UPDATE reservations 
+         SET transferred_to_id = $1, transferred_to_name = $2, reserved_at = CURRENT_TIMESTAMP
+         WHERE round_id = $3 AND item_id = $4`,
+        [recipientId, recipientName, transfer.round_id, itemId]
+      );
+    }
+
+    // 3. Construct names of items for logging
+    const itemNamesList = [];
+    for (const item of transfer.items) {
+      if (finalItemIds.includes(item.id)) {
+        itemNamesList.push(`[${item.page_name}] ${item.item_type} #${item.position}`);
+      }
+    }
+    const itemNamesStr = itemNamesList.join(', ');
+
+    // 4. Log the completed transfer
+    await client.query(
+      `INSERT INTO transfer_logs (
+        round_id, sender_id, sender_name, recipient_id, recipient_name,
+        item_names, amount, slip_url, completed_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+      [
+        transfer.round_id,
+        transfer.sender_id,
+        transfer.sender_name,
+        recipientId,
+        recipientName,
+        itemNamesStr,
+        amount,
+        slipUrl
+      ]
+    );
+
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function getTransferHistoryForUser(userId) {
+  return db.all(`
+    SELECT * FROM transfer_logs
+    WHERE sender_id = ? OR recipient_id = ?
+    ORDER BY completed_at DESC
+  `, [userId, userId]);
+}
 
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
@@ -747,4 +1046,13 @@ module.exports = {
   saveUserJob,
   updateWhitelistJob,
   getJobChangeLogs,
+
+  createTransfer,
+  getPendingTransfersForRecipient,
+  getPendingTransfersForSender,
+  getTransferById,
+  cancelTransfer,
+  completeTransfer,
+  getTransferHistoryForUser,
+  getWhitelistMemberByDiscordId,
 };

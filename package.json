@@ -1,6 +1,6 @@
 {
   "name": "discord-reservation-bot",
-  "version": "1.0.86",
+  "version": "1.0.87",
   "description": "Discord Reservation Bot with Web Dashboard",
   "main": "src/index.js",
   "scripts": {
@@ -25,6 +25,7 @@
     "express": "^4.19.2",
     "express-ejs-layouts": "^2.5.1",
     "express-session": "^1.18.0",
+    "multer": "^2.2.0",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
     "pg": "^8.20.0"

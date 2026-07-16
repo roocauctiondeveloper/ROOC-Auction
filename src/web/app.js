@@ -48,12 +48,18 @@ passport.deserializeUser(async (id, done) => {
   try {
     const admin = await db.getAdminByDiscordId(id);
     if (admin) {
-      done(null, { ...admin, isAdmin: true });
+      return done(null, { ...admin, isAdmin: true });
     } else if (config.discordAdminId && id === config.discordAdminId) {
       // Fallback สำหรับ Super Admin
-      done(null, { discord_user_id: id, isAdmin: true, discord_username: 'Super Admin' });
+      return done(null, { discord_user_id: id, isAdmin: true, discord_username: 'Super Admin' });
     } else {
-      done(null, null);
+      // ผู้ใช้ทั่วไปที่ผ่าน Whitelist หรือสมาชิกกลุ่ม
+      const wlMember = await db.getWhitelistMemberByDiscordId(id);
+      return done(null, {
+        discord_user_id: id,
+        isAdmin: false,
+        discord_username: wlMember ? wlMember.discord_username : 'Member'
+      });
     }
   } catch (err) {
     done(err);
@@ -85,7 +91,12 @@ passport.use(new DiscordStrategy({
               isAdmin: true 
             });
         } else {
-            return done(null, false, { message: 'คุณไม่มีสิทธิ์เข้าใช้งานระบบ' });
+            // สมาชิกทั่วไป ยอมให้ล็อกอินได้เพื่อทำรายการโอนสิทธิ์
+            return done(null, {
+              discord_user_id: profile.id,
+              discord_username: profile.username || profile.global_name,
+              isAdmin: false
+            });
         }
     } catch (err) {
         return done(err);
@@ -188,6 +199,55 @@ app.use(async (req, res, next) => {
     return entry ? `${entry.emoji} ${entry.label}` : type;
   };
 
+  res.locals.formatLogItemNames = (itemNamesStr) => {
+    if (!itemNamesStr) return '-';
+    const items = itemNamesStr.split(', ');
+    
+    // Group items by "PageName|ItemType"
+    const groups = {};
+    items.forEach(item => {
+      const match = item.match(/^\[([^\]]+)\]\s+(.+)\s+#(\d+)$/);
+      if (match) {
+        const page = match[1];
+        const type = match[2];
+        const pos = parseInt(match[3]);
+        const key = `${page}|${type}`;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(pos);
+      }
+    });
+
+    let html = '<div style="display: flex; flex-wrap: wrap; gap: 0.3rem; max-width: 450px;">';
+    Object.keys(groups).forEach(key => {
+      const [page, type] = key.split('|');
+      const positions = groups[key].sort((a, b) => a - b);
+      
+      let icon = '📄';
+      if (type.includes('Light-Dark')) icon = '🤍';
+      else if (type.includes('Time-Space')) icon = '❤️';
+      else if (type.includes('Album')) icon = '📒';
+      else if (type.includes('Box') || type.includes('Illution')) icon = '🧩';
+      else if (type.includes('Feather')) icon = '🪶';
+      else if (type.includes('Card')) icon = '🎴';
+      else if (type.includes('Book')) icon = '📖';
+
+      // Check if it's "all 4 positions" (1, 2, 3, 4)
+      const isAllPage = positions.length === 4 && 
+                        positions.includes(1) && 
+                        positions.includes(2) && 
+                        positions.includes(3) && 
+                        positions.includes(4);
+
+      let posStr = isAllPage ? '(ทั้งหน้า)' : `(${positions.map(p => `#${p}`).join(', ')})`;
+      
+      html += `<span style="background-color: #f8fafc; color: #1e293b; border: 1px solid #cbd5e1; font-size: 0.75rem; padding: 0.2rem 0.4rem; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.15rem; white-space: nowrap;">${icon} ${type} 📄 ${page} ${posStr}</span>`;
+    });
+    html += '</div>';
+    return html;
+  };
+
   
   next();
 });
@@ -203,6 +263,7 @@ app.use('/whitelist', require('./routes/whitelist'));
 app.use('/presets', require('./routes/presets'));
 app.use('/parties', require('./routes/parties'));
 app.use('/jobs', require('./routes/jobs'));
+app.use('/transfer', require('./routes/transfer'));
 
 // Catch-all 404
 app.use((req, res) => {

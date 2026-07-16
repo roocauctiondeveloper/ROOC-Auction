@@ -1,3 +1,52 @@
+<style>
+  /* Premium Tooltip Styling */
+  .custom-tooltip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+  }
+  .custom-tooltip .tooltip-text {
+    visibility: hidden;
+    width: auto;
+    min-width: 90px;
+    white-space: nowrap;
+    background-color: #0f172a;
+    color: #38bdf8;
+    text-align: center;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 6px 12px;
+    position: absolute;
+    z-index: 999;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  }
+  .custom-tooltip .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #0f172a transparent transparent transparent;
+  }
+  .custom-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
+</style>
+
 <div class="flex space-between flex-desktop items-center" style="margin-bottom: 2rem;">
   <div>
     <h1>Admin Dashboard</h1>
@@ -367,11 +416,18 @@
                                 <span style="font-weight: 500;">
                                   <%= i.position %>. <%= displayItemType(i.item_type) %>
                                 </span>
-                                <% if (i.reserved_by) { %>
-                                  <span style="color: var(--primary); font-weight: 700;">👤 <%= i.reserved_by %></span>
-                                  <% } else { %>
-                                    <span style="color: #cbd5e1;">Available</span>
-                                    <% } %>
+                                 <% if (i.reserved_by) { %>
+                                   <% if (i.transferred_from_name) { %>
+                                     <span class="custom-tooltip" style="color: #0284c7; font-weight: 700;">
+                                       👤 <%= i.reserved_by %> <span style="font-size: 0.75rem; font-weight: normal; margin-left: 2px;">(🔄)</span>
+                                       <span class="tooltip-text"><%= i.transferred_from_name %></span>
+                                     </span>
+                                   <% } else { %>
+                                     <span style="color: var(--primary); font-weight: 700;">👤 <%= i.reserved_by %></span>
+                                   <% } %>
+                                 <% } else { %>
+                                   <span style="color: #cbd5e1;">Available</span>
+                                 <% } %>
                               </div>
                               <% } %>
                           </div>
@@ -417,11 +473,20 @@
                           const pagesHtml = data.pagesWithItems.map(p => {
                             const reservedCount = p.items.filter(i => i.reserved_by).length;
                             const itemsHtml = p.items.map(i => `
-            <div style="padding: 0.6rem 0.75rem; border-radius: 8px; margin-bottom: 0.25rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: ${i.reserved_by ? '#eff6ff' : '#ffffff'}; border: 1px solid ${i.reserved_by ? '#dbeafe' : 'transparent'};">
-              <span style="font-weight: 500;">${i.position}. ${displayType(i.item_type)}</span>
-              ${i.reserved_by ? `<span style="color: var(--primary); font-weight: 700;">👤 ${i.reserved_by}</span>` : `<span style="color: #cbd5e1;">Available</span>`}
-            </div>
-          `).join('');
+             <div style="padding: 0.6rem 0.75rem; border-radius: 8px; margin-bottom: 0.25rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: ${i.reserved_by ? '#eff6ff' : '#ffffff'}; border: 1px solid ${i.reserved_by ? '#dbeafe' : 'transparent'};">
+               <span style="font-weight: 500;">${i.position}. ${displayType(i.item_type)}</span>
+               ${i.reserved_by ? 
+                 (i.transferred_from_name ? 
+                   `<span class="custom-tooltip" style="color: #0284c7; font-weight: 700;">
+                     👤 ${i.reserved_by} <span style="font-size: 0.75rem; font-weight: normal; margin-left: 2px;">(🔄)</span>
+                     <span class="tooltip-text">${i.transferred_from_name}</span>
+                   </span>` : 
+                   `<span style="color: var(--primary); font-weight: 700;">👤 ${i.reserved_by}</span>`
+                 ) : 
+                 `<span style="color: #cbd5e1;">Available</span>`
+               }
+             </div>
+           `).join('');
 
                             return `
             <div class="page-card" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">

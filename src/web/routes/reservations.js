@@ -51,6 +51,10 @@ router.post('/', async (req, res) => {
     return res.redirect('/reservations');
   }
 
+  // Extract raw Discord ID from "Name (ID)" format if present, otherwise use raw text
+  const match = discord_user_id.trim().match(/\((\d+)\)$/);
+  const actualDiscordUserId = match ? match[1] : discord_user_id.trim();
+
   try {
     const currentRound = await db.getOrCreateCurrentRound();
     const isReserved = await db.isItemReserved(currentRound.id, item_id);
@@ -62,10 +66,10 @@ router.post('/', async (req, res) => {
 
     // Find username from whitelist if possible
     const users = await db.getAllWhitelist();
-    const user = users.find(u => u.discord_user_id === discord_user_id);
+    const user = users.find(u => u.discord_user_id === actualDiscordUserId);
     const discord_username = user ? user.discord_username : 'Manual Reservation';
 
-    await db.addReservation(currentRound.id, item_id, discord_user_id, discord_username);
+    await db.addReservation(currentRound.id, item_id, actualDiscordUserId, discord_username);
 
     // 📢 Update Live Board
     await updateLiveBoard(discordClient, currentRound.id);

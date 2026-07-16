@@ -203,14 +203,18 @@
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
     </button>
     <div class="nav-links">
-      <a href="/">Dashboard</a>
-      <a href="/pages">Pages</a>
-      <a href="/reservations">Reservations</a>
-      <a href="/history">History</a>
-      <a href="/presets">Presets</a>
-      <a href="/parties">Parties</a>
-      <a href="/jobs">Jobs</a>
-      <a href="/whitelist">Whitelist</a>
+      <% if (user.isAdmin) { %>
+        <a href="/">Dashboard</a>
+        <a href="/pages">Pages</a>
+        <a href="/reservations">Reservations</a>
+        <a href="/history">History</a>
+        <a href="/presets">Presets</a>
+        <a href="/parties">Parties</a>
+        <a href="/jobs">Jobs</a>
+        <a href="/whitelist">Whitelist</a>
+      <% } %>
+      <a href="/transfer/send" class="<%= req.originalUrl === '/transfer/send' ? 'active' : '' %>">โอนของ</a>
+      <a href="/transfer/receive" class="<%= req.originalUrl === '/transfer/receive' ? 'active' : '' %>">รับของ</a>
       <form action="/logout" method="POST" style="margin: 0;">
         <button type="submit" class="btn btn-secondary" style="background: none; color: #94a3b8; border: none; padding: 0.5rem 1rem; cursor: pointer;">Logout</button>
       </form>

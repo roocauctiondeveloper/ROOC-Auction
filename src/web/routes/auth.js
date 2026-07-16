@@ -10,7 +10,15 @@ const passport = require('passport');
 // GET /login
 router.get('/login', (req, res) => {
   if (req.isAuthenticated()) {
-    return res.redirect('/');
+    if (req.user && req.user.isAdmin) {
+      return res.redirect('/');
+    } else {
+      // If the user was redirected back due to an authentication error, render the login page to show the error
+      if (req.session && req.session.error_msg) {
+        return res.render('login');
+      }
+      return res.redirect('/transfer/receive');
+    }
   }
   res.render('login');
 });
@@ -23,7 +31,11 @@ router.get('/auth/discord/callback', passport.authenticate('discord', {
     failureRedirect: '/login',
     failureMessage: true
 }), (req, res) => {
-    res.redirect('/');
+    if (req.user && req.user.isAdmin) {
+        res.redirect('/');
+    } else {
+        res.redirect('/transfer/receive');
+    }
 });
 
 // POST /logout
