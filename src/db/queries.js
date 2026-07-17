@@ -840,16 +840,19 @@ async function enrichTransfers(transfers) {
     // Generate compactSummary
     const summaryList = [];
     if (t.items.length > 0) {
-      // Group items by page_id
+      // Group items by page_id AND item_type
       const pageGroups = {};
       t.items.forEach(item => {
-        if (!pageGroups[item.page_id]) {
-          pageGroups[item.page_id] = {
+        const key = `${item.page_id}||${item.item_type}`;
+        if (!pageGroups[key]) {
+          pageGroups[key] = {
+            page_id: item.page_id,
             page_name: item.page_name,
+            item_type: item.item_type,
             items: []
           };
         }
-        pageGroups[item.page_id].items.push(item);
+        pageGroups[key].items.push(item);
       });
 
       const getCompactItemTypeDesc = (type) => {
@@ -863,17 +866,16 @@ async function enrichTransfers(transfers) {
         return type;
       };
 
-      for (const pageId of Object.keys(pageGroups)) {
-        const group = pageGroups[pageId];
-        // Query total items on this page
-        const countRes = await db.get('SELECT COUNT(*) as count FROM items WHERE page_id = ?', [pageId]);
-        const totalItemsOnPage = countRes ? parseInt(countRes.count) : 0;
+      for (const key of Object.keys(pageGroups)) {
+        const group = pageGroups[key];
+        // Query total items of this type on this page
+        const countRes = await db.get('SELECT COUNT(*) as count FROM items WHERE page_id = ? AND item_type = ?', [group.page_id, group.item_type]);
+        const totalItemsOfTypeOnPage = countRes ? parseInt(countRes.count) : 0;
 
-        const itemType = group.items[0] ? group.items[0].item_type : '';
-        const typeDesc = getCompactItemTypeDesc(itemType);
+        const typeDesc = getCompactItemTypeDesc(group.item_type);
 
-        if (group.items.length === totalItemsOnPage && totalItemsOnPage > 0) {
-          summaryList.push(`${typeDesc} 📄 ${group.page_name} (ทั้งหน้า)`);
+        if (group.items.length === totalItemsOfTypeOnPage && totalItemsOfTypeOnPage > 0) {
+          summaryList.push(`${typeDesc} 📄 ${group.page_name} (ทั้งหมด)`);
         } else {
           const positionsStr = group.items.map(i => `#${i.position}`).join(', ');
           summaryList.push(`${typeDesc} 📄 ${group.page_name} (${positionsStr})`);
