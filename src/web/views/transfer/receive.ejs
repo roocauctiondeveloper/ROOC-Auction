@@ -6,6 +6,24 @@
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
   }
+  @keyframes gradientBorder {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @keyframes glowSpecial {
+    0% { box-shadow: 0 0 10px rgba(236, 72, 153, 0.4), 0 0 18px rgba(99, 102, 241, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.8), 0 0 32px rgba(99, 102, 241, 0.5); }
+    100% { box-shadow: 0 0 10px rgba(236, 72, 153, 0.4), 0 0 18px rgba(99, 102, 241, 0.2); }
+  }
+  .special-sender-card {
+    border: 3px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #ff007f, #7f00ff, #00f0ff, #ff007f) !important;
+    background-origin: border-box !important;
+    background-clip: content-box, border-box !important;
+    background-size: 300% 300% !important;
+    animation: gradientBorder 4s ease infinite, glowSpecial 3s ease-in-out infinite !important;
+  }
 </style>
 
 <div style="display: flex; flex-direction: column; gap: 2rem;">
@@ -60,19 +78,32 @@
         ไม่มีข้อเสนอโอนสิทธิ์ส่งถึงคุณในขณะนี้
       </p>
     <% } else { %>
+      <%
+        pendingTransfers.sort((a, b) => {
+          const aSpecial = a.sender_id === '295747827517227009' ? 1 : 0;
+          const bSpecial = b.sender_id === '295747827517227009' ? 1 : 0;
+          return bSpecial - aSpecial;
+        });
+      %>
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
         <% pendingTransfers.forEach(transfer => { %>
-          <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.02); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.08)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)'">
+          <% const isSpecialUser = transfer.sender_id === '295747827517227009'; %>
+          <div class="<%= isSpecialUser ? 'special-sender-card' : '' %>" style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.02); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.08)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)'">
             
             <!-- Card Header: Sender Info -->
             <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <div style="background: var(--primary); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem;">
+                <div style="background: <%= isSpecialUser ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : 'var(--primary)' %>; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; <%= isSpecialUser ? 'box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);' : '' %>">
                   <%= transfer.sender_name.charAt(0).toUpperCase() %>
                 </div>
                 <div>
                   <div style="font-size: 0.75rem; color: var(--text-light); font-weight: 500;">ผู้เสนอโอน (Sender)</div>
-                  <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a;"><%= transfer.sender_name %></div>
+                  <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 4px;">
+                    <%= transfer.sender_name %>
+                    <% if (isSpecialUser) { %>
+                      <span style="font-size: 0.95rem;" title="👑 ผู้เสนอโอนสุดพิเศษ">👑</span>
+                    <% } %>
+                  </div>
                 </div>
               </div>
               <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
