@@ -75,9 +75,15 @@
                   <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a;"><%= transfer.sender_name %></div>
                 </div>
               </div>
-              <span class="badge badge-blue" style="font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 6px;">
-                รอคุณตอบรับ
-              </span>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                <span class="badge badge-blue" style="font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 6px;">
+                  รอคุณตอบรับ
+                </span>
+                <!-- Dynamic Total Price Badge -->
+                <div style="display: none; font-size: 0.72rem; font-weight: 700; color: #166534; background: #ecfdf5; border: 1px solid #bbf7d0; padding: 0.15rem 0.35rem; border-radius: 6px; align-items: center; gap: 2px;" class="card-total-price-box" data-items="<%= JSON.stringify(transfer.items) %>">
+                  <span>💰</span> <span class="card-total-price-value">-</span>
+                </div>
+              </div>
             </div>
 
             <!-- Card Body: Items List & Payment Options -->
@@ -113,12 +119,6 @@
                     <span class="badge" style="background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; font-size: 0.75rem; padding: 0.25rem 0.5rem; display: inline-flex; align-items: center; gap: 0.25rem;">🖼️ QR Code</span>
                   <% } %>
                 </div>
-              </div>
-
-              <!-- Dynamic Total Price Box -->
-              <div style="font-size: 0.8rem; font-weight: 700; color: #0f172a; margin-top: 0.5rem; display: none; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.5rem 0.75rem; border-radius: 8px;" class="card-total-price-box" data-items="<%= JSON.stringify(transfer.items) %>">
-                <span style="color: #166534;">💰 หากรับทั้งหมด:</span>
-                <span class="card-total-price-value" style="color: #166534; font-size: 0.9rem;">- บาท</span>
               </div>
             </div>
 
