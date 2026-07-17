@@ -436,11 +436,12 @@
   function selectAllModalItems(checked) {
     document.querySelectorAll('#modal-items-container input[name="item_ids"]').forEach(cb => {
       cb.checked = checked;
-      updateModalCardStyle(cb);
+      updateModalCardStyle(cb, false); // pass false to avoid redundant calls
     });
     document.querySelectorAll('#modal-items-container input[type="checkbox"]:not([name="item_ids"])').forEach(cb => {
       cb.checked = checked;
     });
+    recalculateTotalFromPrices();
   }
 
   function toggleSelectModalPage(pageCheckbox) {
@@ -448,11 +449,12 @@
     const itemCheckboxes = pageCard.querySelectorAll('input[name="item_ids"]');
     itemCheckboxes.forEach(cb => {
       cb.checked = pageCheckbox.checked;
-      updateModalCardStyle(cb);
+      updateModalCardStyle(cb, false); // pass false to avoid redundant calls
     });
+    recalculateTotalFromPrices();
   }
 
-  function updateModalCardStyle(cb) {
+  function updateModalCardStyle(cb, triggerRecalc = true) {
     const card = cb.closest('label');
     if (cb.checked) {
       card.style.backgroundColor = '#eff6ff'; // Light blue
@@ -460,6 +462,9 @@
     } else {
       card.style.backgroundColor = 'transparent';
       card.style.borderColor = '#e2e8f0';
+    }
+    if (triggerRecalc) {
+      recalculateTotalFromPrices();
     }
   }
 
