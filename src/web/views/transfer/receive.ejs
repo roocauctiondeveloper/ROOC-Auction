@@ -54,6 +54,7 @@
       </div>
     </div>
 
+    <div id="pending-inbox-container">
     <% if (pendingTransfers.length === 0) { %>
       <p style="color: var(--text-light); text-align: center; padding: 3rem 0; font-size: 0.95rem;">
         ไม่มีข้อเสนอโอนสิทธิ์ส่งถึงคุณในขณะนี้
@@ -125,6 +126,7 @@
         <% }) %>
       </div>
     <% } %>
+    </div>
   </div>
 
   <!-- Section 2: Details view dynamically populated (Modal Overlay) -->
@@ -608,19 +610,25 @@
     }
   });
 
-  // Auto refresh page every 15 seconds to fetch new incoming offers, but only if user is idle (not claiming and not typing)
+  // Auto refresh inbox every 15 seconds in the background (silently without reloading page)
   setInterval(() => {
     const overlay = document.getElementById('claim-modal-overlay');
     const isModalOpen = overlay && overlay.style.display !== 'none';
     
-    // Block reload if user is actively focusing on any input/textarea (like typing prices)
-    const isInputFocused = document.activeElement && (
-      document.activeElement.tagName === 'INPUT' || 
-      document.activeElement.tagName === 'TEXTAREA'
-    );
-    
-    if (!isModalOpen && !isInputFocused) {
-      window.location.reload();
+    // Only refresh if modal is not open to avoid disrupting active claims
+    if (!isModalOpen) {
+      fetch(window.location.href)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const newInbox = doc.getElementById('pending-inbox-container');
+          const oldInbox = document.getElementById('pending-inbox-container');
+          if (newInbox && oldInbox) {
+            oldInbox.innerHTML = newInbox.innerHTML;
+          }
+        })
+        .catch(err => console.error('Silent refresh failed:', err));
     }
   }, 15000); // 15 seconds
 </script>
