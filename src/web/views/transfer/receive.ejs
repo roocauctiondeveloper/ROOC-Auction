@@ -19,28 +19,38 @@
       รายการจองไอเทมที่ผู้เล่นท่านอื่นประสงค์จะโอนสิทธิ์ให้กับคุณ เลือกดีลที่ต้องการกรอกราคาและโอนเงินชำระ
     </p>
 
+    <%
+      const uniqueTypes = new Set(['Album', 'Illution Box', 'Light-Dark', 'Time-Space']);
+      pendingTransfers.forEach(t => {
+        (t.items || []).forEach(item => {
+          uniqueTypes.add(item.item_type);
+        });
+      });
+      const typesArray = Array.from(uniqueTypes);
+      const typeDisplayMap = {
+        'Album': '📒 Album',
+        'Illution Box': '🧩 Box',
+        'Feather': '🪶 Feather',
+        'Card': '🎴 Card',
+        'Book': '📖 Book',
+        'Light-Dark': '🤍 LD',
+        'Time-Space': '❤️ TS'
+      };
+    %>
     <!-- Global Price Configuration (Locked outside) -->
-    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; max-width: 600px;">
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; max-width: 650px;">
       <div style="font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
         <span>🧮 กำหนดราคาต่อชิ้นตามประเภท (คำนวณราคายอดรวมอัตโนมัติ)</span>
       </div>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 0.75rem;">
-        <div style="display: flex; align-items: center; gap: 4px;">
-          <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;">📖 Album:</span>
-          <input type="number" id="price-album" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px;">
-          <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;">🧩 Box:</span>
-          <input type="number" id="price-box" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px;">
-          <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;">🤍 LD:</span>
-          <input type="number" id="price-ld" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px;">
-          <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;">❤️ TS:</span>
-          <input type="number" id="price-ts" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
-        </div>
+        <% typesArray.forEach(type => { 
+             const display = typeDisplayMap[type] || type;
+        %>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;"><%= display %>:</span>
+            <input type="number" class="price-input-dynamic" data-type="<%= type %>" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
+          </div>
+        <% }) %>
       </div>
     </div>
 
@@ -119,7 +129,7 @@
 
   <!-- Section 2: Details view dynamically populated (Modal Overlay) -->
   <div id="claim-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
-    <div id="claim-details-card" class="card" style="width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto; margin: 0; border: 2px solid var(--primary); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); animation: modalFadeIn 0.2s ease-out;">
+    <div id="claim-details-card" class="card" style="width: 100%; max-width: 1100px; max-height: 90vh; overflow-y: auto; margin: 0; border: 2px solid var(--primary); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); animation: modalFadeIn 0.2s ease-out;">
       <h2 style="color: #0f172a; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
         <span style="display: flex; align-items: center; gap: 0.5rem;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
@@ -549,10 +559,11 @@
   function recalculateTotalFromPrices() {
     if (!activeTransfer) return;
     
-    const albumPrice = parseFloat(document.getElementById('price-album').value) || 0;
-    const boxPrice = parseFloat(document.getElementById('price-box').value) || 0;
-    const ldPrice = parseFloat(document.getElementById('price-ld').value) || 0;
-    const tsPrice = parseFloat(document.getElementById('price-ts').value) || 0;
+    const priceMap = {};
+    document.querySelectorAll('.price-input-dynamic').forEach(input => {
+      const type = input.getAttribute('data-type');
+      priceMap[type] = parseFloat(input.value) || 0;
+    });
 
     let total = 0;
     const checkedCheckboxes = document.querySelectorAll('input[name="item_ids"]:checked');
@@ -560,10 +571,7 @@
       const itemId = parseInt(cb.value);
       const item = (activeTransfer.items || []).find(i => i.id === itemId);
       if (item) {
-        if (item.item_type === 'Album') total += albumPrice;
-        else if (item.item_type === 'Illution Box') total += boxPrice;
-        else if (item.item_type === 'Light-Dark') total += ldPrice;
-        else if (item.item_type === 'Time-Space') total += tsPrice;
+        total += priceMap[item.item_type] || 0;
       }
     });
 
@@ -573,16 +581,10 @@
   }
 
   function saveAndRecalculatePrices() {
-    const albumVal = document.getElementById('price-album').value;
-    const boxVal = document.getElementById('price-box').value;
-    const ldVal = document.getElementById('price-ld').value;
-    const tsVal = document.getElementById('price-ts').value;
-
-    // Save to localStorage for persistence
-    localStorage.setItem('rooc_price_album', albumVal);
-    localStorage.setItem('rooc_price_box', boxVal);
-    localStorage.setItem('rooc_price_ld', ldVal);
-    localStorage.setItem('rooc_price_ts', tsVal);
+    document.querySelectorAll('.price-input-dynamic').forEach(input => {
+      const type = input.getAttribute('data-type');
+      localStorage.setItem('rooc_price_' + type, input.value);
+    });
 
     if (activeTransfer) {
       recalculateTotalFromPrices();
@@ -591,10 +593,10 @@
 
   // Load persisted price calculator inputs from localStorage on page load
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('price-album').value = localStorage.getItem('rooc_price_album') || '';
-    document.getElementById('price-box').value = localStorage.getItem('rooc_price_box') || '';
-    document.getElementById('price-ld').value = localStorage.getItem('rooc_price_ld') || '';
-    document.getElementById('price-ts').value = localStorage.getItem('rooc_price_ts') || '';
+    document.querySelectorAll('.price-input-dynamic').forEach(input => {
+      const type = input.getAttribute('data-type');
+      input.value = localStorage.getItem('rooc_price_' + type) || '';
+    });
   });
 
   // Submit button loading state
