@@ -12,22 +12,27 @@
     100% { background-position: 0% 50%; }
   }
   @keyframes glowSpecial {
-    0% { box-shadow: 0 0 10px rgba(236, 72, 153, 0.4), 0 0 18px rgba(99, 102, 241, 0.2); }
-    50% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.8), 0 0 32px rgba(99, 102, 241, 0.5); }
-    100% { box-shadow: 0 0 10px rgba(236, 72, 153, 0.4), 0 0 18px rgba(99, 102, 241, 0.2); }
+    0% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 105, 180, 0.2); }
+    50% { box-shadow: 0 0 22px rgba(255, 215, 0, 0.9), 0 0 35px rgba(255, 105, 180, 0.6); }
+    100% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 105, 180, 0.2); }
   }
   @keyframes pulseCrown {
     0% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 2px #ffd700); }
-    50% { transform: scale(1.15) rotate(5deg); filter: drop-shadow(0 0 7px #ff8c00); }
+    50% { transform: scale(1.18) rotate(7deg); filter: drop-shadow(0 0 8px #ff8c00); }
     100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 2px #ffd700); }
   }
+  @keyframes blinkSparkle {
+    0% { transform: scale(0.5) rotate(0deg); opacity: 0.2; filter: drop-shadow(0 0 1px #ffd700); }
+    50% { transform: scale(1.2) rotate(15deg); opacity: 1; filter: drop-shadow(0 0 6px #ffd700); }
+    100% { transform: scale(0.5) rotate(0deg); opacity: 0.2; filter: drop-shadow(0 0 1px #ffd700); }
+  }
   .special-sender-card {
-    border: 3px solid transparent !important;
-    background-image: linear-gradient(white, white), linear-gradient(135deg, #ff007f, #7f00ff, #00f0ff, #ff007f) !important;
+    border: 4px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #ffd700, #ff007f, #7f00ff, #00f0ff, #ffd700) !important;
     background-origin: border-box !important;
     background-clip: content-box, border-box !important;
     background-size: 300% 300% !important;
-    animation: gradientBorder 4s ease infinite, glowSpecial 3s ease-in-out infinite !important;
+    animation: gradientBorder 3s ease infinite, glowSpecial 2.5s ease-in-out infinite !important;
   }
 </style>
 
@@ -94,17 +99,32 @@
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
         <% pendingTransfers.forEach(transfer => { %>
           <% const isSpecialUser = specialUserIds.has(transfer.sender_id); %>
-          <div class="<%= isSpecialUser ? 'special-sender-card' : '' %>" style="position: relative; background: <%= isSpecialUser ? 'linear-gradient(to bottom, #ffffff 0%, #fffdf2 100%)' : 'white' %>; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.02); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.08)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)'">
+          <div class="<%= isSpecialUser ? 'special-sender-card' : '' %>" style="position: relative; background: <%= isSpecialUser ? 'linear-gradient(to bottom, #ffffff 0%, #fffef0 50%, #fffcf2 100%)' : 'white' %>; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.02); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.08)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)'">
             
             <% if (isSpecialUser) { %>
               <!-- Giant Golden Crown Watermark -->
-              <div style="position: absolute; right: 15px; bottom: 65px; opacity: 0.1; color: #ffd700; pointer-events: none; z-index: 0; transform: rotate(15deg);">
+              <div style="position: absolute; right: 15px; bottom: 65px; opacity: 0.12; color: #ffd700; pointer-events: none; z-index: 0; transform: rotate(15deg);">
                 <svg width="140" height="140" viewBox="0 0 24 24" fill="currentColor"><path d="M2 4l3 7 7-9 7 9 3-7 1 13H1L2 4zm18 15v1H4v-1h16z"/></svg>
               </div>
+
+              <!-- Royal Gold Corner Ornaments -->
+              <div style="position: absolute; top: 0; left: 0; width: 20px; height: 20px; border-top: 3px solid #ffd700; border-left: 3px solid #ffd700; border-top-left-radius: 12px; pointer-events: none; z-index: 10;"></div>
+              <div style="position: absolute; bottom: 0; left: 0; width: 20px; height: 20px; border-bottom: 3px solid #ffd700; border-left: 3px solid #ffd700; border-bottom-left-radius: 12px; pointer-events: none; z-index: 10;"></div>
+              <div style="position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; border-bottom: 3px solid #ffd700; border-right: 3px solid #ffd700; border-bottom-right-radius: 12px; pointer-events: none; z-index: 10;"></div>
+
+              <!-- Royal Corner Sash Ribbon -->
+              <div style="position: absolute; top: 12px; right: -30px; background: linear-gradient(135deg, #ffd700, #ff8c00); color: #8b0000; font-size: 0.6rem; font-weight: 900; padding: 0.15rem 2.2rem; transform: rotate(45deg); box-shadow: 0 2px 4px rgba(0,0,0,0.15); text-transform: uppercase; letter-spacing: 1px; border: 1px solid #ff8c00; z-index: 9; text-shadow: 0 1px 1px rgba(255,255,255,0.5);">
+                👑 VIP
+              </div>
+
+              <!-- Floating Sparkles -->
+              <span style="position: absolute; top: 15px; left: 165px; animation: blinkSparkle 1.4s infinite ease-in-out; color: #ffd700; font-size: 1.1rem; z-index: 5; pointer-events: none;">✨</span>
+              <span style="position: absolute; bottom: 75px; left: 18px; animation: blinkSparkle 2s infinite ease-in-out; color: #ffd700; font-size: 0.85rem; z-index: 5; pointer-events: none;">✨</span>
+              <span style="position: absolute; top: 135px; right: 12px; animation: blinkSparkle 1.7s infinite ease-in-out; color: #ffd700; font-size: 0.95rem; z-index: 5; pointer-events: none;">✨</span>
             <% } %>
 
             <!-- Card Header: Sender Info -->
-            <div style="background: <%= isSpecialUser ? 'linear-gradient(135deg, #fffdf5 0%, #fff8dc 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' %>; padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1;">
+            <div style="background: <%= isSpecialUser ? 'linear-gradient(135deg, #fffdf2 0%, #fff7cc 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' %>; padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1;">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <div style="background: <%= isSpecialUser ? 'linear-gradient(135deg, #ffd700, #ff8c00)' : 'var(--primary)' %>; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; <%= isSpecialUser ? 'box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);' : '' %>">
                   <%= transfer.sender_name.charAt(0).toUpperCase() %>
