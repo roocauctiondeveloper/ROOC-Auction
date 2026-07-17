@@ -114,6 +114,12 @@
                   <% } %>
                 </div>
               </div>
+
+              <!-- Dynamic Total Price Box -->
+              <div style="font-size: 0.8rem; font-weight: 700; color: #0f172a; margin-top: 0.5rem; display: none; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.5rem 0.75rem; border-radius: 8px;" class="card-total-price-box" data-items="<%= JSON.stringify(transfer.items) %>">
+                <span style="color: #166534;">💰 หากรับทั้งหมด:</span>
+                <span class="card-total-price-value" style="color: #166534; font-size: 0.9rem;">- บาท</span>
+              </div>
             </div>
 
             <!-- Card Footer: Action Button -->
@@ -588,9 +594,42 @@
       localStorage.setItem('rooc_price_' + type, input.value);
     });
 
+    updateCardTotals();
+
     if (activeTransfer) {
       recalculateTotalFromPrices();
     }
+  }
+
+  function updateCardTotals() {
+    const priceMap = {};
+    document.querySelectorAll('.price-input-dynamic').forEach(input => {
+      const type = input.getAttribute('data-type');
+      priceMap[type] = parseFloat(input.value) || 0;
+    });
+
+    document.querySelectorAll('.card-total-price-box').forEach(box => {
+      try {
+        const items = JSON.parse(box.getAttribute('data-items') || '[]');
+        let cardTotal = 0;
+        items.forEach(item => {
+          cardTotal += priceMap[item.item_type] || 0;
+        });
+        
+        const valueSpan = box.querySelector('.card-total-price-value');
+        if (valueSpan) {
+          if (cardTotal > 0) {
+            valueSpan.innerText = cardTotal.toFixed(2).replace(/\.00$/, '') + ' บาท';
+            box.style.display = 'flex';
+          } else {
+            valueSpan.innerText = '- บาท';
+            box.style.display = 'none';
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing card items:', err);
+      }
+    });
   }
 
   // Load persisted price calculator inputs from localStorage on page load
@@ -599,6 +638,7 @@
       const type = input.getAttribute('data-type');
       input.value = localStorage.getItem('rooc_price_' + type) || '';
     });
+    updateCardTotals();
   });
 
   // Submit button loading state
@@ -626,6 +666,7 @@
           const oldInbox = document.getElementById('pending-inbox-container');
           if (newInbox && oldInbox) {
             oldInbox.innerHTML = newInbox.innerHTML;
+            updateCardTotals();
           }
         })
         .catch(err => console.error('Silent refresh failed:', err));
