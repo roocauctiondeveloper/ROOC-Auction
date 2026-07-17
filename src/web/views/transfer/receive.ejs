@@ -291,13 +291,11 @@
     // Set form action url
     document.getElementById('claim-form').action = '/transfer/claim/' + transfer.id;
 
-    // Reset amount and price calculator inputs
-    const amountInput = document.getElementById('amount');
-    amountInput.value = '';
-    document.getElementById('price-album').value = '';
-    document.getElementById('price-box').value = '';
-    document.getElementById('price-ld').value = '';
-    document.getElementById('price-ts').value = '';
+    // Load persisted price calculator inputs from localStorage
+    document.getElementById('price-album').value = localStorage.getItem('rooc_price_album') || '';
+    document.getElementById('price-box').value = localStorage.getItem('rooc_price_box') || '';
+    document.getElementById('price-ld').value = localStorage.getItem('rooc_price_ld') || '';
+    document.getElementById('price-ts').value = localStorage.getItem('rooc_price_ts') || '';
 
     // Group items by page name
     const grouped = {};
@@ -413,6 +411,9 @@
     } else {
       ppSection.style.display = 'none';
     }
+    
+    // Recalculate total immediately on open using the loaded localStorage prices
+    recalculateTotalFromPrices();
 
     // Show main details card modal
     document.getElementById('claim-modal-overlay').style.display = 'flex';
@@ -548,10 +549,21 @@
   function recalculateTotalFromPrices() {
     if (!activeTransfer) return;
     
-    const albumPrice = parseFloat(document.getElementById('price-album').value) || 0;
-    const boxPrice = parseFloat(document.getElementById('price-box').value) || 0;
-    const ldPrice = parseFloat(document.getElementById('price-ld').value) || 0;
-    const tsPrice = parseFloat(document.getElementById('price-ts').value) || 0;
+    const albumVal = document.getElementById('price-album').value;
+    const boxVal = document.getElementById('price-box').value;
+    const ldVal = document.getElementById('price-ld').value;
+    const tsVal = document.getElementById('price-ts').value;
+
+    // Save to localStorage for persistence
+    localStorage.setItem('rooc_price_album', albumVal);
+    localStorage.setItem('rooc_price_box', boxVal);
+    localStorage.setItem('rooc_price_ld', ldVal);
+    localStorage.setItem('rooc_price_ts', tsVal);
+
+    const albumPrice = parseFloat(albumVal) || 0;
+    const boxPrice = parseFloat(boxVal) || 0;
+    const ldPrice = parseFloat(ldVal) || 0;
+    const tsPrice = parseFloat(tsVal) || 0;
 
     let total = 0;
     const checkedCheckboxes = document.querySelectorAll('input[name="item_ids"]:checked');
