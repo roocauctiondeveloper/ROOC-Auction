@@ -174,6 +174,31 @@
               </p>
             </div>
 
+            <!-- Section: กำหนดราคาเพื่อคำนวณอัตโนมัติ -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+              <div style="font-size: 0.8rem; font-weight: 700; color: #166534; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 4px;">
+                <span>🧮 กำหนดราคาต่อชิ้นตามประเภท (คำนวณราคายอดรวมอัตโนมัติ)</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 0.75rem; color: #166534; min-width: 60px; font-weight: 600;">📖 Album:</span>
+                  <input type="number" id="price-album" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 75px;" oninput="recalculateTotalFromPrices()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 0.75rem; color: #166534; min-width: 60px; font-weight: 600;">🧩 Box:</span>
+                  <input type="number" id="price-box" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 75px;" oninput="recalculateTotalFromPrices()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 0.75rem; color: #166534; min-width: 60px; font-weight: 600;">🤍 LD:</span>
+                  <input type="number" id="price-ld" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 75px;" oninput="recalculateTotalFromPrices()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 0.75rem; color: #166534; min-width: 60px; font-weight: 600;">❤️ TS:</span>
+                  <input type="number" id="price-ts" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 75px;" oninput="recalculateTotalFromPrices()">
+                </div>
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="amount">ยอดเงินโอนจริงที่ตกลงไว้ (บาท):</label>
               <input type="number" name="amount" id="amount" placeholder="เช่น 150" step="0.01" min="0.01" required>
@@ -266,9 +291,13 @@
     // Set form action url
     document.getElementById('claim-form').action = '/transfer/claim/' + transfer.id;
 
-    // Reset amount
+    // Reset amount and price calculator inputs
     const amountInput = document.getElementById('amount');
     amountInput.value = '';
+    document.getElementById('price-album').value = '';
+    document.getElementById('price-box').value = '';
+    document.getElementById('price-ld').value = '';
+    document.getElementById('price-ts').value = '';
 
     // Group items by page name
     const grouped = {};
@@ -514,6 +543,32 @@
     link.download = `promptpay-qr-${activeTransfer ? activeTransfer.id : 'temp'}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
+  }
+
+  function recalculateTotalFromPrices() {
+    if (!activeTransfer) return;
+    
+    const albumPrice = parseFloat(document.getElementById('price-album').value) || 0;
+    const boxPrice = parseFloat(document.getElementById('price-box').value) || 0;
+    const ldPrice = parseFloat(document.getElementById('price-ld').value) || 0;
+    const tsPrice = parseFloat(document.getElementById('price-ts').value) || 0;
+
+    let total = 0;
+    const checkedCheckboxes = document.querySelectorAll('input[name="item_ids"]:checked');
+    checkedCheckboxes.forEach(cb => {
+      const itemId = parseInt(cb.value);
+      const item = (activeTransfer.items || []).find(i => i.id === itemId);
+      if (item) {
+        if (item.item_type === 'Album') total += albumPrice;
+        else if (item.item_type === 'Illution Box') total += boxPrice;
+        else if (item.item_type === 'Light-Dark') total += ldPrice;
+        else if (item.item_type === 'Time-Space') total += tsPrice;
+      }
+    });
+
+    const amountInput = document.getElementById('amount');
+    amountInput.value = total > 0 ? total.toFixed(2).replace(/\.00$/, '') : '';
+    amountInput.dispatchEvent(new Event('input'));
   }
 
   // Submit button loading state

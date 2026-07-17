@@ -1,6 +1,6 @@
 {
   "name": "discord-reservation-bot",
-  "version": "1.0.93",
+  "version": "1.0.94",
   "description": "Discord Reservation Bot with Web Dashboard",
   "main": "src/index.js",
   "scripts": {
