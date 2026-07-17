@@ -79,15 +79,16 @@
       </p>
     <% } else { %>
       <%
+        const specialUserIds = new Set(['295747827517227009', '1496001204549976114']);
         pendingTransfers.sort((a, b) => {
-          const aSpecial = a.sender_id === '295747827517227009' ? 1 : 0;
-          const bSpecial = b.sender_id === '295747827517227009' ? 1 : 0;
+          const aSpecial = specialUserIds.has(a.sender_id) ? 1 : 0;
+          const bSpecial = specialUserIds.has(b.sender_id) ? 1 : 0;
           return bSpecial - aSpecial;
         });
       %>
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
         <% pendingTransfers.forEach(transfer => { %>
-          <% const isSpecialUser = transfer.sender_id === '295747827517227009'; %>
+          <% const isSpecialUser = specialUserIds.has(transfer.sender_id); %>
           <div class="<%= isSpecialUser ? 'special-sender-card' : '' %>" style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.02); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.08)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0,0,0,0.05)'">
             
             <!-- Card Header: Sender Info -->
