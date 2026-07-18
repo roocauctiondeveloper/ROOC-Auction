@@ -97,20 +97,40 @@
         'Time-Space': '❤️ TS'
       };
     %>
-    <!-- Global Price Configuration (Locked outside) -->
-    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; max-width: 650px;">
-      <div style="font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
-        <span>🧮 กำหนดราคาต่อชิ้นตามประเภท (คำนวณราคายอดรวมอัตโนมัติ)</span>
+    <!-- Global Configurations Row -->
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; max-width: 1300px;">
+      <!-- Global Price Configuration (Locked outside) -->
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 280px; max-width: 600px;">
+        <div style="font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
+          <span>🧮 กำหนดราคาต่อชิ้นตามประเภท (คำนวณราคายอดรวมอัตโนมัติ)</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 0.75rem;">
+          <% typesArray.forEach(type => { 
+               const display = typeDisplayMap[type] || type;
+          %>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;"><%= display %>:</span>
+              <input type="number" class="price-input-dynamic" data-type="<%= type %>" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
+            </div>
+          <% }) %>
+        </div>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 0.75rem;">
-        <% typesArray.forEach(type => { 
-             const display = typeDisplayMap[type] || type;
-        %>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <span style="font-size: 0.75rem; color: #166534; font-weight: 600; min-width: 55px;"><%= display %>:</span>
-            <input type="number" class="price-input-dynamic" data-type="<%= type %>" placeholder="0" min="0" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px;" oninput="saveAndRecalculatePrices()">
-          </div>
-        <% }) %>
+
+      <!-- Global Quota Configuration (Locked outside) -->
+      <div style="background: #fffdf5; border: 1px solid #fef08a; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 280px; max-width: 600px;">
+        <div style="font-size: 0.85rem; font-weight: 700; color: #854d0e; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
+          <span>⚙️ กำหนดโควตาส่วนตัวในการรับโอน (ชิ้น)</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 0.75rem;">
+          <% typesArray.forEach(type => { 
+               const display = typeDisplayMap[type] || type;
+          %>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 0.75rem; color: #854d0e; font-weight: 600; min-width: 55px;"><%= display %>:</span>
+              <input type="number" class="quota-input-type" data-type="<%= type %>" placeholder="ไม่จำกัด" min="1" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px; background: white;" oninput="savePersonalQuotasAndEnforce()">
+            </div>
+          <% }) %>
+        </div>
       </div>
     </div>
 
@@ -313,33 +333,7 @@
           <h3 style="font-size: 1.1rem; color: #0f172a; margin-bottom: 1rem;">กรอกข้อมูลการโอนเงิน</h3>
           
           <form id="claim-form" action="" method="POST" enctype="multipart/form-data">
-            <!-- Personal Quota Configurator -->
-            <div style="background: #fffdf5; border: 1px solid #fef08a; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
-              <div style="font-size: 0.85rem; font-weight: 700; color: #854d0e; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 4px;">
-                <span>⚙️ กำหนดโควตาส่วนตัวในการรับโอน (ชิ้น):</span>
-              </div>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem 1rem;">
-                <% 
-                  const displayMap = {
-                    'Album': '📒 Album',
-                    'Illution Box': '🧩 Box',
-                    'Feather': '🪶 Feather',
-                    'Card': '🎴 Card',
-                    'Book': '📖 Book',
-                    'Light-Dark': '🤍 LD',
-                    'Time-Space': '❤️ TS'
-                  };
-                  const quotaTypes = ['Album', 'Illution Box', 'Feather', 'Card', 'Book', 'Light-Dark', 'Time-Space'];
-                  quotaTypes.forEach(type => {
-                    const display = displayMap[type] || type;
-                %>
-                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                    <span style="font-size: 0.75rem; color: #854d0e; font-weight: 600;"><%= display %>:</span>
-                    <input type="number" class="quota-input-type" data-type="<%= type %>" placeholder="ไม่จำกัด" min="1" style="padding: 0.2rem; font-size: 0.75rem; height: auto; border: 1px solid #fef08a; border-radius: 4px; width: 60px; background: white;" oninput="savePersonalQuotasAndEnforce()">
-                  </div>
-                <% }) %>
-              </div>
-            </div>
+
 
             <!-- Select items to claim (interactive checklist) -->
             <div class="form-group" style="margin-bottom: 1.5rem;">
@@ -667,13 +661,6 @@
       ppSection.style.display = 'none';
     }
     
-    // Load personal quotas from localStorage
-    const savedQuotas = JSON.parse(localStorage.getItem('personal_quotas') || '{}');
-    document.querySelectorAll('.quota-input-type').forEach(input => {
-      const type = input.getAttribute('data-type');
-      input.value = savedQuotas[type] || '';
-    });
-
     // Enforce quotas on initial load
     validateQuotasAndEnforce();
 
@@ -1089,6 +1076,14 @@
       const type = input.getAttribute('data-type');
       input.value = localStorage.getItem('rooc_price_' + type) || '';
     });
+    
+    // Load persisted personal quotas from localStorage on page load
+    const savedQuotas = JSON.parse(localStorage.getItem('personal_quotas') || '{}');
+    document.querySelectorAll('.quota-input-type').forEach(input => {
+      const type = input.getAttribute('data-type');
+      input.value = savedQuotas[type] || '';
+    });
+
     updateCardTotals();
   });
 
