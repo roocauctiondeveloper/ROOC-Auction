@@ -1019,14 +1019,29 @@ async function completeTransfer(transferId, recipientId, recipientName, amount, 
 
 async function getTransferHistoryForUser(userId) {
   return db.all(`
-    SELECT * FROM transfer_logs
-    WHERE sender_id = ? OR recipient_id = ?
-    ORDER BY completed_at DESC
+    SELECT tl.*,
+           t.bank_name, t.bank_account_number, t.bank_account_name, t.payment_qr_url, t.promptpay_id, t.promptpay_name
+    FROM transfer_logs tl
+    LEFT JOIN transfers t ON t.round_id = tl.round_id 
+      AND t.sender_id = tl.sender_id 
+      AND t.recipient_id = tl.recipient_id
+      AND t.status = 'completed'
+    WHERE tl.sender_id = ? OR tl.recipient_id = ?
+    ORDER BY tl.completed_at DESC
   `, [userId, userId]);
 }
 
 async function getTransferLogById(logId) {
-  return db.get(`SELECT * FROM transfer_logs WHERE id = ?`, [logId]);
+  return db.get(`
+    SELECT tl.*,
+           t.bank_name, t.bank_account_number, t.bank_account_name, t.payment_qr_url, t.promptpay_id, t.promptpay_name
+    FROM transfer_logs tl
+    LEFT JOIN transfers t ON t.round_id = tl.round_id 
+      AND t.sender_id = tl.sender_id 
+      AND t.recipient_id = tl.recipient_id
+      AND t.status = 'completed'
+    WHERE tl.id = ?
+  `, [logId]);
 }
 
 async function updateRetroactiveSlip(logId, recipientId, amount, slipUrl) {
