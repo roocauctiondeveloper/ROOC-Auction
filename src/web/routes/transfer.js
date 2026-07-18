@@ -319,11 +319,13 @@ router.get('/receive', async (req, res) => {
     const currentRound = await db.getOrCreateCurrentRound();
     const pendingTransfers = await db.getPendingTransfersForRecipient(req.user.discord_user_id);
     const history = await db.getTransferHistoryForUser(req.user.discord_user_id);
+    const activeReservationsCount = await db.getUserActiveReservationsCount(req.user.discord_user_id, currentRound.id);
 
     res.render('transfer/receive', {
       pendingTransfers,
       history,
-      currentRound
+      currentRound,
+      activeReservationsCount
     });
   } catch (err) {
     console.error('Error loading receive transfer page:', err);

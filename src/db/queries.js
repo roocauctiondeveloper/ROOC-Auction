@@ -1044,6 +1044,25 @@ async function getTransferLogById(logId) {
   `, [logId]);
 }
 
+async function getUserActiveReservationsCount(userId, roundId) {
+  const rows = await db.all(`
+    SELECT i.item_type, COUNT(*) as count
+    FROM reservations r
+    JOIN items i ON r.item_id = i.id
+    WHERE r.round_id = ?
+      AND (COALESCE(r.transferred_to_id, r.discord_user_id) = ?)
+    GROUP BY i.item_type
+  `, [roundId, userId]);
+  
+  const counts = {};
+  if (rows) {
+    rows.forEach(row => {
+      counts[row.item_type] = parseInt(row.count) || 0;
+    });
+  }
+  return counts;
+}
+
 async function updateRetroactiveSlip(logId, recipientId, amount, slipUrl) {
   return db.run(`
     UPDATE transfer_logs
@@ -1091,4 +1110,5 @@ module.exports = {
   getWhitelistMemberByDiscordId,
   getTransferLogById,
   updateRetroactiveSlip,
+  getUserActiveReservationsCount,
 };

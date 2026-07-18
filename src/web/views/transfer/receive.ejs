@@ -536,6 +536,7 @@
 </div>
 
 <script>
+  const activeReservationsCount = <%- JSON.stringify(locals.activeReservationsCount || {}) %>;
   let activeTransfer = null;
 
   function showClaimDetails(transfer) {
@@ -885,17 +886,18 @@
     Object.keys(quotas).forEach(type => {
       const quota = quotas[type];
       if (quota !== null) {
-        const count = checkedCounts[type] || 0;
+        const alreadyOwned = activeReservationsCount[type] || 0;
+        const count = alreadyOwned + (checkedCounts[type] || 0);
         if (count > quota) {
           if (changedCheckbox && changedCheckbox.checked && changedCheckbox.getAttribute('data-item-type') === type) {
             // Prevent checking this item
             changedCheckbox.checked = false;
             updateModalCardStyle(changedCheckbox, false);
-            alert(`⚠️ เกินโควตาส่วนตัวที่คุณกำหนดไว้สำหรับ ${clientDisplayItemType(type)} (สูงสุด ${quota} ชิ้น)`);
+            alert(`⚠️ เกินโควตาส่วนตัวที่คุณกำหนดไว้สำหรับ ${clientDisplayItemType(type)} (มีของตัวเองจองไว้แล้ว ${alreadyOwned} ชิ้น, โควตาสูงสุดคือ ${quota} ชิ้น)`);
           } else {
             // Automatically uncheck the last checked items of this type
             const list = checkedCheckboxes[type] || [];
-            while (list.length > quota) {
+            while (alreadyOwned + list.length > quota && list.length > 0) {
               const cbToUncheck = list.pop();
               cbToUncheck.checked = false;
               updateModalCardStyle(cbToUncheck, false);
