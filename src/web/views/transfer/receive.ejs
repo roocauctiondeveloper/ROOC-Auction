@@ -330,24 +330,24 @@
                 *ของชิ้นที่คุณเอาเครื่องหมายถูกออก จะยังคงเป็นสิทธิ์การจองของผู้ส่งตามเดิม
               </p>
             </div>
-            <div class="form-group">
+             <div class="form-group">
               <label for="amount">ยอดเงินโอนจริงที่ตกลงไว้ (บาท):</label>
-              <input type="number" name="amount" id="amount" placeholder="เช่น 150" step="0.01" min="0.01" required>
+              <input type="number" name="amount" id="amount" placeholder="เว้นว่างไว้ หรือใส่ยอดเงิน เช่น 150" step="0.01" min="0">
               <p style="color: var(--text-light); font-size: 0.8rem; margin-top: 0.3rem;">
-                *ยอดเงินนี้จะถูกนำมาคำนวณ PromptPay QR ด้านซ้าย และส่งไปให้ผู้ส่งตรวจสอบสลิป
+                *ยอดเงินนี้จะนำมาคำนวณ QR (หากประสงค์โอนภายหลัง สามารถเว้นว่างไว้ได้)
               </p>
             </div>
 
             <div class="form-group" style="margin-top: 1.5rem;">
-              <label for="slip">แนบรูปภาพสลิปโอนเงิน:</label>
-              <input type="file" name="slip" id="slip" accept="image/*" required>
+              <label for="slip">แนบรูปภาพสลิปโอนเงิน (ถ้ามี):</label>
+              <input type="file" name="slip" id="slip" accept="image/*">
               <p style="color: var(--text-light); font-size: 0.8rem; margin-top: 0.3rem;">
-                *กรุณาแนบรูปภาพหลักฐานสลิปโอนเงินจริงเท่านั้น (ไม่จำกัดรูปสลิปของธนาคารใด)
+                *หากยังไม่โอนเงินหรือไม่แนบสลิป ระบบจะโอนสิทธิ์จองให้คุณทันที และคุณสามารถโอนเงินตามมาภายหลังได้
               </p>
             </div>
 
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">
-              ✅ ฉันโอนเงินแล้วและยืนยันรับสิทธิ์
+              ✅ ยืนยันรับสิทธิ์จอง (โอนเลย หรือ โอนภายหลัง)
             </button>
           </form>
         </div>

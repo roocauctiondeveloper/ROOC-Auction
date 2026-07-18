@@ -349,14 +349,13 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
     return res.redirect('/transfer/receive');
   }
 
-  if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-    req.session.error_msg = 'กรุณากรอกยอดเงินโอนจริงให้ถูกต้อง';
-    return res.redirect('/transfer/receive');
-  }
-
-  if (!req.file) {
-    req.session.error_msg = 'กรุณาอัปโหลดรูปภาพสลิปโอนเงินเพื่อยืนยัน';
-    return res.redirect('/transfer/receive');
+  let parsedAmount = 0;
+  if (amount && amount.trim() !== '') {
+    parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      req.session.error_msg = 'กรุณากรอกยอดเงินโอนให้ถูกต้อง (ต้องเป็นตัวเลขมากกว่าหรือเท่ากับ 0)';
+      return res.redirect('/transfer/receive');
+    }
   }
 
   try {
@@ -390,8 +389,8 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
       }
     }
 
-    // Save slip locally on disk and get URL
-    const slipUrl = '/uploads/' + req.file.filename;
+    // Save slip locally on disk if uploaded, otherwise null
+    const slipUrl = req.file ? ('/uploads/' + req.file.filename) : null;
     const recipientName = req.user.server_name || req.user.discord_username || 'Unknown';
 
     // Complete transfer in database instantly!
@@ -399,7 +398,7 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
       transferId,
       req.user.discord_user_id,
       recipientName,
-      parseFloat(amount),
+      parsedAmount,
       slipUrl,
       selectedItemIds
     );
@@ -415,18 +414,20 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
           const itemsStr = formatItemsList(selectedItems);
 
           const msgContent = 
-            `🎉 **ยืนยันการชำระเงินและรับโอนไอเทมสำเร็จ!**\n` +
+            `🎉 **ยืนยันการรับโอนไอเทมสำเร็จ!**\n` +
             `- **ไอเทม:** ${itemsStr}\n` +
             `- **ผู้รับ:** ${recipientName} (${req.user.discord_username})\n` +
-            `- **จำนวนเงินโอน:** **${parseFloat(amount).toLocaleString()} บาท**\n` +
-            `โปรดตรวจสอบยอดเงินที่โอนเข้ามาในบัญชีของคุณโดยดูหลักฐานสลิปแนบด้านล่างนี้`;
+            `- **จำนวนเงินโอน:** **${parsedAmount.toLocaleString()} บาท**\n` +
+            (req.file ? `โปรดตรวจสอบยอดเงินที่โอนเข้ามาในบัญชีของคุณโดยดูหลักฐานสลิปแนบด้านล่างนี้` : `⚠️ *ผู้รับเลือกรับสิทธิ์และจะชำระเงินตามมาภายหลัง (ยังไม่มีการแนบสลิป)*`);
 
-          // Send DM to sender in background with attachment from local file path
+          const dmOptions = { content: msgContent };
+          if (req.file) {
+            dmOptions.files = [{ attachment: req.file.path, name: req.file.filename }];
+          }
+
+          // Send DM to sender in background
           if (senderUser) {
-            await senderUser.send({
-              content: msgContent,
-              files: [{ attachment: req.file.path, name: req.file.filename }]
-            });
+            await senderUser.send(dmOptions);
           }
 
           // Log to announcement channel in background
@@ -434,10 +435,14 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
           if (announceChannelId) {
             const channel = await discordClient.channels.fetch(announceChannelId);
             if (channel) {
-              await channel.send({
-                content: `🔄 **[โอนสิทธิ์สำเร็จ]** ${transfer.sender_name} ได้โอนสิทธิ์จอง **${itemsStr}** ให้กับ ${recipientName} (ชำระเงิน ${parseFloat(amount).toLocaleString()} บาท)`,
-                files: [{ attachment: req.file.path, name: req.file.filename }]
-              });
+              const announceOptions = {
+                content: `🔄 **[โอนสิทธิ์สำเร็จ]** ${transfer.sender_name} ได้โอนสิทธิ์จอง **${itemsStr}** ให้กับ ${recipientName} ` +
+                  (req.file ? `(ชำระเงิน ${parsedAmount.toLocaleString()} บาท)` : `(รับสิทธิ์แล้ว/รอชำระเงินตามมาภายหลัง)`)
+              };
+              if (req.file) {
+                announceOptions.files = [{ attachment: req.file.path, name: req.file.filename }];
+              }
+              await channel.send(announceOptions);
             }
           }
         } catch (discordErr) {
