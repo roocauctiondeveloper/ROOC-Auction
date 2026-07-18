@@ -1025,6 +1025,18 @@ async function getTransferHistoryForUser(userId) {
   `, [userId, userId]);
 }
 
+async function getTransferLogById(logId) {
+  return db.get(`SELECT * FROM transfer_logs WHERE id = ?`, [logId]);
+}
+
+async function updateRetroactiveSlip(logId, recipientId, amount, slipUrl) {
+  return db.run(`
+    UPDATE transfer_logs
+    SET amount = ?, slip_url = ?
+    WHERE id = ? AND recipient_id = ?
+  `, [amount, slipUrl, logId, recipientId]);
+}
+
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
@@ -1062,4 +1074,6 @@ module.exports = {
   completeTransfer,
   getTransferHistoryForUser,
   getWhitelistMemberByDiscordId,
+  getTransferLogById,
+  updateRetroactiveSlip,
 };

@@ -455,7 +455,7 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
         const currentRound = await db.getOrCreateCurrentRound();
         if (discordClient.isReady() && currentRound.board_channel_id && currentRound.board_message_id) {
           const { updateLiveBoard } = require('../../bot/liveboard');
-          await updateLiveBoard(discordClient, currentRound);
+          await updateLiveBoard(discordClient, currentRound.id);
         }
       } catch (lbErr) {
         console.error('Failed to update live board after transfer in background:', lbErr.message);
@@ -512,6 +512,98 @@ router.post('/cancel/:id', async (req, res) => {
     console.error('Error cancelling transfer:', err);
     req.session.error_msg = 'เกิดข้อผิดพลาดในการยกเลิกคำขอโอน: ' + err.message;
     res.redirect('/transfer/send');
+  }
+});
+
+// ─── POST /transfer/upload-slip-retroactive/:logId ───────────────────────────
+router.post('/upload-slip-retroactive/:logId', uploadDisk.single('slip'), async (req, res) => {
+  const logId = parseInt(req.params.logId);
+  const { amount } = req.body;
+
+  if (!req.file) {
+    req.session.error_msg = 'กรุณาอัปโหลดรูปภาพสลิปโอนเงิน';
+    return res.redirect('/transfer/receive');
+  }
+
+  let parsedAmount = 0;
+  if (amount && amount.trim() !== '') {
+    parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      req.session.error_msg = 'กรุณากรอกยอดเงินโอนให้ถูกต้อง (ต้องเป็นตัวเลขมากกว่า 0)';
+      return res.redirect('/transfer/receive');
+    }
+  } else {
+    req.session.error_msg = 'กรุณากรอกยอดเงินโอนจริง';
+    return res.redirect('/transfer/receive');
+  }
+
+  try {
+    const log = await db.getTransferLogById(logId);
+    if (!log) {
+      req.session.error_msg = 'ไม่พบประวัติรายการโอนนี้';
+      return res.redirect('/transfer/receive');
+    }
+
+    if (log.recipient_id !== req.user.discord_user_id) {
+      req.session.error_msg = 'คุณไม่มีสิทธิ์ในการแก้ไขสลิปของประวัตินี้';
+      return res.redirect('/transfer/receive');
+    }
+
+    if (log.slip_url) {
+      req.session.error_msg = 'รายการนี้มีการแนบสลิปไปแล้ว ไม่สามารถเปลี่ยนสลิปซ้ำได้';
+      return res.redirect('/transfer/receive');
+    }
+
+    const slipUrl = '/uploads/' + req.file.filename;
+
+    // Update log in database
+    await db.updateRetroactiveSlip(logId, req.user.discord_user_id, parsedAmount, slipUrl);
+
+    // Notify via Discord
+    (async () => {
+      if (discordClient.isReady()) {
+        try {
+          const senderUser = await discordClient.users.fetch(log.sender_id);
+          const recipientName = req.user.server_name || req.user.discord_username || 'Unknown';
+
+          const msgContent = 
+            `📬 **มีการแนบหลักฐานสลิปโอนเงินย้อนหลัง!**\n` +
+            `- **ไอเทม:** ${log.item_names}\n` +
+            `- **ผู้รับ/ผู้โอนเงิน:** ${recipientName} (${req.user.discord_username})\n` +
+            `- **ยอดเงินโอน:** **${parsedAmount.toLocaleString()} บาท**\n` +
+            `โปรดตรวจสอบความถูกต้องของสลิปโอนเงินย้อนหลังตามไฟล์แนบด้านล่างนี้`;
+
+          // Send DM to sender in background
+          if (senderUser) {
+            await senderUser.send({
+              content: msgContent,
+              files: [{ attachment: req.file.path, name: req.file.filename }]
+            });
+          }
+
+          // Log to announcement channel in background
+          const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
+          if (announceChannelId) {
+            const channel = await discordClient.channels.fetch(announceChannelId);
+            if (channel) {
+              await channel.send({
+                content: `🔄 **[แนบสลิปย้อนหลังสำเร็จ]** ${recipientName} ได้ส่งหลักฐานการโอนเงินจำนวน **${parsedAmount.toLocaleString()} บาท** สำหรับการโอนสิทธิ์ **${log.item_names}** จาก ${log.sender_name}`,
+                files: [{ attachment: req.file.path, name: req.file.filename }]
+              });
+            }
+          }
+        } catch (discordErr) {
+          console.error('Failed to send retroactive slip Discord notifications:', discordErr.message);
+        }
+      }
+    })();
+
+    req.session.success_msg = 'แนบหลักฐานสลิปโอนเงินย้อนหลังเรียบร้อยแล้ว!';
+    res.redirect('/transfer/receive');
+  } catch (err) {
+    console.error('Error uploading retroactive slip:', err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการแนบสลิป: ' + err.message;
+    res.redirect('/transfer/receive');
   }
 });
 

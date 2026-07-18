@@ -355,6 +355,44 @@
     </div>
   </div>
 
+  <!-- Modal for Retroactive Slip Upload -->
+  <div id="retro-slip-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 0; border: 2px solid var(--primary); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); animation: modalFadeIn 0.2s ease-out;">
+      <h2 style="color: #0f172a; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+        <span style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          แนบสลิปโอนเงินย้อนหลัง
+        </span>
+        <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="closeRetroactiveSlipModal()">ปิด</button>
+      </h2>
+
+      <form id="retro-slip-form" action="" method="POST" enctype="multipart/form-data">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+          <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.35rem;">
+            📦 ไอเทม: <strong id="retro-items-label" style="color: #0f172a;">-</strong>
+          </div>
+          <div style="font-size: 0.85rem; color: #475569;">
+            👤 ผู้ส่ง/เจ้าของเดิม: <strong id="retro-sender-label" style="color: #0f172a;">-</strong>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="retro-amount">ยอดเงินโอนจริง (บาท):</label>
+          <input type="number" name="amount" id="retro-amount" placeholder="เช่น 150" step="0.01" min="0.01" required>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="retro-slip">เลือกไฟล์สลิปโอนเงิน:</label>
+          <input type="file" name="slip" id="retro-slip" accept="image/*" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">
+          📤 อัปโหลดและแจ้งเตือนผู้ส่ง
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Section 3: History Logs for this User -->
   <div class="card">
     <h3 style="color: var(--text); margin-bottom: 1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -400,6 +438,10 @@
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                       ดูสลิป
                     </a>
+                  <% } else if (!isSent) { %>
+                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 600; display: inline-flex; width: auto; gap: 0.2rem;" onclick="openRetroactiveSlipModal(<%= JSON.stringify(log) %>)">
+                      📤 แนบสลิปย้อนหลัง
+                    </button>
                   <% } else { %>
                     <span style="color: var(--text-light); font-size: 0.85rem;">ไม่มีหลักฐาน</span>
                   <% } %>
@@ -551,6 +593,20 @@
     document.getElementById('claim-modal-overlay').style.display = 'none';
     document.body.style.overflow = 'auto'; // Re-enable scroll
     activeTransfer = null;
+  }
+
+  function openRetroactiveSlipModal(log) {
+    document.getElementById('retro-slip-form').action = '/transfer/upload-slip-retroactive/' + log.id;
+    document.getElementById('retro-items-label').innerText = log.item_names || '-';
+    document.getElementById('retro-sender-label').innerText = log.sender_name || '-';
+    document.getElementById('retro-amount').value = log.amount > 0 ? log.amount : '';
+    document.getElementById('retro-slip-modal-overlay').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeRetroactiveSlipModal() {
+    document.getElementById('retro-slip-modal-overlay').style.display = 'none';
+    document.body.style.overflow = 'auto';
   }
 
   // Checkbox helpers
