@@ -313,6 +313,34 @@
           <h3 style="font-size: 1.1rem; color: #0f172a; margin-bottom: 1rem;">กรอกข้อมูลการโอนเงิน</h3>
           
           <form id="claim-form" action="" method="POST" enctype="multipart/form-data">
+            <!-- Personal Quota Configurator -->
+            <div style="background: #fffdf5; border: 1px solid #fef08a; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: #854d0e; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 4px;">
+                <span>⚙️ กำหนดโควตาส่วนตัวในการรับโอน (ชิ้น):</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem 1rem;">
+                <% 
+                  const displayMap = {
+                    'Album': '📒 Album',
+                    'Illution Box': '🧩 Box',
+                    'Feather': '🪶 Feather',
+                    'Card': '🎴 Card',
+                    'Book': '📖 Book',
+                    'Light-Dark': '🤍 LD',
+                    'Time-Space': '❤️ TS'
+                  };
+                  const quotaTypes = ['Album', 'Illution Box', 'Feather', 'Card', 'Book', 'Light-Dark', 'Time-Space'];
+                  quotaTypes.forEach(type => {
+                    const display = displayMap[type] || type;
+                %>
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                    <span style="font-size: 0.75rem; color: #854d0e; font-weight: 600;"><%= display %>:</span>
+                    <input type="number" class="quota-input-type" data-type="<%= type %>" placeholder="ไม่จำกัด" min="1" style="padding: 0.2rem; font-size: 0.75rem; height: auto; border: 1px solid #fef08a; border-radius: 4px; width: 60px; background: white;" oninput="savePersonalQuotasAndEnforce()">
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+
             <!-- Select items to claim (interactive checklist) -->
             <div class="form-group" style="margin-bottom: 1.5rem;">
               <label style="font-weight: 700; margin-bottom: 0.5rem; display: block; color: #0f172a;">เลือกไอเทมที่คุณต้องการรับโอนในรอบนี้:</label>
@@ -590,7 +618,7 @@
 
         const displayType = clientDisplayItemType(item.item_type);
         label.innerHTML = `
-          <input type="checkbox" name="item_ids" value="${item.id}" checked style="width: auto; height: 14px; cursor: pointer; margin: 0;" onchange="updateModalCardStyle(this)">
+          <input type="checkbox" name="item_ids" value="${item.id}" data-item-type="${item.item_type}" checked style="width: auto; height: 14px; cursor: pointer; margin: 0;" onchange="updateModalCardStyle(this)">
           <span style="font-size: 0.75rem; font-weight: 700; color: #1e293b; line-height: 1.2;">${displayType} (#${item.position})</span>
         `;
         itemsDiv.appendChild(label);
@@ -639,6 +667,16 @@
       ppSection.style.display = 'none';
     }
     
+    // Load personal quotas from localStorage
+    const savedQuotas = JSON.parse(localStorage.getItem('personal_quotas') || '{}');
+    document.querySelectorAll('.quota-input-type').forEach(input => {
+      const type = input.getAttribute('data-type');
+      input.value = savedQuotas[type] || '';
+    });
+
+    // Enforce quotas on initial load
+    validateQuotasAndEnforce();
+
     // Recalculate total immediately on open using the loaded localStorage prices
     recalculateTotalFromPrices();
 
@@ -658,7 +696,7 @@
   function openRetroactiveSlipModal(log) {
     activeRetroLog = log;
     document.getElementById('retro-slip-form').action = '/transfer/upload-slip-retroactive/' + log.id;
-    document.getElementById('retro-items-label').innerText = log.item_names || '-';
+    document.getElementById('retro-items-label').innerHTML = formatLogItemNamesClient(log.item_names);
     document.getElementById('retro-sender-label').innerText = log.sender_name || '-';
     document.getElementById('retro-amount').value = log.amount > 0 ? log.amount : '';
 
@@ -716,6 +754,55 @@
     activeRetroLog = null;
   }
 
+  function formatLogItemNamesClient(itemNamesStr) {
+    if (!itemNamesStr) return '-';
+    const items = itemNamesStr.split(', ');
+    
+    // Group items by "PageName|ItemType"
+    const groups = {};
+    items.forEach(item => {
+      const match = item.match(/^\[([^\]]+)\]\s+(.+)\s+#(\d+)$/);
+      if (match) {
+        const page = match[1];
+        const type = match[2];
+        const pos = parseInt(match[3]);
+        const key = `${page}|${type}`;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(pos);
+      }
+    });
+
+    let html = '<div style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem;">';
+    Object.keys(groups).forEach(key => {
+      const [page, type] = key.split('|');
+      const positions = groups[key].sort((a, b) => a - b);
+      
+      let icon = '📄';
+      if (type.includes('Light-Dark')) icon = '🤍';
+      else if (type.includes('Time-Space')) icon = '❤️';
+      else if (type.includes('Album')) icon = '📒';
+      else if (type.includes('Box') || type.includes('Illution')) icon = '🧩';
+      else if (type.includes('Feather')) icon = '🪶';
+      else if (type.includes('Card')) icon = '🎴';
+      else if (type.includes('Book')) icon = '📖';
+
+      // Check if it's "all 4 positions" (1, 2, 3, 4)
+      const isAllPage = positions.length === 4 && 
+                        positions.includes(1) && 
+                        positions.includes(2) && 
+                        positions.includes(3) && 
+                        positions.includes(4);
+
+      let posStr = isAllPage ? '(ทั้งหน้า)' : `(${positions.map(p => `#${p}`).join(', ')})`;
+      
+      html += `<span style="background-color: white; color: #1e293b; border: 1px solid #cbd5e1; font-size: 0.75rem; padding: 0.15rem 0.35rem; border-radius: 4px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.15rem; white-space: nowrap;">${icon} ${type} 📄 ${page} ${posStr}</span>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
   // Listener to generate PromptPay QR when retroactive amount changes
   document.getElementById('retro-amount').addEventListener('input', function() {
     if (!activeRetroLog || !activeRetroLog.promptpay_id) return;
@@ -771,7 +858,70 @@
     recalculateTotalFromPrices();
   }
 
-  function updateModalCardStyle(cb, triggerRecalc = true) {
+  function savePersonalQuotasAndEnforce() {
+    const quotas = {};
+    document.querySelectorAll('.quota-input-type').forEach(input => {
+      const type = input.getAttribute('data-type');
+      const val = parseInt(input.value);
+      quotas[type] = (!isNaN(val) && val > 0) ? val : '';
+    });
+    localStorage.setItem('personal_quotas', JSON.stringify(quotas));
+    validateQuotasAndEnforce();
+  }
+
+  function validateQuotasAndEnforce(changedCheckbox = null) {
+    // Get all quota values
+    const quotas = {};
+    document.querySelectorAll('.quota-input-type').forEach(input => {
+      const type = input.getAttribute('data-type');
+      const val = parseInt(input.value);
+      quotas[type] = (!isNaN(val) && val > 0) ? val : null;
+    });
+
+    // Count checked items by type
+    const checkedCounts = {};
+    const checkedCheckboxes = {};
+
+    document.querySelectorAll('#modal-items-container input[name="item_ids"]').forEach(cb => {
+      if (cb.checked) {
+        const type = cb.getAttribute('data-item-type');
+        if (!checkedCounts[type]) {
+          checkedCounts[type] = 0;
+          checkedCheckboxes[type] = [];
+        }
+        checkedCounts[type]++;
+        checkedCheckboxes[type].push(cb);
+      }
+    });
+
+    // Enforce quotas
+    Object.keys(quotas).forEach(type => {
+      const quota = quotas[type];
+      if (quota !== null) {
+        const count = checkedCounts[type] || 0;
+        if (count > quota) {
+          if (changedCheckbox && changedCheckbox.checked && changedCheckbox.getAttribute('data-item-type') === type) {
+            // Prevent checking this item
+            changedCheckbox.checked = false;
+            updateModalCardStyle(changedCheckbox, false);
+            alert(`⚠️ เกินโควตาส่วนตัวที่คุณกำหนดไว้สำหรับ ${clientDisplayItemType(type)} (สูงสุด ${quota} ชิ้น)`);
+          } else {
+            // Automatically uncheck the last checked items of this type
+            const list = checkedCheckboxes[type] || [];
+            while (list.length > quota) {
+              const cbToUncheck = list.pop();
+              cbToUncheck.checked = false;
+              updateModalCardStyle(cbToUncheck, false);
+            }
+          }
+        }
+      }
+    });
+
+    recalculateTotalFromPrices();
+  }
+
+  function updateModalCardStyle(cb, runQuotaCheck = true) {
     const card = cb.closest('label');
     if (cb.checked) {
       card.style.backgroundColor = '#eff6ff'; // Light blue
@@ -780,7 +930,9 @@
       card.style.backgroundColor = 'transparent';
       card.style.borderColor = '#e2e8f0';
     }
-    if (triggerRecalc) {
+    if (runQuotaCheck) {
+      validateQuotasAndEnforce(cb);
+    } else {
       recalculateTotalFromPrices();
     }
   }
