@@ -257,8 +257,11 @@
             </div>
 
             <!-- Card Footer: Action Button -->
-            <div style="padding: 0 1.25rem 1.25rem 1.25rem;">
-              <button class="btn btn-primary" style="width: 100%; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.6rem;" onclick="showClaimDetails(<%= JSON.stringify(transfer) %>)">
+            <div style="padding: 0 1.25rem 1.25rem 1.25rem; display: flex; gap: 0.5rem;">
+              <button class="btn btn-danger" style="flex: 1; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.2rem; padding: 0.6rem; font-size: 0.9rem;" onclick="rejectTransfer(<%= transfer.id %>)">
+                ❌ ไม่รับแล้ว
+              </button>
+              <button class="btn btn-primary" style="flex: 2; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.2rem; padding: 0.6rem; font-size: 0.9rem;" onclick="showClaimDetails(<%= JSON.stringify(transfer) %>)">
                 💸 จ่ายเงิน & รับสิทธิ์นี้
               </button>
             </div>
@@ -538,6 +541,25 @@
 <script>
   const activeReservationsCount = <%- JSON.stringify(locals.activeReservationsCount || {}) %>;
   let activeTransfer = null;
+
+  function rejectTransfer(transferId) {
+    const reason = prompt("ระบุเหตุผลที่ไม่รับโอนสิทธิ์ (เช่น โควต้าเต็ม, ไม่สะดวกรับ) หรือกด ตกลง เลยถ้าไม่ระบุ:");
+    if (reason === null) return; // user clicked Cancel
+
+    // Create form and submit POST request
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/transfer/reject/' + transferId;
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'reason';
+    input.value = reason;
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+    form.submit();
+  }
 
   function showClaimDetails(transfer) {
     activeTransfer = transfer;

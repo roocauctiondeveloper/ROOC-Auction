@@ -96,7 +96,8 @@ describe('Database Queries', () => {
           item_names TEXT NOT NULL,
           amount NUMERIC NOT NULL,
           slip_url TEXT,
-          completed_at TEXT NOT NULL DEFAULT (datetime('now'))
+          completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+          transfer_id INTEGER
       );
     `);
     jest.resetModules();
@@ -250,5 +251,35 @@ describe('Database Queries', () => {
     expect(summary).toContain('🤍 Light-Dark 📄 Page 10 (#1)');
     // Time-Space: transferred 1 out of 1 total on this page -> should show (ทั้งหมด)
     expect(summary).toContain('❤️ Time-Space 📄 Page 10 (ทั้งหมด)');
+  });
+
+  test('should reject the transfer successfully', async () => {
+    const round = await queries.getOrCreateCurrentRound();
+    const roundId = round.id;
+    const pageId = await queries.addPage('Page 11');
+    const itemId = await queries.addItem(pageId, 'Light-Dark', 1);
+
+    await queries.addReservation(roundId, itemId, 'sender_x', 'SenderX');
+
+    const transferId = await queries.createTransfer(
+      roundId,
+      JSON.stringify([itemId]),
+      'sender_x',
+      'SenderX',
+      'recipient_y',
+      'RecipientY',
+      'KBank',
+      '123456',
+      'Sender Name',
+      null,
+      '0812345678',
+      'Sender PP Name'
+    );
+
+    const success = await queries.rejectTransfer(transferId, 'recipient_y');
+    expect(success.changes).toBe(1);
+
+    const cancelledTransfer = await queries.getTransferById(transferId);
+    expect(cancelledTransfer.status).toBe('cancelled');
   });
 });

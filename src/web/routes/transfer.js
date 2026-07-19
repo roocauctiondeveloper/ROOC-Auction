@@ -518,6 +518,75 @@ router.post('/cancel/:id', async (req, res) => {
   }
 });
 
+// ─── POST /transfer/reject/:id ───────────────────────────────────────────────
+router.post('/reject/:id', async (req, res) => {
+  const transferId = parseInt(req.params.id);
+  const { reason } = req.body;
+
+  try {
+    const transfer = await db.getTransferById(transferId);
+    if (!transfer) {
+      req.session.error_msg = 'ไม่พบรายการโอนนี้';
+      return res.redirect('/transfer/receive');
+    }
+
+    if (transfer.recipient_id !== req.user.discord_user_id) {
+      req.session.error_msg = 'คุณไม่มีสิทธิ์ปฏิเสธรายการนี้';
+      return res.redirect('/transfer/receive');
+    }
+
+    if (transfer.status !== 'pending') {
+      req.session.error_msg = 'รายการโอนไม่ได้อยู่ในสถานะที่สามารถปฏิเสธได้';
+      return res.redirect('/transfer/receive');
+    }
+
+    // Delete static payment QR image file if it exists
+    if (transfer.payment_qr_url) {
+      const qrPath = path.join(__dirname, '../public', transfer.payment_qr_url);
+      if (fs.existsSync(qrPath)) {
+        try {
+          fs.unlinkSync(qrPath);
+        } catch (unlinkErr) {
+          console.warn('Failed to delete QR image file:', unlinkErr.message);
+        }
+      }
+    }
+
+    await db.rejectTransfer(transferId, req.user.discord_user_id);
+
+    // Notify the sender via Discord in background
+    (async () => {
+      if (discordClient.isReady()) {
+        try {
+          const senderUser = await discordClient.users.fetch(transfer.sender_id);
+          const recipientName = req.user.server_name || req.user.discord_username || 'Unknown';
+          const itemsList = (transfer.items || []).map(item => `[${item.page_name}] ${item.item_type} #${item.position}`).join(', ');
+
+          const msgContent = 
+            `❌ **คำเสนอโอนสิทธิ์ถูกปฏิเสธ!**\n` +
+            `- **ผู้รับ:** ${recipientName} (${req.user.discord_username})\n` +
+            `- **ไอเทม:** ${itemsList}\n` +
+            (reason && reason.trim() !== '' ? `- **เหตุผล:** ${reason}\n` : '') +
+            `รายการนี้ถูกยกเลิกแล้ว ไอเทมได้ถูกดึงกลับเข้าคลังจองของคุณแล้ว`;
+
+          if (senderUser) {
+            await senderUser.send(msgContent);
+          }
+        } catch (discordErr) {
+          console.error('Failed to notify sender of rejection via Discord:', discordErr.message);
+        }
+      }
+    })();
+
+    req.session.success_msg = 'ปฏิเสธคำเสนอโอนสำเร็จแล้ว!';
+    res.redirect('/transfer/receive');
+  } catch (err) {
+    console.error('Error rejecting transfer:', err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการปฏิเสธคำขอโอน: ' + err.message;
+    res.redirect('/transfer/receive');
+  }
+});
+
 // ─── POST /transfer/upload-slip-retroactive/:logId ───────────────────────────
 router.post('/upload-slip-retroactive/:logId', uploadDisk.single('slip'), async (req, res) => {
   const logId = parseInt(req.params.logId);

@@ -95,6 +95,62 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
       )
     `);
 
+    await db.exec('ALTER TABLE transfer_logs ADD COLUMN IF NOT EXISTS transfer_id INTEGER');
+
+    // Retroactively populate transfer_id in transfer_logs
+    try {
+      const unlinkedLogs = await db.all('SELECT * FROM transfer_logs WHERE transfer_id IS NULL');
+      if (unlinkedLogs && unlinkedLogs.length > 0) {
+        console.log(`⏳ Migrating ${unlinkedLogs.length} unlinked transfer logs to populate transfer_id...`);
+        for (const log of unlinkedLogs) {
+          let matchedTransferId = null;
+
+          // 1. Try to extract from slip_url filename (e.g. slip-3-...)
+          if (log.slip_url) {
+            const match = log.slip_url.match(/slip-(\d+)-/i);
+            if (match) {
+              matchedTransferId = parseInt(match[1]);
+            }
+          }
+
+          // 2. If not matched, find completed transfers for sender/recipient/round
+          if (!matchedTransferId) {
+            const candidateTransfers = await db.all(
+              `SELECT id FROM transfers 
+               WHERE round_id = ? AND sender_id = ? AND recipient_id = ? AND status = 'completed'
+               ORDER BY id ASC`,
+              [log.round_id, log.sender_id, log.recipient_id]
+            );
+
+            if (candidateTransfers && candidateTransfers.length > 0) {
+              if (candidateTransfers.length === 1) {
+                matchedTransferId = candidateTransfers[0].id;
+              } else {
+                // Find all logs for this sender/recipient/round
+                const sisterLogs = await db.all(
+                  `SELECT id FROM transfer_logs 
+                   WHERE round_id = ? AND sender_id = ? AND recipient_id = ?
+                   ORDER BY id ASC`,
+                  [log.round_id, log.sender_id, log.recipient_id]
+                );
+                const logIndex = sisterLogs.findIndex(sl => sl.id === log.id);
+                if (logIndex !== -1 && logIndex < candidateTransfers.length) {
+                  matchedTransferId = candidateTransfers[logIndex].id;
+                }
+              }
+            }
+          }
+
+          if (matchedTransferId) {
+            await db.run('UPDATE transfer_logs SET transfer_id = ? WHERE id = ?', [matchedTransferId, log.id]);
+          }
+        }
+        console.log('✅ Finished migrating transfer logs.');
+      }
+    } catch (migErr) {
+      console.warn('⚠️ Failed to run transfer_id migration for transfer_logs:', migErr.message);
+    }
+
     // Retroactively sync transferred columns for old completed transfers
     if (process.env.NODE_ENV !== 'test') {
       try {
@@ -414,6 +470,10 @@ async function getRoundById(id) {
 }
 
 async function updateRoundStatus(roundId, status) {
+  if (status === 'closed') {
+    // Automatically cancel all pending transfers in this round when it is closed
+    await db.run("UPDATE transfers SET status = 'cancelled' WHERE round_id = ? AND status = 'pending'", [roundId]);
+  }
   if (status === 'open') {
     return db.run('UPDATE rounds SET status = ?, created_at = NOW() WHERE id = ?', [status, roundId]);
   }
@@ -912,20 +972,22 @@ async function createTransfer(roundId, itemIds, senderId, senderName, recipientI
 }
 
 async function getPendingTransfersForRecipient(recipientId) {
+  const round = await getOrCreateCurrentRound();
   const transfers = await db.all(`
     SELECT * FROM transfers
-    WHERE recipient_id = ? AND status = 'pending'
+    WHERE recipient_id = ? AND status = 'pending' AND round_id = ?
     ORDER BY created_at DESC
-  `, [recipientId]);
+  `, [recipientId, round.id]);
   return enrichTransfers(transfers);
 }
 
 async function getPendingTransfersForSender(senderId) {
+  const round = await getOrCreateCurrentRound();
   const transfers = await db.all(`
     SELECT * FROM transfers
-    WHERE sender_id = ? AND status = 'pending'
+    WHERE sender_id = ? AND status = 'pending' AND round_id = ?
     ORDER BY created_at DESC
-  `, [senderId]);
+  `, [senderId, round.id]);
   return enrichTransfers(transfers);
 }
 
@@ -941,6 +1003,13 @@ async function cancelTransfer(transferId, senderId) {
     UPDATE transfers SET status = 'cancelled'
     WHERE id = ? AND sender_id = ? AND status = 'pending'
   `, [transferId, senderId]);
+}
+
+async function rejectTransfer(transferId, recipientId) {
+  return db.run(`
+    UPDATE transfers SET status = 'cancelled'
+    WHERE id = ? AND recipient_id = ? AND status = 'pending'
+  `, [transferId, recipientId]);
 }
 
 async function completeTransfer(transferId, recipientId, recipientName, amount, slipUrl, selectedItemIds = null) {
@@ -993,8 +1062,8 @@ async function completeTransfer(transferId, recipientId, recipientName, amount, 
     await client.query(
       `INSERT INTO transfer_logs (
         round_id, sender_id, sender_name, recipient_id, recipient_name,
-        item_names, amount, slip_url, completed_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+        item_names, amount, slip_url, completed_at, transfer_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9)`,
       [
         transfer.round_id,
         transfer.sender_id,
@@ -1003,7 +1072,8 @@ async function completeTransfer(transferId, recipientId, recipientName, amount, 
         recipientName,
         itemNamesStr,
         amount,
-        slipUrl
+        slipUrl,
+        transferId
       ]
     );
 
@@ -1022,10 +1092,7 @@ async function getTransferHistoryForUser(userId) {
     SELECT tl.*,
            t.bank_name, t.bank_account_number, t.bank_account_name, t.payment_qr_url, t.promptpay_id, t.promptpay_name
     FROM transfer_logs tl
-    LEFT JOIN transfers t ON t.round_id = tl.round_id 
-      AND t.sender_id = tl.sender_id 
-      AND t.recipient_id = tl.recipient_id
-      AND t.status = 'completed'
+    LEFT JOIN transfers t ON t.id = tl.transfer_id
     WHERE tl.sender_id = ? OR tl.recipient_id = ?
     ORDER BY tl.completed_at DESC
   `, [userId, userId]);
@@ -1036,10 +1103,7 @@ async function getTransferLogById(logId) {
     SELECT tl.*,
            t.bank_name, t.bank_account_number, t.bank_account_name, t.payment_qr_url, t.promptpay_id, t.promptpay_name
     FROM transfer_logs tl
-    LEFT JOIN transfers t ON t.round_id = tl.round_id 
-      AND t.sender_id = tl.sender_id 
-      AND t.recipient_id = tl.recipient_id
-      AND t.status = 'completed'
+    LEFT JOIN transfers t ON t.id = tl.transfer_id
     WHERE tl.id = ?
   `, [logId]);
 }
@@ -1105,6 +1169,7 @@ module.exports = {
   getPendingTransfersForSender,
   getTransferById,
   cancelTransfer,
+  rejectTransfer,
   completeTransfer,
   getTransferHistoryForUser,
   getWhitelistMemberByDiscordId,
