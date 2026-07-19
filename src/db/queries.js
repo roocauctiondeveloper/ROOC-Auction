@@ -20,6 +20,7 @@ const { formatThaiDate, formatEnDate } = require('../utils/date');
     await db.exec('ALTER TABLE round_history_items ADD COLUMN IF NOT EXISTS transferred_from_name TEXT');
 
     await db.exec('ALTER TABLE whitelist ADD COLUMN IF NOT EXISTS job TEXT');
+    await db.exec('ALTER TABLE whitelist ADD COLUMN IF NOT EXISTS accept_transfers BOOLEAN DEFAULT true');
     await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS whitelist_discord_user_id_key ON whitelist (discord_user_id)');
     await db.run(`
       CREATE TABLE IF NOT EXISTS job_change_logs (
@@ -473,6 +474,8 @@ async function updateRoundStatus(roundId, status) {
   if (status === 'closed') {
     // Automatically cancel all pending transfers in this round when it is closed
     await db.run("UPDATE transfers SET status = 'cancelled' WHERE round_id = ? AND status = 'pending'", [roundId]);
+    // Reset all whitelist members to accept transfers again for the new round
+    await db.run("UPDATE whitelist SET accept_transfers = true");
   }
   if (status === 'open') {
     return db.run('UPDATE rounds SET status = ?, created_at = NOW() WHERE id = ?', [status, roundId]);
@@ -557,6 +560,11 @@ async function isWhitelisted(discordUserId) {
 
 async function toggleWhitelistStatus(id, isActive) {
   return db.run('UPDATE whitelist SET is_active = ? WHERE id = ?', [isActive, id]);
+}
+
+async function updateAcceptTransfersStatus(userId, status) {
+  const dbStatus = process.env.NODE_ENV === 'test' ? (status ? 1 : 0) : (status ? true : false);
+  return db.run('UPDATE whitelist SET accept_transfers = ? WHERE discord_user_id = ?', [dbStatus, userId]);
 }
 
 async function recordLotteryResults(participantIds, winnerIds) {
@@ -1176,4 +1184,5 @@ module.exports = {
   getTransferLogById,
   updateRetroactiveSlip,
   getUserActiveReservationsCount,
+  updateAcceptTransfersStatus,
 };

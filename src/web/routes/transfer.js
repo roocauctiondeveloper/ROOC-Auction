@@ -129,10 +129,11 @@ router.get('/send', async (req, res) => {
 
     // Get all whitelisted members for the recipient dropdown (extremely fast & doesn't block request)
     const whitelist = await db.getAllWhitelist();
-    const members = whitelist.map(w => ({
-      id: w.discord_user_id,
-      name: w.discord_username
-    })).filter(m => m.id !== req.user.discord_user_id)
+    const members = whitelist.filter(w => w.accept_transfers !== false)
+       .map(w => ({
+         id: w.discord_user_id,
+         name: w.discord_username
+       })).filter(m => m.id !== req.user.discord_user_id)
        .sort((a, b) => a.name.localeCompare(b.name));
 
     // Get active pending transfers sent by me
@@ -231,6 +232,14 @@ router.post('/send', uploadDisk.single('payment_qr'), async (req, res) => {
       return res.redirect('/transfer/send');
     }
 
+    // Verify if recipient is accepting transfers
+    const wl = await db.getAllWhitelist();
+    const userWl = wl.find(w => w.discord_user_id === actualRecipientId);
+    if (userWl && userWl.accept_transfers === false) {
+      req.session.error_msg = `❌ ${userWl.discord_username || 'ผู้รับ'} ปิดรับการโอนสิทธิ์ชั่วคราวเนื่องจากโควต้าเต็มแล้ว`;
+      return res.redirect('/transfer/send');
+    }
+
     // Fetch recipient name
     let recipientName = 'Unknown User';
     try {
@@ -321,16 +330,41 @@ router.get('/receive', async (req, res) => {
     const allHistory = await db.getTransferHistoryForUser(req.user.discord_user_id);
     const history = allHistory.filter(log => log.recipient_id === req.user.discord_user_id);
     const activeReservationsCount = await db.getUserActiveReservationsCount(req.user.discord_user_id, currentRound.id);
+    const myWhitelist = await db.getWhitelistMemberByDiscordId(req.user.discord_user_id);
 
     res.render('transfer/receive', {
       pendingTransfers,
       history,
       currentRound,
-      activeReservationsCount
+      activeReservationsCount,
+      myWhitelist: myWhitelist || {}
     });
   } catch (err) {
     console.error('Error loading receive transfer page:', err);
     res.status(500).send('Internal Server Error');
+  }
+});
+
+// ─── POST /transfer/toggle-accept-status ─────────────────────────────────────
+router.post('/toggle-accept-status', async (req, res) => {
+  try {
+    const myWhitelist = await db.getWhitelistMemberByDiscordId(req.user.discord_user_id);
+    if (!myWhitelist) {
+      req.session.error_msg = 'ไม่พบข้อมูลผู้ใช้ในระบบ Whitelist';
+      return res.redirect('/transfer/receive');
+    }
+
+    const newStatus = myWhitelist.accept_transfers !== false ? false : true;
+    await db.updateAcceptTransfersStatus(req.user.discord_user_id, newStatus);
+
+    req.session.success_msg = newStatus 
+      ? 'เปิดรับโอนสิทธิ์ของคุณเรียบร้อยแล้ว!' 
+      : 'ปิดรับโอนสิทธิ์ของคุณชั่วคราวแล้ว (โควต้าเต็ม)!';
+    res.redirect('/transfer/receive');
+  } catch (err) {
+    console.error('Error toggling accept status:', err);
+    req.session.error_msg = 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะการรับโอน: ' + err.message;
+    res.redirect('/transfer/receive');
   }
 });
 
@@ -554,6 +588,16 @@ router.post('/reject/:id', async (req, res) => {
 
     await db.rejectTransfer(transferId, req.user.discord_user_id);
 
+    // If reject reason contains "เต็ม" / "quota" / "full", automatically set accept_transfers = false
+    const isQuotaFull = reason && (
+      reason.includes('เต็ม') ||
+      reason.toLowerCase().includes('quota') ||
+      reason.toLowerCase().includes('full')
+    );
+    if (isQuotaFull) {
+      await db.updateAcceptTransfersStatus(req.user.discord_user_id, false);
+    }
+
     // Notify the sender via Discord in background
     (async () => {
       if (discordClient.isReady()) {
@@ -567,7 +611,8 @@ router.post('/reject/:id', async (req, res) => {
             `- **ผู้รับ:** ${recipientName} (${req.user.discord_username})\n` +
             `- **ไอเทม:** ${itemsList}\n` +
             (reason && reason.trim() !== '' ? `- **เหตุผล:** ${reason}\n` : '') +
-            `รายการนี้ถูกยกเลิกแล้ว ไอเทมได้ถูกดึงกลับเข้าคลังจองของคุณแล้ว`;
+            `รายการนี้ถูกยกเลิกแล้ว ไอเทมได้ถูกดึงกลับเข้าคลังจองของคุณแล้ว` +
+            (isQuotaFull ? `\n⚠️ *ผู้รับได้ตั้งค่า 'โควต้าเต็ม' และปิดการรับโอนสิทธิ์ชั่วคราวแล้ว*` : '');
 
           if (senderUser) {
             await senderUser.send(msgContent);
@@ -578,7 +623,9 @@ router.post('/reject/:id', async (req, res) => {
       }
     })();
 
-    req.session.success_msg = 'ปฏิเสธคำเสนอโอนสำเร็จแล้ว!';
+    req.session.success_msg = isQuotaFull 
+      ? 'ปฏิเสธคำเสนอโอนสำเร็จ และทำการปิดรับโอนชั่วคราว (โควต้าเต็ม) เรียบร้อยแล้ว!'
+      : 'ปฏิเสธคำเสนอโอนสำเร็จแล้ว!';
     res.redirect('/transfer/receive');
   } catch (err) {
     console.error('Error rejecting transfer:', err);

@@ -67,6 +67,7 @@ describe('Database Queries', () => {
           win_count        INTEGER DEFAULT 0,
           spin_count       INTEGER DEFAULT 0,
           job              TEXT,
+          accept_transfers BOOLEAN DEFAULT 1,
           created_at       TEXT NOT NULL DEFAULT (datetime('now'))
       );
       CREATE TABLE IF NOT EXISTS transfers (
@@ -281,5 +282,25 @@ describe('Database Queries', () => {
 
     const cancelledTransfer = await queries.getTransferById(transferId);
     expect(cancelledTransfer.status).toBe('cancelled');
+  });
+
+  test('should update accept transfers status and reset on round close', async () => {
+    const round = await queries.getOrCreateCurrentRound();
+    const roundId = round.id;
+
+    // Create a mock user in whitelist
+    await mockActiveDb.run(
+      "INSERT INTO whitelist (discord_username, discord_user_id, is_active) VALUES ('testuser', 'user_123', true)"
+    );
+
+    // Toggle to false
+    await queries.updateAcceptTransfersStatus('user_123', false);
+    let member = await queries.getWhitelistMemberByDiscordId('user_123');
+    expect(member.accept_transfers).toBe(0); // sqlite stores boolean as 0/1 or false/true
+
+    // Close the round and verify it resets back to true/1
+    await queries.updateRoundStatus(roundId, 'closed');
+    member = await queries.getWhitelistMemberByDiscordId('user_123');
+    expect(member.accept_transfers).toBe(1);
   });
 });

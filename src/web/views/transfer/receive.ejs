@@ -100,9 +100,9 @@
     <!-- Global Configurations Row -->
     <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; max-width: 1300px;">
       <!-- Global Price Configuration (Locked outside) -->
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 280px; max-width: 600px;">
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 250px;">
         <div style="font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
-          <span>🧮 กำหนดราคาต่อชิ้นตามประเภท (คำนวณราคายอดรวมอัตโนมัติ)</span>
+          <span>🧮 กำหนดราคาต่อชิ้นตามประเภท</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 0.75rem;">
           <% typesArray.forEach(type => { 
@@ -117,7 +117,7 @@
       </div>
 
       <!-- Global Quota Configuration (Locked outside) -->
-      <div style="background: #fffdf5; border: 1px solid #fef08a; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 280px; max-width: 600px;">
+      <div style="background: #fffdf5; border: 1px solid #fef08a; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 250px;">
         <div style="font-size: 0.85rem; font-weight: 700; color: #854d0e; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
           <span>⚙️ กำหนดโควตาส่วนตัวในการรับโอน (ชิ้น)</span>
         </div>
@@ -130,6 +130,23 @@
               <input type="number" class="quota-input-type" data-type="<%= type %>" placeholder="ไม่จำกัด" min="1" style="padding: 0.25rem; font-size: 0.8rem; height: auto; border: 1px solid #cbd5e1; border-radius: 4px; width: 65px; background: white;" oninput="savePersonalQuotasAndEnforce()">
             </div>
           <% }) %>
+        </div>
+      </div>
+
+      <!-- Personal Accept Transfers Status Control -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 250px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="font-size: 0.85rem; font-weight: 700; color: #334155; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 4px;">
+          <span>🚪 สถานะการเปิดรับโอนสิทธิ์ของคุณ</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+          <span style="font-size: 0.82rem; font-weight: 700; color: <%= myWhitelist.accept_transfers !== false ? '#15803d' : '#b91c1c' %>;">
+            <%= myWhitelist.accept_transfers !== false ? '🟢 เปิดรับโอนปกติ' : '🔴 ปิดรับโอน (โควต้าเต็ม)' %>
+          </span>
+          <form action="/transfer/toggle-accept-status" method="POST" style="margin: 0;">
+            <button type="submit" class="btn <%= myWhitelist.accept_transfers !== false ? 'btn-danger' : 'btn-primary' %>" style="padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 700; width: auto; height: auto; display: inline-flex; align-items: center; justify-content: center;">
+              <%= myWhitelist.accept_transfers !== false ? '🛑 ปิดรับโอน' : '✅ เปิดรับโอน' %>
+            </button>
+          </form>
         </div>
       </div>
     </div>
@@ -543,7 +560,7 @@
   let activeTransfer = null;
 
   function rejectTransfer(transferId) {
-    const reason = prompt("ระบุเหตุผลที่ไม่รับโอนสิทธิ์ (เช่น โควต้าเต็ม, ไม่สะดวกรับ) หรือกด ตกลง เลยถ้าไม่ระบุ:");
+    const reason = prompt("ระบุเหตุผลที่ไม่รับโอนสิทธิ์ (พิมพ์คำว่า \"โควต้าเต็ม\" หรือ \"เต็ม\" เพื่อสั่งปิดรับโอนสิทธิ์ชั่วคราวไม่ให้ใครส่งหาคุณได้อีก):");
     if (reason === null) return; // user clicked Cancel
 
     // Create form and submit POST request
