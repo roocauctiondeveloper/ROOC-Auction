@@ -147,8 +147,8 @@
         // simply ask the AI: "เปิดกรอบทอง VIP ให้ 2 ไอดีนี้หน่อย" (Enable VIP gold frames for these 2 IDs)
         // =========================================================================
         const specialUserIds = new Set([
-          // '295747827517227009',
-          // '1496001204549976114'
+          '295747827517227009',
+          '1496001204549976114'
         ]);
         pendingTransfers.sort((a, b) => {
           const aSpecial = specialUserIds.has(a.sender_id) ? 1 : 0;

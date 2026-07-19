@@ -318,7 +318,8 @@ router.get('/receive', async (req, res) => {
   try {
     const currentRound = await db.getOrCreateCurrentRound();
     const pendingTransfers = await db.getPendingTransfersForRecipient(req.user.discord_user_id);
-    const history = await db.getTransferHistoryForUser(req.user.discord_user_id);
+    const allHistory = await db.getTransferHistoryForUser(req.user.discord_user_id);
+    const history = allHistory.filter(log => log.recipient_id === req.user.discord_user_id);
     const activeReservationsCount = await db.getUserActiveReservationsCount(req.user.discord_user_id, currentRound.id);
 
     res.render('transfer/receive', {
