@@ -432,10 +432,10 @@ router.post('/claim/:id', uploadDisk.single('slip'), async (req, res) => {
             await senderUser.send(dmOptions);
           }
 
-          // Log to announcement channel in background
-          const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
-          if (announceChannelId) {
-            const channel = await discordClient.channels.fetch(announceChannelId);
+          // Log to transfer log channel in background (if configured)
+          const logChannelId = process.env.DISCORD_TRANSFER_LOG_CHANNEL_ID || process.env.DISCORD_LOG_CHANNEL_ID;
+          if (logChannelId) {
+            const channel = await discordClient.channels.fetch(logChannelId);
             if (channel) {
               const announceOptions = {
                 content: `🔄 **[โอนสิทธิ์สำเร็จ]** ${transfer.sender_name} ได้โอนสิทธิ์จอง **${itemsStr}** ให้กับ ${recipientName} ` +
@@ -583,10 +583,10 @@ router.post('/upload-slip-retroactive/:logId', uploadDisk.single('slip'), async 
             });
           }
 
-          // Log to announcement channel in background
-          const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
-          if (announceChannelId) {
-            const channel = await discordClient.channels.fetch(announceChannelId);
+          // Log to transfer log channel in background (if configured)
+          const logChannelId = process.env.DISCORD_TRANSFER_LOG_CHANNEL_ID || process.env.DISCORD_LOG_CHANNEL_ID;
+          if (logChannelId) {
+            const channel = await discordClient.channels.fetch(logChannelId);
             if (channel) {
               await channel.send({
                 content: `🔄 **[แนบสลิปย้อนหลังสำเร็จ]** ${recipientName} ได้ส่งหลักฐานการโอนเงินจำนวน **${parsedAmount.toLocaleString()} บาท** สำหรับการโอนสิทธิ์ **${log.item_names}** จาก ${log.sender_name}`,
