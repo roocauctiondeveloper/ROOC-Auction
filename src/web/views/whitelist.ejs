@@ -79,6 +79,7 @@
           <th style="width: 40px;"><input type="checkbox" id="select-all" checked onchange="toggleSelectAll(this)"></th>
           <th style="cursor: pointer; user-select: none;" onclick="sortTable('status')">Status <span id="sort-icon-status" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
           <th style="cursor: pointer; user-select: none;" onclick="sortTable('name')">User Info <span id="sort-icon-name" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
+          <th style="cursor: pointer; user-select: none;" onclick="sortTable('party')">Party <span id="sort-icon-party" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
           <th style="cursor: pointer; user-select: none;" onclick="sortTable('winrate')">Luck / Stats <span id="sort-icon-winrate" style="font-size: 0.8rem; opacity: 0.3; margin-left: 4px;">↕️</span></th>
           <th>Discord ID</th>
           <th style="text-align: right;">Actions</th>
@@ -87,7 +88,7 @@
       <tbody>
         <% if (whitelist.length === 0) { %>
           <tr>
-            <td colspan="6" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
+            <td colspan="7" style="text-align: center; padding: 3rem 1rem; color: var(--text-light);">No users found.</td>
           </tr>
         <% } else { %>
           <% let rowIndex = 0; %>
@@ -97,7 +98,7 @@
              if (winRate >= 50) luckColor = 'var(--success)';
              else if (winRate > 0 && winRate < 20) luckColor = 'var(--danger)';
           %>
-            <tr id="row-<%= user.id %>" class="sortable-row" data-original-index="<%= rowIndex++ %>" data-winrate="<%= winRate %>" data-spins="<%= user.spin_count %>" data-name="<%= user.discord_username %>" style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %> transition: opacity 0.3s;">
+            <tr id="row-<%= user.id %>" class="sortable-row" data-original-index="<%= rowIndex++ %>" data-winrate="<%= winRate %>" data-spins="<%= user.spin_count %>" data-name="<%= user.discord_username %>" data-party="<%= user.party_name || '' %>" style="<%= user.is_active ? '' : 'opacity: 0.6; background-color: #f8fafc;' %> transition: opacity 0.3s;">
               <td>
                 <input type="checkbox" class="participant-checkbox" value="<%= user.id %>" data-username="<%= user.discord_username %>" checked onchange="updateWheelFromSelection()">
               </td>
@@ -118,6 +119,16 @@
                 <a href="/whitelist/<%= user.id %>/history" style="text-decoration: none; color: var(--text); border-bottom: 1px dashed var(--text-light); padding-bottom: 2px; transition: all 0.2s;" onmouseover="this.style.color='var(--primary)'; this.style.borderColor='var(--primary)';" onmouseout="this.style.color='var(--text)'; this.style.borderColor='var(--text-light)';">
                     <strong style="color: inherit;"><%= user.discord_username %></strong>
                 </a>
+              </td>
+
+              <td>
+                <% if (user.party_name) { %>
+                  <span class="badge" style="background: #e0e7ff; color: #4f46e5; border: 1px solid #c7d2fe; font-size: 0.85rem; font-weight: 500;">
+                    🛡️ <%= user.party_name %>
+                  </span>
+                <% } else { %>
+                  <span style="color: var(--text-light); font-size: 0.85rem;">-</span>
+                <% } %>
               </td>
 
               <td>
@@ -533,7 +544,7 @@
             currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             currentSortColumn = column;
-            currentSortDirection = column === 'name' ? 'asc' : 'desc'; // Default: name A-Z, others High-Low
+            currentSortDirection = (column === 'name' || column === 'party') ? 'asc' : 'desc'; // Default: name/party A-Z, others High-Low
         }
         
         // Update icons
@@ -556,6 +567,19 @@
                 valA = a.getAttribute('data-name').toLowerCase();
                 valB = b.getAttribute('data-name').toLowerCase();
                 return currentSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (column === 'party') {
+                valA = (a.getAttribute('data-party') || '').toLowerCase();
+                valB = (b.getAttribute('data-party') || '').toLowerCase();
+                if (!valA && valB) return currentSortDirection === 'asc' ? 1 : -1;
+                if (valA && !valB) return currentSortDirection === 'asc' ? -1 : 1;
+                if (valA === valB) {
+                    const nameA = a.getAttribute('data-name').toLowerCase();
+                    const nameB = b.getAttribute('data-name').toLowerCase();
+                    return nameA.localeCompare(nameB);
+                }
+                return currentSortDirection === 'asc' 
+                    ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' }) 
+                    : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
             } else if (column === 'winrate') {
                 valA = parseFloat(a.getAttribute('data-winrate'));
                 valB = parseFloat(b.getAttribute('data-winrate'));
