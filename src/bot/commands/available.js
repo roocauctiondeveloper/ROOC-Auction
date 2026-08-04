@@ -133,7 +133,8 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
       // Find all available items from this bundle
       const availableInBundle = allAvailable.filter(i => specificIds.includes(i.id));
       if (availableInBundle.length === 0) {
-        return interaction.reply({ content: translate(language, 'setReserved'), flags: [MessageFlags.Ephemeral] });
+        const winner = await db.getItemReserver(round.id, specificIds);
+        return interaction.reply({ content: translate(language, 'setReserved', { winner }), flags: [MessageFlags.Ephemeral] });
       }
 
       // Strict adherence: Do not allow them to slice a FULL 4-item page bundle if there are still other fragmented pages available.
@@ -203,7 +204,9 @@ async function reserveFeatherBundle(interaction, category, specificIds = null) {
       const attemptedIds = (specificIds && specificIds.length > 0) ? specificIds : toReserve.map(i => i.id);
       console.log(`[Reserve Race] User ${discordUsername} tried to reserve already reserved items: [${attemptedIds.join(', ')}]`);
       if (!interaction.replied) {
-        return interaction.reply({ content: translate(language, 'race'), flags: [MessageFlags.Ephemeral] });
+        const checkRound = await db.getOrCreateCurrentRound();
+        const winner = await db.getItemReserver(checkRound?.id, attemptedIds);
+        return interaction.reply({ content: translate(language, 'race', { winner }), flags: [MessageFlags.Ephemeral] });
       }
     }
     console.error('[Reserve Error]', err);
@@ -239,7 +242,8 @@ async function reserveBookItem(interaction, itemId) {
 
     if (await db.isItemReserved(round.id, itemId)) {
       updateLiveBoard(interaction.client, round.id).catch(err => console.error('❌ Board update error:', err));
-      return interaction.reply({ content: translate(language, 'alreadyReserved'), flags: [MessageFlags.Ephemeral] });
+      const winner = await db.getItemReserver(round.id, itemId);
+      return interaction.reply({ content: translate(language, 'alreadyReserved', { winner }), flags: [MessageFlags.Ephemeral] });
     }
 
     await db.addReservation(round.id, itemId, discordUserId, discordUsername);
@@ -255,13 +259,13 @@ async function reserveBookItem(interaction, itemId) {
     if (err.code === '23505' || err.message?.includes('UNIQUE constraint failed') || err.code === 'SQLITE_CONSTRAINT') {
       console.log(`[Reserve] Race condition: User ${discordUsername} tried to reserve already reserved item ID: ${itemId}.`);
       if (!interaction.replied) {
-        return interaction.reply({ content: translate(language, 'race'), flags: [MessageFlags.Ephemeral] });
+        const checkRound = await db.getOrCreateCurrentRound();
+        const winner = await db.getItemReserver(checkRound?.id, itemId);
+        return interaction.reply({ content: translate(language, 'race', { winner }), flags: [MessageFlags.Ephemeral] });
       }
     }
     console.error('[Book Reserve Error]', err);
     if (!interaction.replied) interaction.reply({ content: translate(language, 'genericError'), flags: [MessageFlags.Ephemeral] }).catch(() => { });
-  } finally {
-    activeLocks.delete(lockKey);
   }
 }
 

@@ -392,6 +392,23 @@ async function isItemReserved(roundId, itemId) {
   return !!row;
 }
 
+async function getItemReserver(roundId, itemIdOrIds) {
+  try {
+    if (!itemIdOrIds) return null;
+    const ids = Array.isArray(itemIdOrIds) ? itemIdOrIds.filter(Boolean) : [itemIdOrIds];
+    if (ids.length === 0) return null;
+
+    const row = await db.get(
+      'SELECT discord_user_id, discord_username FROM reservations WHERE round_id = ? AND item_id = ? LIMIT 1',
+      [roundId, ids[0]]
+    );
+    if (!row) return null;
+    return row.discord_user_id ? `<@${row.discord_user_id}>` : (row.discord_username || null);
+  } catch (err) {
+    return null;
+  }
+}
+
 async function getReservationById(id) {
   // ดึงข้อมูลการจองพร้อมประเภทไอเทมและหน้า
   return db.get(`
@@ -1146,7 +1163,7 @@ async function updateRetroactiveSlip(logId, recipientId, amount, slipUrl) {
 module.exports = {
   getAllPages, addPage, deletePage, deleteAllPages,
   getItemsForPage, addItem, deleteItem, deleteItemsByPage, getItemById,
-  getCurrentReservations, getReservationsByRound, addReservation, addMultipleReservations, deleteReservation, isItemReserved,
+  getCurrentReservations, getReservationsByRound, addReservation, addMultipleReservations, deleteReservation, isItemReserved, getItemReserver,
   getReservationById, deletePageReservationsForUser, deleteAllUserReservationsInRound, deleteSingleReservation,
   getCurrentRound, getOrCreateCurrentRound, getRoundById, updateRoundStatus,
   saveRoundBoardMessage, getRoundBoardMessage,
